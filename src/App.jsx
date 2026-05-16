@@ -95,6 +95,17 @@ function load() {
   return { projects:DEF_PROJECTS, ideas:DEF_IDEAS, nid:10 };
 }
 function persist(s) { try { localStorage.setItem(SK, JSON.stringify(s)); } catch {} }
+function loadPid(projects) {
+  try {
+    const saved = localStorage.getItem(SK+"_pid");
+    if (saved) {
+      const id = parseInt(saved);
+      if (projects.find(p=>p.id===id)) return id;
+    }
+  } catch {}
+  return projects[0]?.id||1;
+}
+function savePid(id) { try { localStorage.setItem(SK+"_pid", String(id)); } catch {} }
 
 function fmt(ts) {
   const d = new Date(ts);
@@ -355,8 +366,9 @@ function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveD
 
         {/* Main row */}
         <div style={{ display:"flex", alignItems:"flex-start", padding:"12px 12px 8px" }}>
-          {/* Move up/down */}
-          <div style={{ display:"flex", flexDirection:"column", gap:2, paddingLeft:6, flexShrink:0 }}>
+          {/* Move up/down - stopPropagation to avoid focus trigger */}
+          <div style={{ display:"flex", flexDirection:"column", gap:2, paddingLeft:6, flexShrink:0 }}
+            onClick={e=>e.stopPropagation()}>
             <IconBtn name="up" onClick={onMoveUp} disabled={isFirst}
               color={isFirst?th.muted:th.accent} bg={th.accentSoft} size={16} pad="3px 6px" />
             <IconBtn name="down" onClick={onMoveDown} disabled={isLast}
@@ -375,11 +387,12 @@ function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveD
 
           {/* Text */}
           <div onClick={()=>isLong && setExpanded(p=>!p)}
-            style={{ flex:1, fontSize:16, lineHeight:1.7, color:th.text,
+            style={{ flex:1, fontSize:15, lineHeight:1.45, color:th.text,
               textDecoration:stroked?"line-through":"none",
               cursor:isLong?"pointer":"default",
-              fontFamily:"'Rubik',sans-serif", fontWeight:500,
+              fontFamily:"'Rubik',sans-serif", fontWeight:400,
               whiteSpace:"pre-wrap", wordBreak:"break-word",
+              direction:"rtl", textAlign:"right",
               overflow:"hidden", display:"-webkit-box",
               WebkitLineClamp:expanded?"unset":3, WebkitBoxOrient:"vertical" }}>
             {idea.pinned && (
@@ -758,7 +771,9 @@ export default function App() {
   const [projects, setProjects] = useState(init.projects);
   const [ideas, setIdeas]       = useState(init.ideas);
   const [nid, setNid]           = useState(init.nid);
-  const [pid, setPid]           = useState(init.projects[0]?.id||1);
+  const [pid, setPid]           = useState(()=>loadPid(init.projects));
+
+  const setPidAndSave = (id) => { setPid(id); savePid(id); };
   const [search, setSearch]     = useState("");
   const [archive, setArchive]   = useState(false);
   const [showAI, setShowAI]     = useState(false);
@@ -820,11 +835,11 @@ export default function App() {
   const delIdea  = id => { setIdeas(p=>p.filter(i=>i.id!==id)); toast$("נמחק"); };
   const addProj  = name => {
     const id=nidRef.current, color=PROJ_COLORS[projects.length%PROJ_COLORS.length];
-    setProjects(p=>[...p,{id,name,notes:"",color}]); setNid(n=>n+1); setPid(id);
+    setProjects(p=>[...p,{id,name,notes:"",color}]); setNid(n=>n+1); setPidAndSave(id);
   };
   const delProj  = id => {
     setProjects(p=>p.filter(x=>x.id!==id)); setIdeas(p=>p.filter(i=>i.pid!==id));
-    if(pid===id) setPid(projects.find(x=>x.id!==id)?.id);
+    if(pid===id) setPidAndSave(projects.find(x=>x.id!==id)?.id);
   };
   const editProj = (id,name) => setProjects(p=>p.map(x=>x.id===id?{...x,name}:x));
   const saveNotes= notes => setProjects(p=>p.map(x=>x.id===pid?{...x,notes}:x));
@@ -938,7 +953,7 @@ export default function App() {
                         style={{ display:"flex", alignItems:"center", gap:4, padding:"9px 10px",
                           background:p.id===pid?th.accentTint:th.surface,
                           borderBottom:`1px solid ${th.border}` }}>
-                        <div onClick={e=>{ e.stopPropagation(); setPid(p.id); setShowMenu(false); }}
+                        <div onClick={e=>{ e.stopPropagation(); setPidAndSave(p.id); setShowMenu(false); }}
                           style={{ display:"flex", alignItems:"center", gap:7, flex:1, cursor:"pointer" }}>
                           <div style={{ width:9, height:9, borderRadius:"50%",
                             background:p.color, flexShrink:0 }} />
@@ -1029,7 +1044,7 @@ export default function App() {
       {shareIdea && <ShareModal idea={shareIdea} onClose={()=>setShare(null)} th={th} />}
       {showProj  && <ProjModal projects={projects} ideas={ideas} activePid={pid}
         onClose={()=>setShowProj(false)} onAdd={addProj} onDel={delProj}
-        onEdit={editProj} onSelect={id=>{ setPid(id); setShowProj(false); }} th={th} />}
+        onEdit={editProj} onSelect={id=>{ setPidAndSave(id); setShowProj(false); }} th={th} />}
       {showNotes && cur && <NotesModal project={cur} onSave={saveNotes}
         onClose={()=>setShowNotes(false)} th={th} />}
     </div>
