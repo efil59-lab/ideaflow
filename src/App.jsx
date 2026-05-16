@@ -2,6 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { auth, googleProvider, db } from "./firebase";
+import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { ref, onValue, set } from "firebase/database";
 
 const PROJ_COLORS = ["#2563EB","#0891B2","#7C3AED","#059669","#D97706"];
 const SK = "ideas_v22";
@@ -785,15 +788,143 @@ function NotesModal({ project, onSave, onClose, th }) {
   );
 }
 
+// ── Login Screen ──────────────────────────────────────────────────────────────
+function LoginScreen({ th }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState(null);
+
+  const login = async () => {
+    setLoading(true); setError(null);
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch(e) {
+      setError("שגיאה בהתחברות. נסה שוב.");
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ minHeight:"100vh", background:th.bg, display:"flex",
+      alignItems:"center", justifyContent:"center", padding:24,
+      fontFamily:"'Rubik',sans-serif", direction:"rtl" }}>
+      <div style={{ background:th.surface, borderRadius:24, padding:40,
+        maxWidth:360, width:"100%", textAlign:"center",
+        border:`1.5px solid ${th.border}`,
+        boxShadow:"0 8px 32px rgba(0,0,0,0.08)" }}>
+        <div style={{ fontSize:52, marginBottom:16 }}>💡</div>
+        <h1 style={{ margin:"0 0 8px", fontSize:28, fontWeight:900, color:th.text }}>
+          IdeaFlow
+        </h1>
+        <p style={{ margin:"0 0 32px", fontSize:15, color:th.muted, lineHeight:1.6 }}>
+          שמור וארגן את הרעיונות שלך
+        </p>
+        <button onClick={login} disabled={loading}
+          style={{ width:"100%", padding:"14px 0", borderRadius:12,
+            background: loading ? th.surface2 : "#fff",
+            border:`1.5px solid ${th.border}`,
+            cursor: loading ? "default" : "pointer",
+            fontSize:15, fontWeight:700, color:th.text,
+            display:"flex", alignItems:"center", justifyContent:"center", gap:12,
+            fontFamily:"'Rubik',sans-serif",
+            boxShadow:"0 2px 8px rgba(0,0,0,0.08)" }}>
+          {loading ? (
+            <span style={{ color:th.muted }}>מתחבר...</span>
+          ) : (
+            <>
+              <svg width="20" height="20" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              התחבר עם Google
+            </>
+          )}
+        </button>
+        {error && (
+          <p style={{ margin:"16px 0 0", fontSize:13, color:th.red }}>{error}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const init = load();
-  const [projects, setProjects] = useState(init.projects);
-  const [ideas, setIdeas]       = useState(init.ideas);
-  const [nid, setNid]           = useState(init.nid);
-  const [pid, setPid]           = useState(()=>loadPid(init.projects));
+  const [user, setUser]         = useState(undefined); // undefined=loading
+  const [dark, setDark]         = useState(false);
+  const th = getTheme(dark);
 
-  const setPidAndSave = (id) => { setPid(id); savePid(id); };
+  // Auth state listener
+  useEffect(()=>{
+    const unsub = onAuthStateChanged(auth, u => setUser(u || null));
+    return () => unsub();
+  }, []);
+
+  if (user === undefined) return (
+    <div style={{ minHeight:"100vh", background:th.bg, display:"flex",
+      alignItems:"center", justifyContent:"center" }}>
+      <div style={{ fontSize:48 }}>💡</div>
+    </div>
+  );
+
+  if (!user) return <LoginScreen th={th} />;
+
+  return <AppContent user={user} dark={dark} setDark={setDark} th={th} />;
+}
+
+function AppContent({ user, dark, setDark, th }) {
+  const uid = user.uid;
+  const dbPath = `users/${uid}`;
+
+  const [projects, setProjects] = useState(null);
+  const [ideas, setIdeas]       = useState(null);
+  const [nid, setNid]           = useState(null);
+  const [pid, setPid]           = useState(null);
+  const [loaded, setLoaded]     = useState(false);
+
+  // Load data from Firebase
+  useEffect(()=>{
+    const unsub = onValue(ref(db, dbPath), snap => {
+      const data = snap.val();
+      if (data) {
+        setProjects(data.projects || DEF_PROJECTS);
+        setIdeas(data.ideas || DEF_IDEAS);
+        setNid(data.nid || 10);
+        const savedPid = data.lastPid;
+        const validPid = (data.projects||DEF_PROJECTS).find(p=>p.id===savedPid);
+        setPid(validPid ? savedPid : (data.projects||DEF_PROJECTS)[0]?.id || 1);
+      } else {
+        // First time user
+        const initData = { projects:DEF_PROJECTS, ideas:DEF_IDEAS, nid:10, lastPid:1 };
+        set(ref(db, dbPath), initData);
+        setProjects(DEF_PROJECTS);
+        setIdeas(DEF_IDEAS);
+        setNid(10);
+        setPid(1);
+      }
+      setLoaded(true);
+    });
+    return () => unsub();
+  }, [uid]);
+
+  // Save to Firebase (debounced)
+  const saveTimer = useRef(null);
+  const saveToFirebase = (data) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      set(ref(db, dbPath), data).catch(()=>{});
+    }, 800);
+  };
+
+  const persistAll = (p, i, n, lastPid) => {
+    saveToFirebase({ projects:p, ideas:i, nid:n, lastPid });
+  };
+
+  const setPidAndSave = (id) => {
+    setPid(id);
+    persistAll(projects, ideas, nid, id);
+  };
   const [search, setSearch]     = useState("");
   const [archive, setArchive]   = useState(false);
   const [showAI, setShowAI]     = useState(false);
@@ -818,7 +949,6 @@ export default function App() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const [dark, setDark]           = useState(false);
   const [focusedId, setFocusedId] = useState(null);
   const [sortMode, setSortMode]   = useState(false);
 
@@ -830,23 +960,27 @@ export default function App() {
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    setIdeas(prev => {
-      const oldIndex = prev.findIndex(i => i.id === active.id);
-      const newIndex = prev.findIndex(i => i.id === over.id);
-      return arrayMove(prev, oldIndex, newIndex);
-    });
+    const oldIndex = ideas.findIndex(i => i.id === active.id);
+    const newIndex = ideas.findIndex(i => i.id === over.id);
+    const next = arrayMove(ideas, oldIndex, newIndex);
+    setIdeas(next);
+    persistAll(projects, next, nid, pid);
   };
 
-  const th = getTheme(dark);
   const nidRef = useRef(nid);
   nidRef.current = nid;
 
-  useEffect(()=>{
-    const t = setTimeout(()=>persist({projects,ideas,nid}),500);
-    return ()=>clearTimeout(t);
-  },[projects,ideas,nid]);
-
   const toast$ = msg => { setToast(msg); setTimeout(()=>setToast(null),1800); };
+
+  if (!loaded || !projects || !ideas) return (
+    <div style={{ minHeight:"100vh", background:th.bg, display:"flex",
+      alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16,
+      fontFamily:"'Rubik',sans-serif" }}>
+      <div style={{ fontSize:48 }}>💡</div>
+      <div style={{ color:th.muted, fontSize:15 }}>טוען נתונים...</div>
+    </div>
+  );
+
   const cur = projects.find(p=>p.id===pid);
 
   const filtered = ideas
@@ -858,32 +992,63 @@ export default function App() {
   const active = ideas.filter(i=>i.pid===pid&&!i.done).length;
   const done   = ideas.filter(i=>i.pid===pid&&i.done).length;
 
-  const saveNew  = ({text,images,remindAt}) => {
-    const id=nidRef.current;
-    setIdeas(p=>[{id,pid,text,color:"#FFFFFF",pinned:false,checked:false,done:false,images,remindAt:remindAt||null,at:Date.now()},...p]);
-    setNid(n=>n+1); setNewOpen(false); toast$("רעיון נוסף");
+  const saveNew = ({text,images,remindAt}) => {
+    const id = nidRef.current;
+    const newIdea = {id,pid,text,color:"#FFFFFF",pinned:false,checked:false,done:false,images,remindAt:remindAt||null,at:Date.now()};
+    const newIdeas = [newIdea, ...ideas];
+    const newNid = nid + 1;
+    setIdeas(newIdeas); setNid(newNid); setNewOpen(false);
+    persistAll(projects, newIdeas, newNid, pid);
+    toast$("רעיון נוסף");
   };
   const saveEdit = ({text,images,remindAt}) => {
-    setIdeas(p=>p.map(i=>i.id===editIdea.id?{...i,text,images,remindAt:remindAt||null}:i));
-    setEditIdea(null); toast$("נשמר");
+    const newIdeas = ideas.map(i=>i.id===editIdea.id?{...i,text,images,remindAt:remindAt||null}:i);
+    setIdeas(newIdeas); setEditIdea(null);
+    persistAll(projects, newIdeas, nid, pid);
+    toast$("נשמר");
   };
-  const updIdea  = u => setIdeas(p=>p.map(i=>i.id===u.id?u:i));
-  const delIdea  = id => { setIdeas(p=>p.filter(i=>i.id!==id)); toast$("נמחק"); };
-  const addProj  = name => {
-    const id=nidRef.current, color=PROJ_COLORS[projects.length%PROJ_COLORS.length];
-    setProjects(p=>[...p,{id,name,notes:"",color}]); setNid(n=>n+1); setPidAndSave(id);
+  const updIdea = u => {
+    const newIdeas = ideas.map(i=>i.id===u.id?u:i);
+    setIdeas(newIdeas);
+    persistAll(projects, newIdeas, nid, pid);
   };
-  const delProj  = id => {
-    setProjects(p=>p.filter(x=>x.id!==id)); setIdeas(p=>p.filter(i=>i.pid!==id));
-    if(pid===id) setPidAndSave(projects.find(x=>x.id!==id)?.id);
+  const delIdea = id => {
+    const newIdeas = ideas.filter(i=>i.id!==id);
+    setIdeas(newIdeas);
+    persistAll(projects, newIdeas, nid, pid);
+    toast$("נמחק");
   };
-  const editProj = (id,name) => setProjects(p=>p.map(x=>x.id===id?{...x,name}:x));
-  const saveNotes= notes => setProjects(p=>p.map(x=>x.id===pid?{...x,notes}:x));
-  const moveIdea = (id,dir) => setIdeas(prev=>{
-    const a=[...prev], idx=a.findIndex(i=>i.id===id), ti=idx+dir;
-    if(ti<0||ti>=a.length) return prev;
-    [a[idx],a[ti]]=[a[ti],a[idx]]; return a;
-  });
+  const addProj = name => {
+    const id = nidRef.current, color = PROJ_COLORS[projects.length%PROJ_COLORS.length];
+    const newProjects = [...projects, {id,name,notes:"",color}];
+    const newNid = nid + 1;
+    setProjects(newProjects); setNid(newNid); setPid(id);
+    persistAll(newProjects, ideas, newNid, id);
+  };
+  const delProj = id => {
+    const newProjects = projects.filter(x=>x.id!==id);
+    const newIdeas = ideas.filter(i=>i.pid!==id);
+    const newPid = pid===id ? newProjects[0]?.id : pid;
+    setProjects(newProjects); setIdeas(newIdeas); setPid(newPid);
+    persistAll(newProjects, newIdeas, nid, newPid);
+  };
+  const editProj = (id,name) => {
+    const newProjects = projects.map(x=>x.id===id?{...x,name}:x);
+    setProjects(newProjects);
+    persistAll(newProjects, ideas, nid, pid);
+  };
+  const saveNotes = notes => {
+    const newProjects = projects.map(x=>x.id===pid?{...x,notes}:x);
+    setProjects(newProjects);
+    persistAll(newProjects, ideas, nid, pid);
+  };
+  const moveIdea = (id,dir) => {
+    const a=[...ideas], idx=a.findIndex(i=>i.id===id), ti=idx+dir;
+    if(ti<0||ti>=a.length) return;
+    [a[idx],a[ti]]=[a[ti],a[idx]];
+    setIdeas(a);
+    persistAll(projects, a, nid, pid);
+  };
 
   return (
     <div style={{ minHeight:"100vh", background:th.bg,
@@ -908,7 +1073,7 @@ export default function App() {
               <h1 style={{ margin:0, fontSize:19, fontWeight:900, color:th.text,
                 display:"flex", alignItems:"center", gap:7 }}>
                 <Icon name="bulb" size={22} color={th.accent} />
-                יש לי רעיון
+                IdeaFlow
               </h1>
               <div style={{ display:"flex", gap:6 }}>
                 <IconBtn name={dark?"sun":"moon"}
@@ -925,6 +1090,14 @@ export default function App() {
                   color={archive?"#fff":th.text}
                   bg={archive?th.accent:th.surface2} size={19} pad="9px"
                   style={{ border:`1.5px solid ${archive?th.accent:th.border}`, borderRadius:22 }} />
+                <button onClick={()=>signOut(auth)}
+                  title="התנתק"
+                  style={{ width:38, height:38, borderRadius:22, border:`1.5px solid ${th.border}`,
+                    background:th.surface2, cursor:"pointer", overflow:"hidden", padding:0 }}>
+                  {user.photoURL
+                    ? <img src={user.photoURL} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                    : <span style={{ fontSize:16 }}>👤</span>}
+                </button>
               </div>
             </div>
 
