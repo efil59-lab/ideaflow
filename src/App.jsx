@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect } from "react";
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const PROJ_COLORS = ["#2563EB","#0891B2","#7C3AED","#059669","#D97706"];
 const SK = "ideas_v22";
@@ -304,8 +307,7 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
   );
 }
 
-// ── Idea Card ─────────────────────────────────────────────────────────────────
-function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveDown, isFirst, isLast, th, dark, focused, onFocus }) {
+function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveDown, isFirst, isLast, th, dark, sortMode, dragHandleProps }) {
   const [showMore, setShowMore] = useState(false);
   const [copied, setCopied]     = useState(false);
   const [bigImg, setBigImg]     = useState(null);
@@ -315,6 +317,7 @@ function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveD
   const u = patch => onUpdate({ ...idea, ...patch });
 
   const onCheck = () => {
+    if (sortMode) return;
     if (idea.done) { u({ done:false, checked:false }); return; }
     u({ checked:true });
     setTimeout(() => onUpdate({ ...idea, checked:false, done:true }), 450);
@@ -358,33 +361,33 @@ function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveD
         </div>
       )}
 
-      <div onClick={onFocus} style={{ background:cardBg, borderRadius:16, marginBottom:12,
+      <div style={{ background:cardBg, borderRadius:16, marginBottom:12,
         border:`1.5px solid ${th.border}`,
-        borderRight: focused ? `3px solid ${th.accent}` : `1.5px solid ${th.border}`,
         boxShadow:`0 1px 4px rgba(0,0,0,0.06)`,
-        opacity:idea.done?0.62:1, direction:"rtl", position:"relative",
-        transition:"border-right 0.2s" }}>
+        opacity:idea.done?0.62:1, direction:"rtl", position:"relative" }}>
 
         {/* Main row */}
         <div style={{ display:"flex", alignItems:"flex-start", padding:"12px 12px 8px" }}>
-          {/* Move up/down - stopPropagation to avoid focus trigger */}
-          <div style={{ display:"flex", flexDirection:"column", gap:2, paddingLeft:6, flexShrink:0 }}
-            onClick={e=>e.stopPropagation()}>
-            <IconBtn name="up" onClick={onMoveUp} disabled={isFirst}
-              color={isFirst?th.muted:th.accent} bg={th.accentSoft} size={16} pad="3px 6px" />
-            <IconBtn name="down" onClick={onMoveDown} disabled={isLast}
-              color={isLast?th.muted:th.accent} bg={th.accentSoft} size={16} pad="3px 6px" />
-          </div>
 
-          {/* Checkbox */}
-          <div onClick={onCheck} style={{
-            flexShrink:0, width:22, height:22, borderRadius:6, marginLeft:10, marginTop:3,
-            border: stroked?"none":`1.5px solid ${th.muted}`,
-            background: idea.done?th.green:idea.checked?"#A78BFA":"transparent",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            cursor:"pointer", transition:"all .15s" }}>
-            {stroked && <Icon name="check" size={14} color="#fff" />}
-          </div>
+          {/* Checkbox (right side) OR drag handle */}
+          {sortMode ? (
+            <div {...dragHandleProps}
+              style={{ flexShrink:0, width:28, height:28, display:"flex",
+                alignItems:"center", justifyContent:"center",
+                cursor:"grab", color:th.muted, fontSize:18, marginLeft:10, marginTop:1,
+                touchAction:"none" }}>
+              ⠿
+            </div>
+          ) : (
+            <div onClick={onCheck} style={{
+              flexShrink:0, width:22, height:22, borderRadius:6, marginLeft:10, marginTop:3,
+              border: stroked?"none":`1.5px solid ${th.muted}`,
+              background: idea.done?th.green:idea.checked?"#A78BFA":"transparent",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              cursor:"pointer", transition:"all .15s" }}>
+              {stroked && <Icon name="check" size={14} color="#fff" />}
+            </div>
+          )}
 
           {/* Text */}
           <div onClick={()=>isLong && setExpanded(p=>!p)}
@@ -411,7 +414,7 @@ function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveD
         </div>
 
         {/* Show more/less */}
-        {isLong && (
+        {isLong && !sortMode && (
           <div onClick={()=>setExpanded(p=>!p)}
             style={{ padding:"0 12px 6px", textAlign:"center", cursor:"pointer" }}>
             <span style={{ fontSize:11, color:th.accent, fontWeight:700,
@@ -433,65 +436,81 @@ function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveD
           </div>
         )}
 
-        {/* Toolbar with sliding pages */}
-        <div style={{ background:th.greyBar, borderTop:`1px solid ${th.border}`,
-          borderRadius:"0 0 14px 14px", padding:"3px 10px",
-          display:"flex", alignItems:"center", justifyContent:"space-between",
-          overflow:"hidden", position:"relative", minHeight:36 }}>
+        {/* Toolbar — hidden in sort mode */}
+        {!sortMode && (
+          <div style={{ background:th.greyBar, borderTop:`1px solid ${th.border}`,
+            borderRadius:"0 0 14px 14px", padding:"3px 10px",
+            display:"flex", alignItems:"center", justifyContent:"space-between",
+            overflow:"hidden", position:"relative", minHeight:36 }}>
 
-          {/* Page 1: primary actions */}
-          <div style={{ display:"flex", alignItems:"center", gap:2, width:"100%",
-            transform: showMore ? "translateX(110%)" : "translateX(0)",
-            transition:"transform 0.25s cubic-bezier(0.4,0,0.2,1)",
-            position: showMore ? "absolute" : "relative" }}>
-            <IconBtn name="delete" onClick={()=>setConfirmDel(true)} color={th.muted} size={17} pad="5px 7px" />
-            <IconBtn name="edit"   onClick={onEdit}                   color={th.muted} size={17} pad="5px 7px" />
-            <IconBtn name="pin"
-              onClick={()=>u({pinned:!idea.pinned})}
-              color={idea.pinned?th.accent:th.muted}
-              bg={idea.pinned?th.accentSoft:"transparent"}
-              size={17} pad="5px 7px" />
-            <div style={{ width:1, height:16, background:th.border, margin:"0 4px" }} />
-            <IconBtn name="more" onClick={()=>setShowMore(true)}
-              color={th.muted} size={17} pad="5px 7px" style={{ opacity:0.6 }} />
-          </div>
-
-          {/* Page 2: secondary actions */}
-          <div style={{ display:"flex", alignItems:"center", gap:2, width:"100%",
-            transform: showMore ? "translateX(0)" : "translateX(-110%)",
-            transition:"transform 0.25s cubic-bezier(0.4,0,0.2,1)",
-            position: showMore ? "relative" : "absolute" }}>
-            {/* Back arrow */}
-            <IconBtn name="up" onClick={()=>setShowMore(false)}
-              color={th.accent} size={16} pad="5px 7px"
-              style={{ transform:"rotate(-90deg)" }} />
-            <div style={{ width:1, height:16, background:th.border, margin:"0 2px" }} />
-            <IconBtn name={copied?"check":"copy"}
-              onClick={onCopy}
-              color={copied?th.green:th.muted} size={17} pad="5px 7px" />
-            <IconBtn name="share"
-              onClick={()=>onShare(idea)}
-              color={th.muted} size={17} pad="5px 7px" />
-            {/* Color dots */}
-            <div style={{ display:"flex", gap:4, marginRight:4, alignItems:"center" }}>
-              {(dark?th.pastels:PASTEL).slice(0,6).map((c,i)=>(
-                <div key={i} onClick={()=>u({color:c})}
-                  style={{ width:16, height:16, borderRadius:"50%", background:c,
-                    border:idea.color===c?`2px solid ${th.accent}`:`1.5px solid ${th.border}`,
-                    cursor:"pointer", flexShrink:0 }} />
-              ))}
+            <div style={{ display:"flex", alignItems:"center", gap:2, width:"100%",
+              transform: showMore ? "translateX(110%)" : "translateX(0)",
+              transition:"transform 0.25s cubic-bezier(0.4,0,0.2,1)",
+              position: showMore ? "absolute" : "relative" }}>
+              <IconBtn name="delete" onClick={()=>setConfirmDel(true)} color={th.muted} size={17} pad="5px 7px" />
+              <IconBtn name="edit"   onClick={onEdit}                   color={th.muted} size={17} pad="5px 7px" />
+              <IconBtn name="pin"
+                onClick={()=>u({pinned:!idea.pinned})}
+                color={idea.pinned?th.accent:th.muted}
+                bg={idea.pinned?th.accentSoft:"transparent"}
+                size={17} pad="5px 7px" />
+              <div style={{ width:1, height:16, background:th.border, margin:"0 4px" }} />
+              <IconBtn name="more" onClick={()=>setShowMore(true)}
+                color={th.muted} size={17} pad="5px 7px" style={{ opacity:0.6 }} />
             </div>
-          </div>
 
-          <span style={{ fontSize:9, color:th.muted, fontWeight:600, whiteSpace:"nowrap",
-            display:"flex", alignItems:"center", gap:3, flexShrink:0,
-            opacity: showMore ? 0 : 1, transition:"opacity 0.2s" }}>
-            <Icon name="time" size={10} color={th.muted} />
-            {fmt(idea.at)}
-          </span>
-        </div>
+            <div style={{ display:"flex", alignItems:"center", gap:2, width:"100%",
+              transform: showMore ? "translateX(0)" : "translateX(-110%)",
+              transition:"transform 0.25s cubic-bezier(0.4,0,0.2,1)",
+              position: showMore ? "relative" : "absolute" }}>
+              <IconBtn name="up" onClick={()=>setShowMore(false)}
+                color={th.accent} size={16} pad="5px 7px"
+                style={{ transform:"rotate(-90deg)" }} />
+              <div style={{ width:1, height:16, background:th.border, margin:"0 2px" }} />
+              <IconBtn name={copied?"check":"copy"} onClick={onCopy}
+                color={copied?th.green:th.muted} size={17} pad="5px 7px" />
+              <IconBtn name="share" onClick={()=>onShare(idea)}
+                color={th.muted} size={17} pad="5px 7px" />
+              <div style={{ display:"flex", gap:4, marginRight:4, alignItems:"center" }}>
+                {(dark?th.pastels:PASTEL).slice(0,6).map((c,i)=>(
+                  <div key={i} onClick={()=>u({color:c})}
+                    style={{ width:16, height:16, borderRadius:"50%", background:c,
+                      border:idea.color===c?`2px solid ${th.accent}`:`1.5px solid ${th.border}`,
+                      cursor:"pointer", flexShrink:0 }} />
+                ))}
+              </div>
+            </div>
+
+            <span style={{ fontSize:9, color:th.muted, fontWeight:600, whiteSpace:"nowrap",
+              display:"flex", alignItems:"center", gap:3, flexShrink:0,
+              opacity: showMore ? 0 : 1, transition:"opacity 0.2s" }}>
+              <Icon name="time" size={10} color={th.muted} />
+              {fmt(idea.at)}
+            </span>
+          </div>
+        )}
       </div>
     </>
+  );
+}
+
+// ── Sortable wrapper ──────────────────────────────────────────────────────────
+function SortableIdeaCard({ idea, sortMode, ...props }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: idea.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: "relative",
+    zIndex: isDragging ? 10 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <IdeaCard idea={idea} sortMode={sortMode}
+        dragHandleProps={sortMode ? { ...attributes, ...listeners } : {}}
+        {...props} />
+    </div>
   );
 }
 
@@ -801,6 +820,22 @@ export default function App() {
 
   const [dark, setDark]           = useState(false);
   const [focusedId, setFocusedId] = useState(null);
+  const [sortMode, setSortMode]   = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
+  );
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setIdeas(prev => {
+      const oldIndex = prev.findIndex(i => i.id === active.id);
+      const newIndex = prev.findIndex(i => i.id === over.id);
+      return arrayMove(prev, oldIndex, newIndex);
+    });
+  };
 
   const th = getTheme(dark);
   const nidRef = useRef(nid);
@@ -998,6 +1033,23 @@ export default function App() {
 
       {/* Body */}
       <div style={{ maxWidth:520, margin:"0 auto", padding:"4px 12px 100px" }}>
+
+        {/* Sort button row */}
+        {filtered.length > 1 && (
+          <div style={{ display:"flex", justifyContent:"flex-start", marginBottom:8 }}>
+            <button onClick={()=>setSortMode(s=>!s)}
+              style={{ display:"flex", alignItems:"center", gap:6,
+                background: sortMode ? th.accent : th.surface,
+                color: sortMode ? "#fff" : th.muted,
+                border:`1.5px solid ${sortMode?th.accent:th.border}`,
+                borderRadius:20, padding:"5px 14px", cursor:"pointer",
+                fontSize:12, fontWeight:600, fontFamily:"'Rubik',sans-serif",
+                transition:"all 0.2s" }}>
+              {sortMode ? "✓ סיים" : "↕ סדר"}
+            </button>
+          </div>
+        )}
+
         {filtered.length===0
           ? <div style={{ textAlign:"center", padding:"50px 0", color:th.muted }}>
               <Icon name="bulb" size={52} color={th.border} />
@@ -1005,16 +1057,21 @@ export default function App() {
                 {search?"לא נמצאו רעיונות":"לחץ על הכפתור הצף להוספת רעיון"}
               </p>
             </div>
-          : filtered.map((idea,idx)=>(
-              <IdeaCard key={idea.id} idea={idea} th={th} dark={dark}
-                focused={focusedId===idea.id}
-                onFocus={()=>setFocusedId(id=>id===idea.id?null:idea.id)}
-                onUpdate={updIdea} onDelete={delIdea}
-                onShare={setShare} onEdit={()=>setEditIdea(idea)}
-                onMoveUp={()=>moveIdea(idea.id,-1)}
-                onMoveDown={()=>moveIdea(idea.id,1)}
-                isFirst={idx===0} isLast={idx===filtered.length-1} />
-          ))
+          : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={filtered.map(i=>i.id)} strategy={verticalListSortingStrategy}>
+                {filtered.map((idea,idx)=>(
+                  <SortableIdeaCard key={idea.id} idea={idea} th={th} dark={dark}
+                    sortMode={sortMode}
+                    onUpdate={updIdea} onDelete={delIdea}
+                    onShare={setShare} onEdit={()=>setEditIdea(idea)}
+                    onMoveUp={()=>moveIdea(idea.id,-1)}
+                    onMoveDown={()=>moveIdea(idea.id,1)}
+                    isFirst={idx===0} isLast={idx===filtered.length-1} />
+                ))}
+              </SortableContext>
+            </DndContext>
+          )
         }
       </div>
 
