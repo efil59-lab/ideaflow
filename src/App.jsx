@@ -952,36 +952,34 @@ function AppContent({ user, dark, setDark, th }) {
     }
   }, [uid]);
 
-  // Check reminders on load and every minute
+  // Check reminders on load
   useEffect(()=>{
     if (!ideas) return;
-    const checkReminders = () => {
-      const now = Date.now();
-      ideas.forEach(idea => {
-        if (!idea.remindAt || idea.done) return;
-        const diff = idea.remindAt - now;
-        if (diff > 0 && diff < 60000) {
-          // Within next minute — schedule it
-          setTimeout(() => {
-            if (Notification.permission === "granted") {
-              new Notification("💡 תזכורת — IdeaFlow", {
-                body: idea.text,
-                icon: "/icons/icon-192.png",
-              });
-            } else {
-              toast$(` תזכורת: ${idea.text}`);
-            }
-          }, diff);
-        }
-      });
-    };
     // Request permission
-    if (Notification.permission === "default") {
+    if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
-    checkReminders();
-    const interval = setInterval(checkReminders, 60000);
-    return () => clearInterval(interval);
+    const timers = [];
+    const now = Date.now();
+    ideas.forEach(idea => {
+      if (!idea.remindAt || idea.done) return;
+      const diff = idea.remindAt - now;
+      if (diff > 0) {
+        const t = setTimeout(() => {
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("💡 תזכורת — IdeaFlow", {
+              body: idea.text,
+              icon: "/icons/icon-192.png",
+              dir: "rtl",
+            });
+          } else {
+            toast$(`🔔 תזכורת: ${idea.text}`);
+          }
+        }, Math.min(diff, 2147483647)); // max setTimeout value
+        timers.push(t);
+      }
+    });
+    return () => timers.forEach(t => clearTimeout(t));
   }, [ideas]);
   const [archive, setArchive]     = useState(false);
   const [showAI, setShowAI]     = useState(false);
@@ -1127,18 +1125,12 @@ function AppContent({ user, dark, setDark, th }) {
 
             {/* Header */}
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-              <h1 style={{ margin:0, fontSize:24, fontWeight:900, color:th.text,
-                display:"flex", alignItems:"center", gap:8 }}>
+              <h1 onClick={()=>setShowGuide(true)}
+                style={{ margin:0, fontSize:24, fontWeight:900, color:th.text,
+                  display:"flex", alignItems:"center", gap:8, cursor:"pointer",
+                  userSelect:"none" }}>
                 <Icon name="bulb" size={28} color={th.accent} />
                 IdeaFlow
-                <button onClick={()=>setShowGuide(true)}
-                  style={{ background:"transparent", border:`1px solid ${th.border}`,
-                    borderRadius:"50%", width:20, height:20, cursor:"pointer",
-                    fontSize:11, fontWeight:700, color:th.muted,
-                    display:"flex", alignItems:"center", justifyContent:"center",
-                    lineHeight:1, padding:0, marginTop:2 }}>
-                  ?
-                </button>
               </h1>
               <div style={{ display:"flex", gap:6 }}>
                 <IconBtn name={dark?"sun":"moon"}
