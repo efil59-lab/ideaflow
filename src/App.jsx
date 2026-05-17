@@ -362,7 +362,7 @@ function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveD
       )}
       {bigImg && (
         <div onClick={()=>setBigImg(null)} style={{ position:"fixed", inset:0,
-          background:"rgba(0,0,0,0.88)", zIndex:1000,
+          background:"rgba(0,0,0,0.95)", zIndex:2000,
           display:"flex", alignItems:"center", justifyContent:"center" }}>
           <img src={bigImg} alt="" style={{ maxWidth:"92vw", maxHeight:"85vh", borderRadius:14 }} />
         </div>
@@ -1078,9 +1078,9 @@ function AppContent({ user, dark, setDark, th }) {
 
             {/* Header */}
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-              <h1 style={{ margin:0, fontSize:19, fontWeight:900, color:th.text,
-                display:"flex", alignItems:"center", gap:7 }}>
-                <Icon name="bulb" size={22} color={th.accent} />
+              <h1 style={{ margin:0, fontSize:24, fontWeight:900, color:th.text,
+                display:"flex", alignItems:"center", gap:8 }}>
+                <Icon name="bulb" size={28} color={th.accent} />
                 IdeaFlow
               </h1>
               <div style={{ display:"flex", gap:6 }}>
@@ -1202,10 +1202,10 @@ function AppContent({ user, dark, setDark, th }) {
               {l:"בוצעו", v:done,  c:th.green},
               {l:'סה"כ',  v:active+done, c:th.accent}].map(s=>(
               <div key={s.l} style={{ flex:1, background:th.surface, borderRadius:12,
-                padding:"7px 6px", textAlign:"center",
+                padding:"10px 6px", textAlign:"center",
                 border:`1.5px solid ${s.c}44`, boxShadow:`0 2px 6px ${s.c}18` }}>
-                <div style={{ fontSize:18, fontWeight:900, color:s.c, lineHeight:1 }}>{s.v}</div>
-                <div style={{ fontSize:10, color:s.c, fontWeight:700, marginTop:2 }}>{s.l}</div>
+                <div style={{ fontSize:28, fontWeight:900, color:s.c, lineHeight:1 }}>{s.v}</div>
+                <div style={{ fontSize:11, color:s.c, fontWeight:700, marginTop:4 }}>{s.l}</div>
               </div>
             ))}
           </div>
