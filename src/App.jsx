@@ -933,7 +933,8 @@ function AppContent({ user, dark, setDark, th }) {
     persistAll(projects, ideas, nid, id);
   };
   const [showLogout, setShowLogout] = useState(false);
-  const [archive, setArchive]   = useState(false);
+  const [search, setSearch]       = useState("");
+  const [archive, setArchive]     = useState(false);
   const [showAI, setShowAI]     = useState(false);
   const [showProj, setShowProj] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
