@@ -936,7 +936,17 @@ function AppContent({ user, dark, setDark, th }) {
     persistAll(projects, ideas, nid, id);
   };
   const [showLogout, setShowLogout] = useState(false);
-  const [search, setSearch]       = useState("");
+  const [showGuide, setShowGuide]   = useState(false);
+  const [search, setSearch]         = useState("");
+
+  // Show guide on first visit
+  useEffect(()=>{
+    const key = `ideaflow_guide_seen_${uid}`;
+    if (!localStorage.getItem(key)) {
+      setShowGuide(true);
+      localStorage.setItem(key, "1");
+    }
+  }, [uid]);
   const [archive, setArchive]     = useState(false);
   const [showAI, setShowAI]     = useState(false);
   const [showProj, setShowProj] = useState(false);
@@ -1085,6 +1095,14 @@ function AppContent({ user, dark, setDark, th }) {
                 display:"flex", alignItems:"center", gap:8 }}>
                 <Icon name="bulb" size={28} color={th.accent} />
                 IdeaFlow
+                <button onClick={()=>setShowGuide(true)}
+                  style={{ background:"transparent", border:`1px solid ${th.border}`,
+                    borderRadius:"50%", width:20, height:20, cursor:"pointer",
+                    fontSize:11, fontWeight:700, color:th.muted,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    lineHeight:1, padding:0, marginTop:2 }}>
+                  ?
+                </button>
               </h1>
               <div style={{ display:"flex", gap:6 }}>
                 <IconBtn name={dark?"sun":"moon"}
@@ -1280,6 +1298,50 @@ function AppContent({ user, dark, setDark, th }) {
 
       {/* Modals */}
       {toast     && <Toast msg={toast} th={th} />}
+      {showGuide && (
+        <Modal onClose={()=>setShowGuide(false)} th={th}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+            <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:th.text }}>
+              💡 מדריך IdeaFlow
+            </h3>
+            <IconBtn name="close" onClick={()=>setShowGuide(false)}
+              color={th.accent} bg={th.accentSoft} size={18} pad="7px" />
+          </div>
+          {[
+            { icon:"bulb",  title:"רעיון חדש",     text:"לחץ על כפתור המנורה בתחתית המסך להוספת רעיון" },
+            { icon:"folder",title:"פרויקטים",       text:'בחר פרויקט מהרשימה, צור חדש עם "+ חדש"' },
+            { icon:"edit",  title:"עריכה",          text:"ערוך טקסט, שנה צבע, הגדר תזכורת לרעיון" },
+            { icon:"copy",  title:"העתק",           text:"לחץ על אייקון ההעתקה בשורת הכלים של הרעיון" },
+            { icon:"pin",   title:"הצמדה",          text:"הצמד רעיון כדי שיופיע תמיד בראש הרשימה" },
+            { icon:"more",  title:"עוד אפשרויות",   text:"לחץ ⋯ למחיקה, שיתוף ושינוי צבע" },
+            { icon:"up",    title:"סידור",          text:'לחץ "↕ סדר" לגרירת רעיונות לסדר הרצוי' },
+            { icon:"ai",    title:"עוזר AI",        text:"ניתוח רעיונות, תובנות והמלצות לביצוע" },
+            { icon:"bell",  title:"תזכורות",        text:"בעריכת רעיון הגדר תאריך ושעה לתזכורת" },
+          ].map((item,i) => (
+            <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12,
+              padding:"10px 0", borderBottom:i<8?`1px solid ${th.border}`:"none" }}>
+              <div style={{ width:32, height:32, borderRadius:10, background:th.accentSoft,
+                display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <Icon name={item.icon} size={17} color={th.accent} />
+              </div>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:th.text, marginBottom:2 }}>
+                  {item.title}
+                </div>
+                <div style={{ fontSize:12, color:th.muted, lineHeight:1.5 }}>
+                  {item.text}
+                </div>
+              </div>
+            </div>
+          ))}
+          <button onClick={()=>setShowGuide(false)}
+            style={{ width:"100%", marginTop:16, height:44, background:th.accent, color:"#fff",
+              border:"none", borderRadius:12, cursor:"pointer",
+              fontSize:15, fontWeight:700, fontFamily:"'Rubik',sans-serif" }}>
+            הבנתי!
+          </button>
+        </Modal>
+      )}
       {showLogout && (
         <Modal onClose={()=>setShowLogout(false)} maxWidth={300} th={th}>
           <div style={{ textAlign:"center" }}>
