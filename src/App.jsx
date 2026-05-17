@@ -588,11 +588,13 @@ function AIPanel({ ideas, onClose, th }) {
     setL(true); setR(null);
     const txt = ideas.filter(i=>!i.done).map(i=>i.text).join("\n");
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages",{
+      const res = await fetch("/api/ai",{
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:900,
+        body:JSON.stringify({
+          max_tokens:900,
           system:"ענה בעברית. החזר JSON בלבד: {summary,insights:[],recommendations:[]}",
-          messages:[{role:"user",content:`נתח:\n${txt}`}] })});
+          messages:[{role:"user",content:`נתח:\n${txt}`}]
+        })});
       const d = await res.json();
       setR(JSON.parse(d.content.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim()));
     } catch { setR({summary:"שגיאה.",insights:[],recommendations:[]}); }
@@ -603,11 +605,13 @@ function AIPanel({ ideas, onClose, th }) {
     if (!q.trim()) return; setL(true); setAns("");
     const ctx = ideas.filter(i=>!i.done).map(i=>i.text).join("\n");
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages",{
+      const res = await fetch("/api/ai",{
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:400,
+        body:JSON.stringify({
+          max_tokens:400,
           system:"ענה בעברית, קצר.",
-          messages:[{role:"user",content:`רעיונות:\n${ctx}\n\nשאלה: ${q}`}] })});
+          messages:[{role:"user",content:`רעיונות:\n${ctx}\n\nשאלה: ${q}`}]
+        })});
       const d = await res.json();
       setAns(d.content.map(b=>b.text||"").join(""));
     } catch { setAns("שגיאה."); }
@@ -947,6 +951,38 @@ function AppContent({ user, dark, setDark, th }) {
       localStorage.setItem(key, "1");
     }
   }, [uid]);
+
+  // Check reminders on load and every minute
+  useEffect(()=>{
+    if (!ideas) return;
+    const checkReminders = () => {
+      const now = Date.now();
+      ideas.forEach(idea => {
+        if (!idea.remindAt || idea.done) return;
+        const diff = idea.remindAt - now;
+        if (diff > 0 && diff < 60000) {
+          // Within next minute — schedule it
+          setTimeout(() => {
+            if (Notification.permission === "granted") {
+              new Notification("💡 תזכורת — IdeaFlow", {
+                body: idea.text,
+                icon: "/icons/icon-192.png",
+              });
+            } else {
+              toast$(` תזכורת: ${idea.text}`);
+            }
+          }, diff);
+        }
+      });
+    };
+    // Request permission
+    if (Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+    checkReminders();
+    const interval = setInterval(checkReminders, 60000);
+    return () => clearInterval(interval);
+  }, [ideas]);
   const [archive, setArchive]     = useState(false);
   const [showAI, setShowAI]     = useState(false);
   const [showProj, setShowProj] = useState(false);
