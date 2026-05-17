@@ -1356,8 +1356,9 @@ function AppContent({ user, dark, setDark, th }) {
                 display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                 <Icon name={item.icon} size={17} color={th.accent} />
               </div>
-              <div style={{ fontSize:13, color:th.text, lineHeight:1.6 }}>
-                <strong>{item.title}:</strong> {item.text}
+              <div style={{ flex:1, fontSize:13, color:th.text, lineHeight:1.6,
+                direction:"rtl", textAlign:"right" }}>
+                <strong>{item.title}: </strong>{item.text}
               </div>
             </div>
           ))}
