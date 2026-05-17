@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -352,20 +353,22 @@ function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveD
 
   return (
     <>
-      {confirmDel && (
-        <div style={{ position:"fixed", inset:0, zIndex:1000 }}>
+      {confirmDel && createPortal(
+        <div style={{ position:"fixed", inset:0, zIndex:9000 }}>
           <Confirm title="מחיקת רעיון"
             message={`"${idea.text.slice(0,50)}${idea.text.length>50?"...":""}"`}
             onConfirm={()=>{ setConfirmDel(false); onDelete(idea.id); }}
             onCancel={()=>setConfirmDel(false)} th={th} />
-        </div>
+        </div>,
+        document.body
       )}
-      {bigImg && (
+      {bigImg && createPortal(
         <div onClick={()=>setBigImg(null)} style={{ position:"fixed", inset:0,
-          background:"rgba(0,0,0,0.95)", zIndex:2000,
+          background:"rgba(0,0,0,0.95)", zIndex:9000,
           display:"flex", alignItems:"center", justifyContent:"center" }}>
           <img src={bigImg} alt="" style={{ maxWidth:"92vw", maxHeight:"85vh", borderRadius:14 }} />
-        </div>
+        </div>,
+        document.body
       )}
 
       <div style={{ background:cardBg, borderRadius:16, marginBottom:12,
