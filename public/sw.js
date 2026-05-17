@@ -1,47 +1,36 @@
-const CACHE_NAME = "ideaflow-v1";
-const ASSETS = [
-  "/",
-  "/index.html",
-  "/manifest.json",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-];
+const CACHE_NAME = "ideaflow-v" + Date.now();
 
-// Install - cache assets
-self.addEventListener("install", e => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
-  );
+// Install - skip waiting immediately
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
-// Activate - clean old caches
+// Activate - delete ALL old caches immediately
 self.addEventListener("activate", e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+    caches.keys()
+      .then(keys => Promise.all(keys.map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch - serve from cache, fallback to network
+// Fetch - network first, no cache for HTML
 self.addEventListener("fetch", e => {
+  if (e.request.method !== "GET") return;
+  const url = new URL(e.request.url);
+  // Always fetch HTML fresh from network
+  if (url.pathname === "/" || url.pathname.endsWith(".html")) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    fetch(e.request)
+      .then(res => {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+        return res;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
 
-// Push notifications
-self.addEventListener("push", e => {
-  const data = e.data?.json() || { title: "IdeaFlow", body: "תזכורת חדשה" };
-  e.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      dir: "rtl",
-      lang: "he",
-    })
-  );
-});
