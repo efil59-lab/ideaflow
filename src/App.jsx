@@ -1109,7 +1109,7 @@ function AppContent({ user, dark, setDark, th }) {
     <div style={{ minHeight:"100vh", background:th.bg,
       fontFamily:"'Rubik',sans-serif", direction:"rtl", transition:"background 0.3s" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&family=Nunito:wght@400;600&display=swap');
         *{box-sizing:border-box;}
         input:focus,textarea:focus{outline:none;}
         ::-webkit-scrollbar{width:4px;}
@@ -1253,7 +1253,8 @@ function AppContent({ user, dark, setDark, th }) {
               <div key={s.l} style={{ flex:1, background:th.surface, borderRadius:12,
                 padding:"10px 6px", textAlign:"center",
                 border:`1.5px solid ${s.c}44`, boxShadow:`0 2px 6px ${s.c}18` }}>
-                <div style={{ fontSize:28, fontWeight:900, color:s.c, lineHeight:1 }}>{s.v}</div>
+                <div style={{ fontSize:28, fontWeight:600, color:s.c, lineHeight:1,
+                  fontFamily:"'Nunito', 'Rubik', sans-serif", letterSpacing:"-0.5px" }}>{s.v}</div>
                 <div style={{ fontSize:11, color:s.c, fontWeight:700, marginTop:4 }}>{s.l}</div>
               </div>
             ))}
