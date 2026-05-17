@@ -347,18 +347,22 @@ function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveD
   };
 
   const stroked = idea.checked || idea.done;
-  const isLong  = idea.text?.length > 90;
+  const isLong  = idea.text?.length > 120;
   const cardBg  = dark ? th.cardBg : (idea.color || "#fff");
 
   return (
     <>
-      {confirmDel && <Confirm title="מחיקת רעיון"
-        message={`"${idea.text.slice(0,50)}${idea.text.length>50?"...":""}"`}
-        onConfirm={()=>{ setConfirmDel(false); onDelete(idea.id); }}
-        onCancel={()=>setConfirmDel(false)} th={th} />}
+      {confirmDel && (
+        <div style={{ position:"fixed", inset:0, zIndex:1000 }}>
+          <Confirm title="מחיקת רעיון"
+            message={`"${idea.text.slice(0,50)}${idea.text.length>50?"...":""}"`}
+            onConfirm={()=>{ setConfirmDel(false); onDelete(idea.id); }}
+            onCancel={()=>setConfirmDel(false)} th={th} />
+        </div>
+      )}
       {bigImg && (
         <div onClick={()=>setBigImg(null)} style={{ position:"fixed", inset:0,
-          background:"rgba(0,0,0,0.88)", zIndex:900,
+          background:"rgba(0,0,0,0.88)", zIndex:1000,
           display:"flex", alignItems:"center", justifyContent:"center" }}>
           <img src={bigImg} alt="" style={{ maxWidth:"92vw", maxHeight:"85vh", borderRadius:14 }} />
         </div>
@@ -442,42 +446,45 @@ function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveD
         {/* Toolbar — hidden in sort mode */}
         {!sortMode && (
           <div style={{ background:th.greyBar, borderTop:`1px solid ${th.border}`,
-            borderRadius:"0 0 14px 14px", padding:"3px 10px",
+            borderRadius:"0 0 14px 14px", padding:"4px 10px",
             display:"flex", alignItems:"center", justifyContent:"space-between",
-            overflow:"hidden", position:"relative", minHeight:36 }}>
+            overflow:"hidden", position:"relative", minHeight:40 }}>
 
-            <div style={{ display:"flex", alignItems:"center", gap:2, width:"100%",
+            {/* Page 1: primary actions — copy replaces delete */}
+            <div style={{ display:"flex", alignItems:"center", gap:4, width:"100%",
               transform: showMore ? "translateX(110%)" : "translateX(0)",
               transition:"transform 0.25s cubic-bezier(0.4,0,0.2,1)",
               position: showMore ? "absolute" : "relative" }}>
-              <IconBtn name="delete" onClick={()=>setConfirmDel(true)} color={th.muted} size={17} pad="5px 7px" />
-              <IconBtn name="edit"   onClick={onEdit}                   color={th.muted} size={17} pad="5px 7px" />
+              <IconBtn name={copied?"check":"copy"} onClick={onCopy}
+                color={copied?th.green:th.muted} size={21} pad="6px 9px" />
+              <IconBtn name="edit" onClick={onEdit} color={th.muted} size={21} pad="6px 9px" />
               <IconBtn name="pin"
                 onClick={()=>u({pinned:!idea.pinned})}
                 color={idea.pinned?th.accent:th.muted}
                 bg={idea.pinned?th.accentSoft:"transparent"}
-                size={17} pad="5px 7px" />
+                size={21} pad="6px 9px" />
               <div style={{ width:1, height:16, background:th.border, margin:"0 4px" }} />
               <IconBtn name="more" onClick={()=>setShowMore(true)}
-                color={th.muted} size={17} pad="5px 7px" style={{ opacity:0.6 }} />
+                color={th.muted} size={21} pad="6px 9px" style={{ opacity:0.6 }} />
             </div>
 
-            <div style={{ display:"flex", alignItems:"center", gap:2, width:"100%",
+            {/* Page 2: secondary — delete replaces copy */}
+            <div style={{ display:"flex", alignItems:"center", gap:4, width:"100%",
               transform: showMore ? "translateX(0)" : "translateX(-110%)",
               transition:"transform 0.25s cubic-bezier(0.4,0,0.2,1)",
               position: showMore ? "relative" : "absolute" }}>
               <IconBtn name="up" onClick={()=>setShowMore(false)}
-                color={th.accent} size={16} pad="5px 7px"
+                color={th.accent} size={19} pad="6px 9px"
                 style={{ transform:"rotate(-90deg)" }} />
-              <div style={{ width:1, height:16, background:th.border, margin:"0 2px" }} />
-              <IconBtn name={copied?"check":"copy"} onClick={onCopy}
-                color={copied?th.green:th.muted} size={17} pad="5px 7px" />
+              <div style={{ width:1, height:16, background:th.border, margin:"0 4px" }} />
+              <IconBtn name="delete" onClick={()=>{ setShowMore(false); setConfirmDel(true); }}
+                color={th.red} size={21} pad="6px 9px" />
               <IconBtn name="share" onClick={()=>onShare(idea)}
-                color={th.muted} size={17} pad="5px 7px" />
-              <div style={{ display:"flex", gap:4, marginRight:4, alignItems:"center" }}>
+                color={th.muted} size={21} pad="6px 9px" />
+              <div style={{ display:"flex", gap:5, marginRight:4, alignItems:"center" }}>
                 {(dark?th.pastels:PASTEL).slice(0,6).map((c,i)=>(
                   <div key={i} onClick={()=>u({color:c})}
-                    style={{ width:16, height:16, borderRadius:"50%", background:c,
+                    style={{ width:18, height:18, borderRadius:"50%", background:c,
                       border:idea.color===c?`2px solid ${th.accent}`:`1.5px solid ${th.border}`,
                       cursor:"pointer", flexShrink:0 }} />
                 ))}
@@ -925,7 +932,7 @@ function AppContent({ user, dark, setDark, th }) {
     setPid(id);
     persistAll(projects, ideas, nid, id);
   };
-  const [search, setSearch]     = useState("");
+  const [showLogout, setShowLogout] = useState(false);
   const [archive, setArchive]   = useState(false);
   const [showAI, setShowAI]     = useState(false);
   const [showProj, setShowProj] = useState(false);
@@ -1090,7 +1097,7 @@ function AppContent({ user, dark, setDark, th }) {
                   color={archive?"#fff":th.text}
                   bg={archive?th.accent:th.surface2} size={19} pad="9px"
                   style={{ border:`1.5px solid ${archive?th.accent:th.border}`, borderRadius:22 }} />
-                <button onClick={()=>signOut(auth)}
+                <button onClick={()=>setShowLogout(true)}
                   title="התנתק"
                   style={{ width:38, height:38, borderRadius:22, border:`1.5px solid ${th.border}`,
                     background:th.surface2, cursor:"pointer", overflow:"hidden", padding:0 }}>
@@ -1269,6 +1276,37 @@ function AppContent({ user, dark, setDark, th }) {
 
       {/* Modals */}
       {toast     && <Toast msg={toast} th={th} />}
+      {showLogout && (
+        <Modal onClose={()=>setShowLogout(false)} maxWidth={300} th={th}>
+          <div style={{ textAlign:"center" }}>
+            <div style={{ marginBottom:12 }}>
+              {user.photoURL
+                ? <img src={user.photoURL} style={{ width:56, height:56, borderRadius:"50%" }} />
+                : <div style={{ fontSize:44 }}>👤</div>}
+            </div>
+            <div style={{ fontSize:15, fontWeight:700, color:th.text, marginBottom:4 }}>
+              {user.displayName}
+            </div>
+            <div style={{ fontSize:13, color:th.muted, marginBottom:20 }}>
+              {user.email}
+            </div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={()=>setShowLogout(false)}
+                style={{ flex:1, height:44, background:th.surface2, color:th.text,
+                  border:`1px solid ${th.border}`, borderRadius:12, cursor:"pointer",
+                  fontSize:14, fontWeight:600, fontFamily:"'Rubik',sans-serif" }}>
+                ביטול
+              </button>
+              <button onClick={()=>{ signOut(auth); setShowLogout(false); }}
+                style={{ flex:1, height:44, background:th.red, color:"#fff",
+                  border:"none", borderRadius:12, cursor:"pointer",
+                  fontSize:14, fontWeight:700, fontFamily:"'Rubik',sans-serif" }}>
+                התנתק
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
       {newOpen   && <IdeaEditor title="רעיון חדש" onSave={saveNew} onClose={()=>setNewOpen(false)} th={th} />}
       {editIdea  && <IdeaEditor title="עריכה" initial={editIdea} onSave={saveEdit} onClose={()=>setEditIdea(null)} th={th} />}
       {showAI    && <AIPanel ideas={ideas.filter(i=>i.pid===pid)} onClose={()=>setShowAI(false)} th={th} />}
