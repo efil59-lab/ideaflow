@@ -196,40 +196,9 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
   const [audios, setAudios]     = useState(initial?.audios || []);
   const [remindAt, setRemindAt] = useState(initial?.remindAt || null);
   const [showRemind, setShowRemind] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [recSecs, setRecSecs]   = useState(0);
   const fileRef   = useRef();
   const audioRef  = useRef();
-  const mediaRef  = useRef(null);
-  const chunksRef = useRef([]);
-  const timerRef  = useRef(null);
-
-  const startRec = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      chunksRef.current = [];
-      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        const reader = new FileReader();
-        reader.onload = ev => setAudios(p => [...p, { src: ev.target.result, name: `הקלטה ${p.length+1}` }]);
-        reader.readAsDataURL(blob);
-        stream.getTracks().forEach(t => t.stop());
-      };
-      mr.start();
-      mediaRef.current = mr;
-      setRecording(true);
-      setRecSecs(0);
-      timerRef.current = setInterval(() => setRecSecs(s => s+1), 1000);
-    } catch { alert("לא ניתן לגשת למיקרופון"); }
-  };
-
-  const stopRec = () => {
-    mediaRef.current?.stop();
-    clearInterval(timerRef.current);
-    setRecording(false);
-  };
+  const audioCapRef = useRef();
 
   const addAudioFile = file => {
     if (!file) return;
@@ -251,8 +220,6 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
     if (remindAt && remindAt > Date.now()) scheduleReminder(idea, remindAt);
     onSave(idea);
   };
-
-  const fmtSecs = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
 
   return (
     <Modal onClose={onClose} th={th}>
@@ -326,21 +293,7 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
         </div>
       )}
 
-      {/* Recording indicator */}
-      {recording && (
-        <div style={{ marginTop:10, background:"#FEF2F2", borderRadius:10,
-          padding:"10px 14px", border:"1.5px solid #FECACA",
-          display:"flex", alignItems:"center", gap:10 }}>
-          <span style={{ width:10, height:10, borderRadius:"50%", background:"#EF4444",
-            flexShrink:0, animation:"recPulse 1s ease-in-out infinite" }} />
-          <span style={{ flex:1, fontSize:13, fontWeight:700, color:"#EF4444",
-            fontFamily:"'Rubik',sans-serif" }}>מקליט... {fmtSecs(recSecs)}</span>
-          <button onClick={stopRec}
-            style={{ background:"#EF4444", color:"#fff", border:"none", borderRadius:8,
-              padding:"6px 14px", cursor:"pointer", fontSize:13, fontWeight:700,
-              fontFamily:"'Rubik',sans-serif" }}>⏹ עצור</button>
-        </div>
-      )}
+      {/* Recording indicator removed - using native recorder */}
 
       {images.length > 0 && (
         <div style={{ display:"flex", gap:7, marginTop:10, flexWrap:"wrap" }}>
@@ -361,6 +314,8 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
         onChange={e=>{ addImg(e.target.files[0]); e.target.value=""; }} />
       <input ref={audioRef} type="file" accept="audio/*" style={{display:"none"}}
         onChange={e=>{ addAudioFile(e.target.files[0]); e.target.value=""; }} />
+      <input ref={audioCapRef} type="file" accept="audio/*" capture="microphone" style={{display:"none"}}
+        onChange={e=>{ addAudioFile(e.target.files[0]); e.target.value=""; }} />
 
       {/* Buttons row */}
       <div style={{ display:"flex", gap:7, marginTop:12, flexWrap:"wrap" }}>
@@ -378,15 +333,12 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
             justifyContent:"center", gap:6, minWidth:70 }}>
           <Icon name="camera" size={16} color={th.accent} /> צלם
         </button>
-        <button onClick={recording ? stopRec : startRec}
-          style={{ flex:1, background: recording ? "#FEF2F2" : th.accentSoft,
-            color: recording ? "#EF4444" : th.accent,
-            border: recording ? "1.5px solid #FECACA" : "none",
-            borderRadius:11, padding:"11px 0", cursor:"pointer", fontSize:13, fontWeight:700,
+        <button onClick={()=>audioCapRef.current.click()}
+          style={{ flex:1, background:th.accentSoft, color:th.accent, border:"none", borderRadius:11,
+            padding:"11px 0", cursor:"pointer", fontSize:13, fontWeight:700,
             fontFamily:"'Rubik',sans-serif", display:"flex", alignItems:"center",
             justifyContent:"center", gap:6, minWidth:70 }}>
-          <span style={{ fontSize:15 }}>{recording ? "⏹" : "🎙"}</span>
-          {recording ? "עצור" : "הקלט"}
+          <span style={{ fontSize:15 }}>🎙</span> הקלט
         </button>
         <button onClick={()=>audioRef.current.click()}
           style={{ flex:1, background:th.accentSoft, color:th.accent, border:"none", borderRadius:11,
