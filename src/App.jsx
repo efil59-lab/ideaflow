@@ -195,7 +195,34 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
   const [images, setImages]   = useState(initial?.images || []);
   const [remindAt, setRemindAt] = useState(initial?.remindAt || null);
   const [showRemind, setShowRemind] = useState(false);
+  const [listening, setListening] = useState(false);
   const fileRef = useRef();
+  const recognitionRef = useRef(null);
+
+  const startVoice = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert("הדפדפן שלך לא תומך בזיהוי קול"); return; }
+    const r = new SR();
+    r.lang = "he-IL";
+    r.continuous = true;
+    r.interimResults = true;
+    recognitionRef.current = r;
+    r.onresult = e => {
+      let final = "";
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript;
+      }
+      if (final) setText(p => p ? p + " " + final : final);
+    };
+    r.onend = () => setListening(false);
+    r.start();
+    setListening(true);
+  };
+
+  const stopVoice = () => {
+    recognitionRef.current?.stop();
+    setListening(false);
+  };
 
   const addImg = file => {
     if (!file) return;
@@ -217,12 +244,35 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
         <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:th.text }}>{title}</h3>
         <IconBtn name="close" onClick={onClose} color={th.accent} bg={th.accentSoft} size={18} pad="7px" />
       </div>
-      <textarea value={text} onChange={e=>setText(e.target.value)}
-        placeholder="כתוב את הרעיון שלך..." rows={5} autoFocus
-        style={{ width:"100%", border:`2px solid ${th.border}`, borderRadius:13,
-          padding:"13px 15px", fontSize:16, fontFamily:"'Rubik',sans-serif",
-          direction:"rtl", resize:"vertical", background:th.inputBg,
-          lineHeight:1.65, color:th.text, outline:"none" }} />
+      <div style={{ position:"relative" }}>
+        <textarea value={text} onChange={e=>setText(e.target.value)}
+          placeholder="כתוב את הרעיון שלך..." rows={5} autoFocus
+          style={{ width:"100%", border:`2px solid ${listening?"#EF4444":th.border}`, borderRadius:13,
+            padding:"13px 44px 13px 15px", fontSize:16, fontFamily:"'Rubik',sans-serif",
+            direction:"rtl", resize:"vertical", background:th.inputBg,
+            lineHeight:1.65, color:th.text, outline:"none",
+            transition:"border-color 0.2s" }} />
+        <button onClick={listening ? stopVoice : startVoice}
+          title={listening ? "עצור הקלטה" : "הקלט קול"}
+          style={{ position:"absolute", top:10, left:10, width:30, height:30,
+            borderRadius:"50%", border:"none", cursor:"pointer",
+            background: listening ? "#EF4444" : th.accentSoft,
+            display:"flex", alignItems:"center", justifyContent:"center",
+            boxShadow: listening ? "0 0 0 4px rgba(239,68,68,0.2)" : "none",
+            animation: listening ? "micPulse 1.2s ease-in-out infinite" : "none",
+            transition:"all 0.2s" }}>
+          <span style={{ fontSize:16 }}>{listening ? "⏹" : "🎤"}</span>
+        </button>
+        <style>{`@keyframes micPulse{0%,100%{box-shadow:0 0 0 3px rgba(239,68,68,0.25)}50%{box-shadow:0 0 0 7px rgba(239,68,68,0.1)}}`}</style>
+        {listening && (
+          <div style={{ position:"absolute", bottom:8, left:48, display:"flex", alignItems:"center",
+            gap:5, background:"#EF4444", borderRadius:20, padding:"2px 10px" }}>
+            <span style={{ width:6, height:6, borderRadius:"50%", background:"#fff",
+              animation:"micPulse 1s infinite" }} />
+            <span style={{ fontSize:11, color:"#fff", fontWeight:700 }}>מקליט...</span>
+          </div>
+        )}
+      </div>
 
       {/* Reminder section */}
       <div style={{ marginTop:12, borderRadius:11, border:`1.5px solid ${th.border}`,
