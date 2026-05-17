@@ -1332,33 +1332,36 @@ function AppContent({ user, dark, setDark, th }) {
             <IconBtn name="close" onClick={()=>setShowGuide(false)}
               color={th.accent} bg={th.accentSoft} size={18} pad="7px" />
           </div>
+
+          <div style={{ fontSize:12, color:th.muted, marginBottom:14, padding:"8px 12px",
+            background:th.accentTint, borderRadius:8, lineHeight:1.5 }}>
+            💡 למדריך זה ניתן להגיע בכל עת על ידי לחיצה על הלוגו <strong>IdeaFlow</strong> בראש האפליקציה
+          </div>
+
           {[
-            { icon:"bulb",  title:"רעיון חדש",     text:"לחץ על כפתור המנורה בתחתית המסך להוספת רעיון" },
-            { icon:"folder",title:"פרויקטים",       text:'בחר פרויקט מהרשימה, צור חדש עם "+ חדש"' },
-            { icon:"edit",  title:"עריכה",          text:"ערוך טקסט, שנה צבע, הגדר תזכורת לרעיון" },
-            { icon:"copy",  title:"העתק",           text:"לחץ על אייקון ההעתקה בשורת הכלים של הרעיון" },
-            { icon:"pin",   title:"הצמדה",          text:"הצמד רעיון כדי שיופיע תמיד בראש הרשימה" },
-            { icon:"more",  title:"עוד אפשרויות",   text:"לחץ ⋯ למחיקה, שיתוף ושינוי צבע" },
-            { icon:"up",    title:"סידור",          text:'לחץ "↕ סדר" לגרירת רעיונות לסדר הרצוי' },
-            { icon:"ai",    title:"עוזר AI",        text:"ניתוח רעיונות, תובנות והמלצות לביצוע" },
-            { icon:"bell",  title:"תזכורות",        text:"בעריכת רעיון הגדר תאריך ושעה לתזכורת" },
-          ].map((item,i) => (
+            { icon:"ai",    title:"כניסה לאפליקציה",  text:'התחבר עם חשבון Google שלך. כל המידע שלך שמור בענן ומסונכרן בין המכשירים שלך.' },
+            { icon:"folder",title:"פרויקטים",          text:'בחר פרויקט מהרשימה. צור פרויקט חדש עם "+ חדש". לחיצה ארוכה על פרויקט מאפשרת עריכה ומחיקה שלו.' },
+            { icon:"bulb",  title:"רעיון חדש",         text:'לחץ על כפתור המנורה בתחתית המסך להוספת רעיון חדש לפרויקט הנוכחי.' },
+            { icon:"edit",  title:"עריכה",             text:'לחץ על ✏️ בשורת הכלים לעריכת הטקסט, שינוי צבע והגדרת תזכורת.' },
+            { icon:"copy",  title:"העתקה",             text:'לחץ על אייקון ההעתקה בשורת הכלים — הטקסט יועתק ללוח.' },
+            { icon:"pin",   title:"הצמדה",             text:'לחץ על 📌 כדי להצמיד רעיון — הוא יופיע תמיד בראש הרשימה.' },
+            { icon:"more",  title:"עוד אפשרויות",      text:'לחץ ⋯ לתפריט משני הכולל מחיקה, שיתוף ושינוי צבע הכרטיסייה.' },
+            { icon:"up",    title:"סידור רעיונות",     text:'לחץ "↕ סדר" מעל הרשימה — גרור את הרעיונות לסדר הרצוי ולחץ "✓ סיים".' },
+            { icon:"ai",    title:"עוזר AI",           text:'לחץ על אייקון הרובוט בכותרת לניתוח הרעיונות שלך וקבלת תובנות והמלצות.' },
+            { icon:"bell",  title:"תזכורות",           text:'בעריכת רעיון לחץ "הגדר תזכורת" ובחר תאריך ושעה. תקבל התראה כשיגיע הזמן.' },
+          ].map((item,i,arr) => (
             <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12,
-              padding:"10px 0", borderBottom:i<8?`1px solid ${th.border}`:"none" }}>
+              padding:"10px 0", borderBottom:i<arr.length-1?`1px solid ${th.border}`:"none" }}>
               <div style={{ width:32, height:32, borderRadius:10, background:th.accentSoft,
                 display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                 <Icon name={item.icon} size={17} color={th.accent} />
               </div>
-              <div>
-                <div style={{ fontSize:13, fontWeight:700, color:th.text, marginBottom:2 }}>
-                  {item.title}
-                </div>
-                <div style={{ fontSize:12, color:th.muted, lineHeight:1.5 }}>
-                  {item.text}
-                </div>
+              <div style={{ fontSize:13, color:th.text, lineHeight:1.6 }}>
+                <strong>{item.title}:</strong> {item.text}
               </div>
             </div>
           ))}
+
           <button onClick={()=>setShowGuide(false)}
             style={{ width:"100%", marginTop:16, height:44, background:th.accent, color:"#fff",
               border:"none", borderRadius:12, cursor:"pointer",
