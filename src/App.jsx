@@ -17,11 +17,7 @@ const DEF_PROJECTS = [
   { id:1, name:"פרויקט ראשי", notes:"", color:"#2563EB" },
   { id:2, name:"עיצוב UI",    notes:"", color:"#0891B2" },
 ];
-const DEF_IDEAS = [
-  { id:1, pid:1, text:"לפתח ממשק קולי לניהול רעיונות", color:"#FFFFFF", pinned:true,  checked:false, done:false, images:[], at:Date.now() },
-  { id:2, pid:1, text:"לשלב AI לסיכום שבועי אוטומטי",  color:"#FFFFFF", pinned:false, checked:false, done:false, images:[], at:Date.now()-1000 },
-  { id:3, pid:1, text:"לבנות פאנל אדמין למעקב נתונים", color:"#FFFFFF", pinned:false, checked:false, done:true,  images:[], at:Date.now()-2000 },
-];
+const DEF_IDEAS = [];
 
 // ── SVG Icons ─────────────────────────────────────────────────────────────────
 const ICONS = {
