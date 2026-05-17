@@ -191,37 +191,51 @@ function fmtDatetimeLocal(ts) {
 
 // ── Idea Editor ───────────────────────────────────────────────────────────────
 function IdeaEditor({ initial, onSave, onClose, title, th }) {
-  const [text, setText]       = useState(initial?.text || "");
-  const [images, setImages]   = useState(initial?.images || []);
+  const [text, setText]         = useState(initial?.text || "");
+  const [images, setImages]     = useState(initial?.images || []);
+  const [audios, setAudios]     = useState(initial?.audios || []);
   const [remindAt, setRemindAt] = useState(initial?.remindAt || null);
   const [showRemind, setShowRemind] = useState(false);
-  const [listening, setListening] = useState(false);
-  const fileRef = useRef();
-  const recognitionRef = useRef(null);
+  const [recording, setRecording] = useState(false);
+  const [recSecs, setRecSecs]   = useState(0);
+  const fileRef   = useRef();
+  const audioRef  = useRef();
+  const mediaRef  = useRef(null);
+  const chunksRef = useRef([]);
+  const timerRef  = useRef(null);
 
-  const startVoice = () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { alert("הדפדפן שלך לא תומך בזיהוי קול"); return; }
-    const r = new SR();
-    r.lang = "he-IL";
-    r.continuous = true;
-    r.interimResults = true;
-    recognitionRef.current = r;
-    r.onresult = e => {
-      let final = "";
-      for (let i = 0; i < e.results.length; i++) {
-        if (e.results[i].isFinal) final += e.results[i][0].transcript;
-      }
-      if (final) setText(p => p ? p + " " + final : final);
-    };
-    r.onend = () => setListening(false);
-    r.start();
-    setListening(true);
+  const startRec = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const reader = new FileReader();
+        reader.onload = ev => setAudios(p => [...p, { src: ev.target.result, name: `הקלטה ${p.length+1}` }]);
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mr.start();
+      mediaRef.current = mr;
+      setRecording(true);
+      setRecSecs(0);
+      timerRef.current = setInterval(() => setRecSecs(s => s+1), 1000);
+    } catch { alert("לא ניתן לגשת למיקרופון"); }
   };
 
-  const stopVoice = () => {
-    recognitionRef.current?.stop();
-    setListening(false);
+  const stopRec = () => {
+    mediaRef.current?.stop();
+    clearInterval(timerRef.current);
+    setRecording(false);
+  };
+
+  const addAudioFile = file => {
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = e => setAudios(p => [...p, { src: e.target.result, name: file.name }]);
+    r.readAsDataURL(file);
   };
 
   const addImg = file => {
@@ -232,47 +246,27 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
   };
 
   const handleSave = () => {
-    if (!text.trim() && !images.length) return;
-    const idea = { text: text.trim(), images, remindAt };
+    if (!text.trim() && !images.length && !audios.length) return;
+    const idea = { text: text.trim(), images, audios, remindAt };
     if (remindAt && remindAt > Date.now()) scheduleReminder(idea, remindAt);
     onSave(idea);
   };
 
+  const fmtSecs = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+
   return (
     <Modal onClose={onClose} th={th}>
+      <style>{`@keyframes recPulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
         <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:th.text }}>{title}</h3>
         <IconBtn name="close" onClick={onClose} color={th.accent} bg={th.accentSoft} size={18} pad="7px" />
       </div>
-      <div style={{ position:"relative" }}>
-        <textarea value={text} onChange={e=>setText(e.target.value)}
-          placeholder="כתוב את הרעיון שלך..." rows={5} autoFocus
-          style={{ width:"100%", border:`2px solid ${listening?"#EF4444":th.border}`, borderRadius:13,
-            padding:"13px 44px 13px 15px", fontSize:16, fontFamily:"'Rubik',sans-serif",
-            direction:"rtl", resize:"vertical", background:th.inputBg,
-            lineHeight:1.65, color:th.text, outline:"none",
-            transition:"border-color 0.2s" }} />
-        <button onClick={listening ? stopVoice : startVoice}
-          title={listening ? "עצור הקלטה" : "הקלט קול"}
-          style={{ position:"absolute", top:10, left:10, width:30, height:30,
-            borderRadius:"50%", border:"none", cursor:"pointer",
-            background: listening ? "#EF4444" : th.accentSoft,
-            display:"flex", alignItems:"center", justifyContent:"center",
-            boxShadow: listening ? "0 0 0 4px rgba(239,68,68,0.2)" : "none",
-            animation: listening ? "micPulse 1.2s ease-in-out infinite" : "none",
-            transition:"all 0.2s" }}>
-          <span style={{ fontSize:16 }}>{listening ? "⏹" : "🎤"}</span>
-        </button>
-        <style>{`@keyframes micPulse{0%,100%{box-shadow:0 0 0 3px rgba(239,68,68,0.25)}50%{box-shadow:0 0 0 7px rgba(239,68,68,0.1)}}`}</style>
-        {listening && (
-          <div style={{ position:"absolute", bottom:8, left:48, display:"flex", alignItems:"center",
-            gap:5, background:"#EF4444", borderRadius:20, padding:"2px 10px" }}>
-            <span style={{ width:6, height:6, borderRadius:"50%", background:"#fff",
-              animation:"micPulse 1s infinite" }} />
-            <span style={{ fontSize:11, color:"#fff", fontWeight:700 }}>מקליט...</span>
-          </div>
-        )}
-      </div>
+      <textarea value={text} onChange={e=>setText(e.target.value)}
+        placeholder="כתוב את הרעיון שלך..." rows={5} autoFocus
+        style={{ width:"100%", border:`2px solid ${th.border}`, borderRadius:13,
+          padding:"13px 15px", fontSize:16, fontFamily:"'Rubik',sans-serif",
+          direction:"rtl", resize:"vertical", background:th.inputBg,
+          lineHeight:1.65, color:th.text, outline:"none" }} />
 
       {/* Reminder section */}
       <div style={{ marginTop:12, borderRadius:11, border:`1.5px solid ${th.border}`,
@@ -312,6 +306,42 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
         )}
       </div>
 
+      {/* Audio recordings */}
+      {audios.length > 0 && (
+        <div style={{ marginTop:10, display:"flex", flexDirection:"column", gap:6 }}>
+          {audios.map((a,i) => (
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:8,
+              background:th.accentTint, borderRadius:10, padding:"8px 10px",
+              border:`1px solid ${th.border}` }}>
+              <span style={{ fontSize:16 }}>🎵</span>
+              <audio src={a.src} controls style={{ flex:1, height:32 }} />
+              <button onClick={()=>setAudios(p=>p.filter((_,j)=>j!==i))}
+                style={{ background:th.red, border:"none", borderRadius:"50%",
+                  width:20, height:20, cursor:"pointer", flexShrink:0,
+                  display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <Icon name="close" size={11} color="#fff" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Recording indicator */}
+      {recording && (
+        <div style={{ marginTop:10, background:"#FEF2F2", borderRadius:10,
+          padding:"10px 14px", border:"1.5px solid #FECACA",
+          display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ width:10, height:10, borderRadius:"50%", background:"#EF4444",
+            flexShrink:0, animation:"recPulse 1s ease-in-out infinite" }} />
+          <span style={{ flex:1, fontSize:13, fontWeight:700, color:"#EF4444",
+            fontFamily:"'Rubik',sans-serif" }}>מקליט... {fmtSecs(recSecs)}</span>
+          <button onClick={stopRec}
+            style={{ background:"#EF4444", color:"#fff", border:"none", borderRadius:8,
+              padding:"6px 14px", cursor:"pointer", fontSize:13, fontWeight:700,
+              fontFamily:"'Rubik',sans-serif" }}>⏹ עצור</button>
+        </div>
+      )}
+
       {images.length > 0 && (
         <div style={{ display:"flex", gap:7, marginTop:10, flexWrap:"wrap" }}>
           {images.map((src,i)=>(
@@ -329,20 +359,41 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
       )}
       <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}}
         onChange={e=>{ addImg(e.target.files[0]); e.target.value=""; }} />
-      <div style={{ display:"flex", gap:7, marginTop:12 }}>
+      <input ref={audioRef} type="file" accept="audio/*" style={{display:"none"}}
+        onChange={e=>{ addAudioFile(e.target.files[0]); e.target.value=""; }} />
+
+      {/* Buttons row */}
+      <div style={{ display:"flex", gap:7, marginTop:12, flexWrap:"wrap" }}>
         <button onClick={()=>{ fileRef.current.removeAttribute("capture"); fileRef.current.click(); }}
           style={{ flex:1, background:th.accentSoft, color:th.accent, border:"none", borderRadius:11,
-            padding:"11px 0", cursor:"pointer", fontSize:14, fontWeight:700,
+            padding:"11px 0", cursor:"pointer", fontSize:13, fontWeight:700,
             fontFamily:"'Rubik',sans-serif", display:"flex", alignItems:"center",
-            justifyContent:"center", gap:7 }}>
-          <Icon name="photo" size={17} color={th.accent} /> גלריה
+            justifyContent:"center", gap:6, minWidth:70 }}>
+          <Icon name="photo" size={16} color={th.accent} /> גלריה
         </button>
         <button onClick={()=>{ fileRef.current.setAttribute("capture","environment"); fileRef.current.click(); }}
           style={{ flex:1, background:th.accentSoft, color:th.accent, border:"none", borderRadius:11,
-            padding:"11px 0", cursor:"pointer", fontSize:14, fontWeight:700,
+            padding:"11px 0", cursor:"pointer", fontSize:13, fontWeight:700,
             fontFamily:"'Rubik',sans-serif", display:"flex", alignItems:"center",
-            justifyContent:"center", gap:7 }}>
-          <Icon name="camera" size={17} color={th.accent} /> צלם
+            justifyContent:"center", gap:6, minWidth:70 }}>
+          <Icon name="camera" size={16} color={th.accent} /> צלם
+        </button>
+        <button onClick={recording ? stopRec : startRec}
+          style={{ flex:1, background: recording ? "#FEF2F2" : th.accentSoft,
+            color: recording ? "#EF4444" : th.accent,
+            border: recording ? "1.5px solid #FECACA" : "none",
+            borderRadius:11, padding:"11px 0", cursor:"pointer", fontSize:13, fontWeight:700,
+            fontFamily:"'Rubik',sans-serif", display:"flex", alignItems:"center",
+            justifyContent:"center", gap:6, minWidth:70 }}>
+          <span style={{ fontSize:15 }}>{recording ? "⏹" : "🎙"}</span>
+          {recording ? "עצור" : "הקלט"}
+        </button>
+        <button onClick={()=>audioRef.current.click()}
+          style={{ flex:1, background:th.accentSoft, color:th.accent, border:"none", borderRadius:11,
+            padding:"11px 0", cursor:"pointer", fontSize:13, fontWeight:700,
+            fontFamily:"'Rubik',sans-serif", display:"flex", alignItems:"center",
+            justifyContent:"center", gap:6, minWidth:70 }}>
+          <span style={{ fontSize:15 }}>🎵</span> אודיו
         </button>
       </div>
       <button onClick={handleSave}
@@ -488,6 +539,20 @@ function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveD
             {idea.images.map((src,i) => (
               <img key={i} src={src} alt="" onClick={()=>setBigImg(src)}
                 style={{ width:64, height:64, objectFit:"cover", borderRadius:10, cursor:"pointer" }} />
+            ))}
+          </div>
+        )}
+
+        {/* Audio players */}
+        {idea.audios?.length > 0 && (
+          <div style={{ padding:"0 12px 8px", display:"flex", flexDirection:"column", gap:5 }}>
+            {idea.audios.map((a,i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:7,
+                background:th.accentTint, borderRadius:9, padding:"6px 10px",
+                border:`1px solid ${th.border}` }}>
+                <span style={{ fontSize:14, flexShrink:0 }}>🎵</span>
+                <audio src={a.src} controls style={{ flex:1, height:28 }} />
+              </div>
             ))}
           </div>
         )}
@@ -1093,17 +1158,17 @@ function AppContent({ user, dark, setDark, th }) {
   const active = ideas.filter(i=>i.pid===pid&&!i.done).length;
   const done   = ideas.filter(i=>i.pid===pid&&i.done).length;
 
-  const saveNew = ({text,images,remindAt}) => {
+  const saveNew = ({text,images,audios,remindAt}) => {
     const id = nidRef.current;
-    const newIdea = {id,pid,text,color:"#FFFFFF",pinned:false,checked:false,done:false,images,remindAt:remindAt||null,at:Date.now()};
+    const newIdea = {id,pid,text,color:"#FFFFFF",pinned:false,checked:false,done:false,images,audios:audios||[],remindAt:remindAt||null,at:Date.now()};
     const newIdeas = [newIdea, ...ideas];
     const newNid = nid + 1;
     setIdeas(newIdeas); setNid(newNid); setNewOpen(false);
     persistAll(projects, newIdeas, newNid, pid);
     toast$("רעיון נוסף");
   };
-  const saveEdit = ({text,images,remindAt}) => {
-    const newIdeas = ideas.map(i=>i.id===editIdea.id?{...i,text,images,remindAt:remindAt||null}:i);
+  const saveEdit = ({text,images,audios,remindAt}) => {
+    const newIdeas = ideas.map(i=>i.id===editIdea.id?{...i,text,images,audios:audios||[],remindAt:remindAt||null}:i);
     setIdeas(newIdeas); setEditIdea(null);
     persistAll(projects, newIdeas, nid, pid);
     toast$("נשמר");
