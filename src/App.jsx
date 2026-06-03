@@ -168,17 +168,24 @@ function Confirm({ title, message, onConfirm, onCancel, th }) {
 
 // ── Reminder utils ────────────────────────────────────────────────────────────
 function scheduleReminder(idea, remindAt) {
-  if (!("Notification" in window)) return;
+  if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
   const delay = remindAt - Date.now();
   if (delay <= 0) return;
   Notification.requestPermission().then(perm => {
     if (perm !== "granted") return;
-    setTimeout(() => {
-      new Notification("💡 תזכורת", {
-        body: idea.text,
-        icon: "/favicon.ico",
+    navigator.serviceWorker.ready.then(reg => {
+      reg.active?.postMessage({
+        type: "SCHEDULE_REMINDER",
+        idea: { id: idea.id || Date.now(), text: idea.text, remindAt }
       });
-    }, delay);
+    });
+  });
+}
+
+function cancelReminder(ideaId) {
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.ready.then(reg => {
+    reg.active?.postMessage({ type: "CANCEL_REMINDER", idea: { id: ideaId } });
   });
 }
 
@@ -1015,34 +1022,39 @@ function AppContent({ user, dark, setDark, th }) {
     }
   }, [uid]);
 
-  // Check reminders on load
+  // Register Service Worker + sync all reminders to SW
   useEffect(()=>{
     if (!ideas) return;
-    // Request permission
+
+    // Register SW
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(err => {
+        console.warn("SW registration failed:", err);
+      });
+    }
+
+    // Request notification permission
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
-    const timers = [];
-    const now = Date.now();
-    ideas.forEach(idea => {
-      if (!idea.remindAt || idea.done) return;
-      const diff = idea.remindAt - now;
-      if (diff > 0) {
-        const t = setTimeout(() => {
-          if ("Notification" in window && Notification.permission === "granted") {
-            new Notification("💡 תזכורת — IdeaFlow", {
-              body: idea.text,
-              icon: "/icons/icon-192.png",
-              dir: "rtl",
-            });
-          } else {
-            toast$(`🔔 תזכורת: ${idea.text}`);
-          }
-        }, Math.min(diff, 2147483647)); // max setTimeout value
-        timers.push(t);
-      }
-    });
-    return () => timers.forEach(t => clearTimeout(t));
+
+    // Send all active reminders to SW
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        if (!reg.active) return;
+        // Cancel all first, then re-schedule
+        reg.active.postMessage({ type: "CANCEL_ALL" });
+        const now = Date.now();
+        ideas.forEach(idea => {
+          if (!idea.remindAt || idea.done) return;
+          if (idea.remindAt <= now) return;
+          reg.active.postMessage({
+            type: "SCHEDULE_REMINDER",
+            idea: { id: idea.id, text: idea.text, remindAt: idea.remindAt }
+          });
+        });
+      });
+    }
   }, [ideas]);
   const [archive, setArchive]     = useState(false);
   const [showAI, setShowAI]     = useState(false);
