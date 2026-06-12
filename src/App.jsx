@@ -10,6 +10,17 @@ import { ref, onValue, set } from "firebase/database";
 const PROJ_COLORS = ["#2563EB","#0891B2","#7C3AED","#059669","#D97706"];
 const SK = "ideas_v22";
 
+// ── What's New ──────────────────────────────────────────────────────────────
+const APP_VERSION = "4.1";
+const WHATS_NEW = {
+  version: "4.1",
+  date: "12.06.2026",
+  title: "הצמדת פרויקטים",
+  features: [
+    { icon:"pin", text:"עכשיו אפשר להצמיד פרויקטים חשובים לראש הרשימה — לחץ על הסיכה ליד הפרויקט במסך הניהול." },
+  ],
+};
+
 const PASTEL = ["#FFFFFF","#FEF9E7","#E8F8F5","#EAF2FB","#F4ECF7",
   "#FDF2E9","#FEF5E7","#EAFAF1","#F2F4F4","#FFF5E1"];
 
@@ -785,7 +796,7 @@ function AIPanel({ ideas, onClose, th }) {
 }
 
 // ── Project Modal ─────────────────────────────────────────────────────────────
-function ProjModal({ projects, ideas, activePid, onClose, onAdd, onDel, onEdit, onSelect, th }) {
+function ProjModal({ projects, ideas, activePid, onClose, onAdd, onDel, onEdit, onSelect, onPin, th }) {
   const [name, setName]     = useState("");
   const [editId, setEditId] = useState(null);
   const [editN, setEditN]   = useState("");
@@ -804,7 +815,7 @@ function ProjModal({ projects, ideas, activePid, onClose, onAdd, onDel, onEdit, 
         <IconBtn name="close" onClick={onClose} color={th.accent} bg={th.accentSoft} size={18} pad="7px" />
       </div>
 
-      {projects.map(p=>{
+      {[...projects].sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)).map(p=>{
         const cnt = ideas.filter(i=>i.pid===p.id&&!i.done).length;
         return (
           <div key={p.id} onClick={()=>onSelect(p.id)}
@@ -820,9 +831,16 @@ function ProjModal({ projects, ideas, activePid, onClose, onAdd, onDel, onEdit, 
                   style={{ flex:1, border:"none", background:"transparent", fontSize:14,
                     fontFamily:"'Rubik',sans-serif", outline:"none", color:th.text }} />
               : <span style={{ flex:1, fontSize:14, color:th.text,
-                  fontWeight:p.id===activePid?700:500 }}>{p.name}</span>}
+                  fontWeight:p.id===activePid?700:500, display:"flex", alignItems:"center", gap:5 }}>
+                  {p.pinned && <Icon name="pin" size={12} color={th.accent} />}
+                  {p.name}
+                </span>}
             <span style={{ fontSize:11, color:th.accent, background:th.surface,
               padding:"2px 9px", borderRadius:20, fontWeight:700 }}>{cnt}</span>
+            <IconBtn name="pin" size={16}
+              color={p.pinned?th.accent:th.muted}
+              bg={p.pinned?th.accentSoft:"transparent"} pad="4px"
+              onClick={e=>{ e.stopPropagation(); e.preventDefault(); onPin(p.id); }} />
             <IconBtn name="edit" size={16} color={th.muted} pad="4px"
               onClick={e=>{ e.stopPropagation(); e.preventDefault(); setEditId(p.id); setEditN(p.name); }} />
             {projects.length>1 &&
@@ -1011,6 +1029,7 @@ function AppContent({ user, dark, setDark, th }) {
   };
   const [showLogout, setShowLogout] = useState(false);
   const [showGuide, setShowGuide]   = useState(false);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [search, setSearch]         = useState("");
 
   // Show guide on first visit
@@ -1019,6 +1038,19 @@ function AppContent({ user, dark, setDark, th }) {
     if (!localStorage.getItem(key)) {
       setShowGuide(true);
       localStorage.setItem(key, "1");
+    }
+  }, [uid]);
+
+  // Show What's New once per version
+  useEffect(()=>{
+    const key = `ideaflow_whatsnew_${uid}`;
+    const seen = localStorage.getItem(key);
+    if (seen !== WHATS_NEW.version) {
+      // Don't show on the very first visit (guide handles that)
+      if (localStorage.getItem(`ideaflow_guide_seen_${uid}`)) {
+        setShowWhatsNew(true);
+      }
+      localStorage.setItem(key, WHATS_NEW.version);
     }
   }, [uid]);
 
@@ -1167,6 +1199,11 @@ function AppContent({ user, dark, setDark, th }) {
     setProjects(newProjects);
     persistAll(newProjects, ideas, nid, pid);
   };
+  const pinProj = id => {
+    const newProjects = projects.map(x=>x.id===id?{...x,pinned:!x.pinned}:x);
+    setProjects(newProjects);
+    persistAll(newProjects, ideas, nid, pid);
+  };
   const saveNotes = notes => {
     const newProjects = projects.map(x=>x.id===pid?{...x,notes}:x);
     setProjects(newProjects);
@@ -1289,7 +1326,7 @@ function AppContent({ user, dark, setDark, th }) {
                     background:th.surface, borderRadius:10,
                     boxShadow:"0 6px 20px rgba(0,0,0,0.2)", zIndex:200,
                     overflow:"hidden", border:`1.5px solid ${th.border}` }}>
-                    {projects.map(p=>(
+                    {[...projects].sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)).map(p=>(
                       <div key={p.id}
                         style={{ display:"flex", alignItems:"center", gap:4, padding:"9px 10px",
                           background:p.id===pid?th.accentTint:th.surface,
@@ -1298,6 +1335,7 @@ function AppContent({ user, dark, setDark, th }) {
                           style={{ display:"flex", alignItems:"center", gap:7, flex:1, cursor:"pointer" }}>
                           <div style={{ width:9, height:9, borderRadius:"50%",
                             background:p.color, flexShrink:0 }} />
+                          {p.pinned && <Icon name="pin" size={11} color={th.accent} />}
                           <span style={{ fontSize:13, color:th.text,
                             fontWeight:p.id===pid?700:500 }}>{p.name}</span>
                           <span style={{ fontSize:10, color:th.accent, fontWeight:700,
@@ -1402,6 +1440,45 @@ function AppContent({ user, dark, setDark, th }) {
 
       {/* Modals */}
       {toast     && <Toast msg={toast} th={th} />}
+      {showWhatsNew && (
+        <Modal onClose={()=>setShowWhatsNew(false)} maxWidth={400} th={th}>
+          <div style={{ textAlign:"center", marginBottom:18 }}>
+            <div style={{ fontSize:44, marginBottom:8 }}>🎉</div>
+            <div style={{ display:"inline-flex", alignItems:"center", gap:8,
+              background:th.accentSoft, borderRadius:20, padding:"4px 14px", marginBottom:10 }}>
+              <span style={{ fontSize:13, fontWeight:800, color:th.accent }}>
+                גרסה {WHATS_NEW.version}
+              </span>
+              <span style={{ fontSize:11, color:th.accent, opacity:0.8 }}>
+                {WHATS_NEW.date}
+              </span>
+            </div>
+            <h3 style={{ margin:0, fontSize:20, fontWeight:900, color:th.text }}>
+              {WHATS_NEW.title}
+            </h3>
+          </div>
+          {WHATS_NEW.features.map((f,i)=>(
+            <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12,
+              background:th.accentTint, borderRadius:12, padding:"13px 14px",
+              marginBottom:8, border:`1px solid ${th.border}` }}>
+              <div style={{ width:34, height:34, borderRadius:10, background:th.accentSoft,
+                display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <Icon name={f.icon} size={18} color={th.accent} />
+              </div>
+              <div style={{ flex:1, fontSize:14, color:th.text, lineHeight:1.6,
+                direction:"rtl", textAlign:"right", paddingTop:2 }}>
+                {f.text}
+              </div>
+            </div>
+          ))}
+          <button onClick={()=>setShowWhatsNew(false)}
+            style={{ width:"100%", marginTop:14, height:46, background:th.accent, color:"#fff",
+              border:"none", borderRadius:12, cursor:"pointer",
+              fontSize:15, fontWeight:800, fontFamily:"'Rubik',sans-serif" }}>
+            מגניב, בוא נתחיל!
+          </button>
+        </Modal>
+      )}
       {showGuide && (
         <Modal onClose={()=>setShowGuide(false)} th={th}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
@@ -1489,7 +1566,7 @@ function AppContent({ user, dark, setDark, th }) {
       {shareIdea && <ShareModal idea={shareIdea} onClose={()=>setShare(null)} th={th} />}
       {showProj  && <ProjModal projects={projects} ideas={ideas} activePid={pid}
         onClose={()=>setShowProj(false)} onAdd={addProj} onDel={delProj}
-        onEdit={editProj} onSelect={id=>{ setPidAndSave(id); setShowProj(false); }} th={th} />}
+        onEdit={editProj} onPin={pinProj} onSelect={id=>{ setPidAndSave(id); setShowProj(false); }} th={th} />}
       {showNotes && cur && <NotesModal project={cur} onSave={saveNotes}
         onClose={()=>setShowNotes(false)} th={th} />}
     </div>
