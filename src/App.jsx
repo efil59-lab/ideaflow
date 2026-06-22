@@ -221,6 +221,7 @@ function RichEditor({ html, onChange, th, placeholder }) {
   const ref = useRef(null);
   const [showColors, setShowColors]   = useState(false);
   const [showHilite, setShowHilite]   = useState(false);
+  const savedRange = useRef(null);
 
   // Initialize content once
   useEffect(() => {
@@ -229,9 +230,28 @@ function RichEditor({ html, onChange, th, placeholder }) {
     }
   }, []);
 
+  // Save current selection (so it survives toolbar taps)
+  const saveSel = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && ref.current?.contains(sel.anchorNode)) {
+      savedRange.current = sel.getRangeAt(0).cloneRange();
+    }
+  };
+
+  // Restore the saved selection back into the editor
+  const restoreSel = () => {
+    const sel = window.getSelection();
+    if (savedRange.current && sel) {
+      sel.removeAllRanges();
+      sel.addRange(savedRange.current);
+    }
+  };
+
   const exec = (cmd, val=null) => {
-    document.execCommand(cmd, false, val);
     ref.current?.focus();
+    restoreSel();
+    document.execCommand(cmd, false, val);
+    saveSel();
     emit();
   };
 
@@ -246,69 +266,80 @@ function RichEditor({ html, onChange, th, placeholder }) {
     fontSize:15, fontWeight:800, color:th.text, minWidth:32, fontFamily:"Georgia,serif",
   });
 
+  // Prevent toolbar mousedown/touch from stealing selection
+  const keepSel = e => { e.preventDefault(); };
+
   return (
     <div style={{ border:`2px solid ${th.border}`, borderRadius:13, overflow:"hidden",
       background:th.inputBg }}>
       {/* Toolbar */}
       <div style={{ display:"flex", alignItems:"center", gap:2, flexWrap:"wrap",
-        padding:"6px 8px", background:th.surface2, borderBottom:`1px solid ${th.border}` }}>
-        <button type="button" onClick={()=>exec("bold")} style={btnStyle()} title="מודגש">B</button>
-        <button type="button" onClick={()=>exec("underline")} style={{...btnStyle(), textDecoration:"underline"}} title="קו תחתון">U</button>
-        <button type="button" onClick={()=>exec("italic")} style={{...btnStyle(), fontStyle:"italic"}} title="נטוי">I</button>
+        padding:"6px 8px", background:th.surface2, borderBottom:`1px solid ${th.border}`,
+        position:"relative" }}>
+        <button type="button" onMouseDown={keepSel} onTouchStart={keepSel}
+          onClick={()=>exec("bold")} style={btnStyle()} title="מודגש">B</button>
+        <button type="button" onMouseDown={keepSel} onTouchStart={keepSel}
+          onClick={()=>exec("underline")} style={{...btnStyle(), textDecoration:"underline"}} title="קו תחתון">U</button>
+        <button type="button" onMouseDown={keepSel} onTouchStart={keepSel}
+          onClick={()=>exec("italic")} style={{...btnStyle(), fontStyle:"italic"}} title="נטוי">I</button>
         <div style={{ width:1, height:18, background:th.border, margin:"0 3px" }} />
-        <button type="button" onClick={()=>exec("insertUnorderedList")} style={btnStyle()} title="רשימה">
+        <button type="button" onMouseDown={keepSel} onTouchStart={keepSel}
+          onClick={()=>exec("insertUnorderedList")} style={btnStyle()} title="רשימה">
           <Icon name="more" size={16} color={th.text} />
         </button>
         <div style={{ width:1, height:18, background:th.border, margin:"0 3px" }} />
         {/* Text color */}
-        <div style={{ position:"relative" }}>
-          <button type="button" onClick={()=>{ setShowColors(s=>!s); setShowHilite(false); }}
-            style={btnStyle(showColors)} title="צבע טקסט">
-            <span style={{ display:"inline-flex", flexDirection:"column", alignItems:"center" }}>
-              <span style={{ fontSize:14, lineHeight:1, fontFamily:"Georgia,serif" }}>A</span>
-              <span style={{ width:16, height:3, background:"linear-gradient(90deg,#DC2626,#2563EB,#16A34A)", borderRadius:2, marginTop:1 }} />
-            </span>
-          </button>
-          {showColors && (
-            <div style={{ position:"absolute", top:"calc(100% + 4px)", right:0, zIndex:50,
-              background:th.surface, border:`1.5px solid ${th.border}`, borderRadius:10,
-              padding:8, display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:6,
-              boxShadow:"0 6px 20px rgba(0,0,0,0.2)", width:170 }}>
-              {RICH_COLORS.map(c=>(
-                <div key={c} onClick={()=>{ exec("foreColor", c); setShowColors(false); }}
-                  style={{ width:24, height:24, borderRadius:"50%", background:c,
-                    cursor:"pointer", border:`2px solid ${th.border}` }} />
-              ))}
-            </div>
-          )}
-        </div>
+        <button type="button" onMouseDown={keepSel} onTouchStart={keepSel}
+          onClick={()=>{ setShowColors(s=>!s); setShowHilite(false); }}
+          style={btnStyle(showColors)} title="צבע טקסט">
+          <span style={{ display:"inline-flex", flexDirection:"column", alignItems:"center" }}>
+            <span style={{ fontSize:14, lineHeight:1, fontFamily:"Georgia,serif" }}>A</span>
+            <span style={{ width:16, height:3, background:"linear-gradient(90deg,#DC2626,#2563EB,#16A34A)", borderRadius:2, marginTop:1 }} />
+          </span>
+        </button>
         {/* Highlight */}
-        <div style={{ position:"relative" }}>
-          <button type="button" onClick={()=>{ setShowHilite(s=>!s); setShowColors(false); }}
-            style={btnStyle(showHilite)} title="הדגשה">
-            <span style={{ fontSize:14 }}>🖍</span>
-          </button>
-          {showHilite && (
-            <div style={{ position:"absolute", top:"calc(100% + 4px)", right:0, zIndex:50,
-              background:th.surface, border:`1.5px solid ${th.border}`, borderRadius:10,
-              padding:8, display:"flex", gap:6,
-              boxShadow:"0 6px 20px rgba(0,0,0,0.2)" }}>
-              {HILITE_COLORS.map(c=>(
-                <div key={c} onClick={()=>{ exec("hiliteColor", c); setShowHilite(false); }}
-                  style={{ width:24, height:24, borderRadius:7,
-                    background: c==="transparent" ? th.inputBg : c,
-                    cursor:"pointer", border:`2px solid ${th.border}`,
-                    display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  {c==="transparent" && <Icon name="close" size={12} color={th.muted} />}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <button type="button" onMouseDown={keepSel} onTouchStart={keepSel}
+          onClick={()=>{ setShowHilite(s=>!s); setShowColors(false); }}
+          style={btnStyle(showHilite)} title="הדגשה">
+          <span style={{ fontSize:14 }}>🖍</span>
+        </button>
+
+        {/* Color picker - full width row below toolbar */}
+        {showColors && (
+          <div style={{ position:"absolute", top:"calc(100% + 4px)", right:8, left:8, zIndex:50,
+            background:th.surface, border:`1.5px solid ${th.border}`, borderRadius:10,
+            padding:10, display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center",
+            boxShadow:"0 6px 20px rgba(0,0,0,0.2)" }}>
+            {RICH_COLORS.map(c=>(
+              <div key={c} onMouseDown={keepSel} onTouchStart={keepSel}
+                onClick={()=>{ exec("foreColor", c); setShowColors(false); }}
+                style={{ width:30, height:30, borderRadius:"50%", background:c,
+                  cursor:"pointer", border:`2px solid ${th.border}`, flexShrink:0 }} />
+            ))}
+          </div>
+        )}
+        {/* Highlight picker */}
+        {showHilite && (
+          <div style={{ position:"absolute", top:"calc(100% + 4px)", right:8, left:8, zIndex:50,
+            background:th.surface, border:`1.5px solid ${th.border}`, borderRadius:10,
+            padding:10, display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center",
+            boxShadow:"0 6px 20px rgba(0,0,0,0.2)" }}>
+            {HILITE_COLORS.map(c=>(
+              <div key={c} onMouseDown={keepSel} onTouchStart={keepSel}
+                onClick={()=>{ exec("hiliteColor", c); setShowHilite(false); }}
+                style={{ width:30, height:30, borderRadius:8,
+                  background: c==="transparent" ? th.inputBg : c,
+                  cursor:"pointer", border:`2px solid ${th.border}`, flexShrink:0,
+                  display:"flex", alignItems:"center", justifyContent:"center" }}>
+                {c==="transparent" && <Icon name="close" size={14} color={th.muted} />}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       {/* Editable area */}
       <div ref={ref} contentEditable suppressContentEditableWarning
-        onInput={emit}
+        onInput={emit} onKeyUp={saveSel} onMouseUp={saveSel} onTouchEnd={saveSel}
         data-ph={placeholder}
         style={{ minHeight:120, maxHeight:260, overflowY:"auto", padding:"13px 15px",
           fontSize:16, fontFamily:"'Rubik',sans-serif", direction:"rtl", textAlign:"right",
