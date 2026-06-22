@@ -255,6 +255,39 @@ function RichEditor({ html, onChange, th, placeholder }) {
     emit();
   };
 
+  // Manual color/highlight via Range API (works on iOS Safari where execCommand fails)
+  const applyStyle = (styleProp, value) => {
+    ref.current?.focus();
+    restoreSel();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (range.collapsed) return; // nothing selected
+
+    // Make sure selection is inside the editor
+    if (!ref.current?.contains(range.commonAncestorContainer)) return;
+
+    const span = document.createElement("span");
+    span.style[styleProp] = value;
+    try {
+      // Wrap the selected contents in the styled span
+      const contents = range.extractContents();
+      span.appendChild(contents);
+      range.insertNode(span);
+
+      // Re-select the newly styled span
+      const newRange = document.createRange();
+      newRange.selectNodeContents(span);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+      savedRange.current = newRange.cloneRange();
+    } catch (err) {
+      // Fallback to execCommand if extractContents fails
+      document.execCommand(styleProp === "backgroundColor" ? "hiliteColor" : "foreColor", false, value);
+    }
+    emit();
+  };
+
   const emit = () => {
     if (ref.current) onChange(ref.current.innerHTML);
   };
@@ -276,21 +309,20 @@ function RichEditor({ html, onChange, th, placeholder }) {
       <div style={{ display:"flex", alignItems:"center", gap:2, flexWrap:"wrap",
         padding:"6px 8px", background:th.surface2, borderBottom:`1px solid ${th.border}`,
         position:"relative" }}>
-        <button type="button" onMouseDown={keepSel} onTouchStart={keepSel}
-          onClick={()=>exec("bold")} style={btnStyle()} title="מודגש">B</button>
-        <button type="button" onMouseDown={keepSel} onTouchStart={keepSel}
-          onClick={()=>exec("underline")} style={{...btnStyle(), textDecoration:"underline"}} title="קו תחתון">U</button>
-        <button type="button" onMouseDown={keepSel} onTouchStart={keepSel}
-          onClick={()=>exec("italic")} style={{...btnStyle(), fontStyle:"italic"}} title="נטוי">I</button>
+        <button type="button" onPointerDown={e=>{ e.preventDefault(); exec("bold"); }}
+          style={btnStyle()} title="מודגש">B</button>
+        <button type="button" onPointerDown={e=>{ e.preventDefault(); exec("underline"); }}
+          style={{...btnStyle(), textDecoration:"underline"}} title="קו תחתון">U</button>
+        <button type="button" onPointerDown={e=>{ e.preventDefault(); exec("italic"); }}
+          style={{...btnStyle(), fontStyle:"italic"}} title="נטוי">I</button>
         <div style={{ width:1, height:18, background:th.border, margin:"0 3px" }} />
-        <button type="button" onMouseDown={keepSel} onTouchStart={keepSel}
-          onClick={()=>exec("insertUnorderedList")} style={btnStyle()} title="רשימה">
+        <button type="button" onPointerDown={e=>{ e.preventDefault(); exec("insertUnorderedList"); }}
+          style={btnStyle()} title="רשימה">
           <Icon name="more" size={16} color={th.text} />
         </button>
         <div style={{ width:1, height:18, background:th.border, margin:"0 3px" }} />
         {/* Text color */}
-        <button type="button" onMouseDown={keepSel} onTouchStart={keepSel}
-          onClick={()=>{ setShowColors(s=>!s); setShowHilite(false); }}
+        <button type="button" onPointerDown={e=>{ e.preventDefault(); setShowColors(s=>!s); setShowHilite(false); }}
           style={btnStyle(showColors)} title="צבע טקסט">
           <span style={{ display:"inline-flex", flexDirection:"column", alignItems:"center" }}>
             <span style={{ fontSize:14, lineHeight:1, fontFamily:"Georgia,serif" }}>A</span>
@@ -298,8 +330,7 @@ function RichEditor({ html, onChange, th, placeholder }) {
           </span>
         </button>
         {/* Highlight */}
-        <button type="button" onMouseDown={keepSel} onTouchStart={keepSel}
-          onClick={()=>{ setShowHilite(s=>!s); setShowColors(false); }}
+        <button type="button" onPointerDown={e=>{ e.preventDefault(); setShowHilite(s=>!s); setShowColors(false); }}
           style={btnStyle(showHilite)} title="הדגשה">
           <span style={{ fontSize:14 }}>🖍</span>
         </button>
@@ -311,8 +342,8 @@ function RichEditor({ html, onChange, th, placeholder }) {
             padding:10, display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center",
             boxShadow:"0 6px 20px rgba(0,0,0,0.2)" }}>
             {RICH_COLORS.map(c=>(
-              <div key={c} onMouseDown={keepSel} onTouchStart={keepSel}
-                onClick={()=>{ exec("foreColor", c); setShowColors(false); }}
+              <div key={c}
+                onPointerDown={e=>{ e.preventDefault(); applyStyle("color", c); setShowColors(false); }}
                 style={{ width:30, height:30, borderRadius:"50%", background:c,
                   cursor:"pointer", border:`2px solid ${th.border}`, flexShrink:0 }} />
             ))}
@@ -325,8 +356,8 @@ function RichEditor({ html, onChange, th, placeholder }) {
             padding:10, display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center",
             boxShadow:"0 6px 20px rgba(0,0,0,0.2)" }}>
             {HILITE_COLORS.map(c=>(
-              <div key={c} onMouseDown={keepSel} onTouchStart={keepSel}
-                onClick={()=>{ exec("hiliteColor", c); setShowHilite(false); }}
+              <div key={c}
+                onPointerDown={e=>{ e.preventDefault(); applyStyle("backgroundColor", c==="transparent"?"transparent":c); setShowHilite(false); }}
                 style={{ width:30, height:30, borderRadius:8,
                   background: c==="transparent" ? th.inputBg : c,
                   cursor:"pointer", border:`2px solid ${th.border}`, flexShrink:0,
