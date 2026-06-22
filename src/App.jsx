@@ -11,13 +11,13 @@ const PROJ_COLORS = ["#2563EB","#0891B2","#7C3AED","#059669","#D97706"];
 const SK = "ideas_v22";
 
 // ── What's New ──────────────────────────────────────────────────────────────
-const APP_VERSION = "4.1";
+const APP_VERSION = "4.2";
 const WHATS_NEW = {
-  version: "4.1",
-  date: "12.06.2026",
-  title: "הצמדת פרויקטים",
+  version: "4.2",
+  date: "22.06.2026",
+  title: "כתיבה מעוצבת",
   features: [
-    { icon:"pin", text:"עכשיו אפשר להצמיד פרויקטים חשובים לראש הרשימה — לחץ על הסיכה ליד הפרויקט במסך הניהול." },
+    { icon:"edit", text:"עכשיו אפשר לעצב את הרעיונות — טקסט מודגש, קו תחתון, צבעים, הדגשה ורשימות. סרגל הכלים מופיע מעל שדה הכתיבה." },
   ],
 };
 
@@ -208,8 +208,124 @@ function fmtDatetimeLocal(ts) {
 }
 
 // ── Idea Editor ───────────────────────────────────────────────────────────────
+// ── Rich Text Editor ──────────────────────────────────────────────────────────
+const RICH_COLORS = ["#1E293B","#DC2626","#EA580C","#CA8A04","#16A34A","#0891B2","#2563EB","#7C3AED","#DB2777"];
+const HILITE_COLORS = ["transparent","#FEF08A","#BBF7D0","#BFDBFE","#FBCFE8","#DDD6FE"];
+
+// Detect if a string already contains rich HTML markup
+function isHtml(s) {
+  return typeof s === "string" && /<(b|strong|u|i|em|span|ul|ol|li|div|br)[\s>]/i.test(s);
+}
+
+function RichEditor({ html, onChange, th, placeholder }) {
+  const ref = useRef(null);
+  const [showColors, setShowColors]   = useState(false);
+  const [showHilite, setShowHilite]   = useState(false);
+
+  // Initialize content once
+  useEffect(() => {
+    if (ref.current && !ref.current.innerHTML) {
+      ref.current.innerHTML = html || "";
+    }
+  }, []);
+
+  const exec = (cmd, val=null) => {
+    document.execCommand(cmd, false, val);
+    ref.current?.focus();
+    emit();
+  };
+
+  const emit = () => {
+    if (ref.current) onChange(ref.current.innerHTML);
+  };
+
+  const btnStyle = (active=false) => ({
+    background: active ? th.accentSoft : "transparent",
+    border:"none", cursor:"pointer", borderRadius:7, padding:"6px 9px",
+    display:"flex", alignItems:"center", justifyContent:"center",
+    fontSize:15, fontWeight:800, color:th.text, minWidth:32, fontFamily:"Georgia,serif",
+  });
+
+  return (
+    <div style={{ border:`2px solid ${th.border}`, borderRadius:13, overflow:"hidden",
+      background:th.inputBg }}>
+      {/* Toolbar */}
+      <div style={{ display:"flex", alignItems:"center", gap:2, flexWrap:"wrap",
+        padding:"6px 8px", background:th.surface2, borderBottom:`1px solid ${th.border}` }}>
+        <button type="button" onClick={()=>exec("bold")} style={btnStyle()} title="מודגש">B</button>
+        <button type="button" onClick={()=>exec("underline")} style={{...btnStyle(), textDecoration:"underline"}} title="קו תחתון">U</button>
+        <button type="button" onClick={()=>exec("italic")} style={{...btnStyle(), fontStyle:"italic"}} title="נטוי">I</button>
+        <div style={{ width:1, height:18, background:th.border, margin:"0 3px" }} />
+        <button type="button" onClick={()=>exec("insertUnorderedList")} style={btnStyle()} title="רשימה">
+          <Icon name="more" size={16} color={th.text} />
+        </button>
+        <div style={{ width:1, height:18, background:th.border, margin:"0 3px" }} />
+        {/* Text color */}
+        <div style={{ position:"relative" }}>
+          <button type="button" onClick={()=>{ setShowColors(s=>!s); setShowHilite(false); }}
+            style={btnStyle(showColors)} title="צבע טקסט">
+            <span style={{ display:"inline-flex", flexDirection:"column", alignItems:"center" }}>
+              <span style={{ fontSize:14, lineHeight:1, fontFamily:"Georgia,serif" }}>A</span>
+              <span style={{ width:16, height:3, background:"linear-gradient(90deg,#DC2626,#2563EB,#16A34A)", borderRadius:2, marginTop:1 }} />
+            </span>
+          </button>
+          {showColors && (
+            <div style={{ position:"absolute", top:"calc(100% + 4px)", right:0, zIndex:50,
+              background:th.surface, border:`1.5px solid ${th.border}`, borderRadius:10,
+              padding:8, display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:6,
+              boxShadow:"0 6px 20px rgba(0,0,0,0.2)", width:170 }}>
+              {RICH_COLORS.map(c=>(
+                <div key={c} onClick={()=>{ exec("foreColor", c); setShowColors(false); }}
+                  style={{ width:24, height:24, borderRadius:"50%", background:c,
+                    cursor:"pointer", border:`2px solid ${th.border}` }} />
+              ))}
+            </div>
+          )}
+        </div>
+        {/* Highlight */}
+        <div style={{ position:"relative" }}>
+          <button type="button" onClick={()=>{ setShowHilite(s=>!s); setShowColors(false); }}
+            style={btnStyle(showHilite)} title="הדגשה">
+            <span style={{ fontSize:14 }}>🖍</span>
+          </button>
+          {showHilite && (
+            <div style={{ position:"absolute", top:"calc(100% + 4px)", right:0, zIndex:50,
+              background:th.surface, border:`1.5px solid ${th.border}`, borderRadius:10,
+              padding:8, display:"flex", gap:6,
+              boxShadow:"0 6px 20px rgba(0,0,0,0.2)" }}>
+              {HILITE_COLORS.map(c=>(
+                <div key={c} onClick={()=>{ exec("hiliteColor", c); setShowHilite(false); }}
+                  style={{ width:24, height:24, borderRadius:7,
+                    background: c==="transparent" ? th.inputBg : c,
+                    cursor:"pointer", border:`2px solid ${th.border}`,
+                    display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {c==="transparent" && <Icon name="close" size={12} color={th.muted} />}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      {/* Editable area */}
+      <div ref={ref} contentEditable suppressContentEditableWarning
+        onInput={emit}
+        data-ph={placeholder}
+        style={{ minHeight:120, maxHeight:260, overflowY:"auto", padding:"13px 15px",
+          fontSize:16, fontFamily:"'Rubik',sans-serif", direction:"rtl", textAlign:"right",
+          lineHeight:1.65, color:th.text, outline:"none" }} />
+      <style>{`[contenteditable][data-ph]:empty:before{content:attr(data-ph);color:${th.muted};pointer-events:none;}`}</style>
+    </div>
+  );
+}
+
 function IdeaEditor({ initial, onSave, onClose, title, th }) {
-  const [text, setText]         = useState(initial?.text || "");
+  // Backward compat: prefer html; else convert plain text to html
+  const initialHtml = initial?.html
+    ? initial.html
+    : (initial?.text
+        ? (isHtml(initial.text) ? initial.text : initial.text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>"))
+        : "");
+  const [html, setHtml]         = useState(initialHtml);
   const [images, setImages]     = useState(initial?.images || []);
   const [audios, setAudios]     = useState(initial?.audios || []);
   const [remindAt, setRemindAt] = useState(initial?.remindAt || null);
@@ -217,6 +333,13 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
   const fileRef   = useRef();
   const audioRef  = useRef();
   const audioCapRef = useRef();
+
+  // Strip HTML tags to get plain text (for search, share, AI)
+  const htmlToText = h => {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = h || "";
+    return (tmp.textContent || tmp.innerText || "").trim();
+  };
 
   const addAudioFile = file => {
     if (!file) return;
@@ -233,8 +356,9 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
   };
 
   const handleSave = () => {
-    if (!text.trim() && !images.length && !audios.length) return;
-    const idea = { text: text.trim(), images, audios, remindAt };
+    const plain = htmlToText(html);
+    if (!plain && !images.length && !audios.length) return;
+    const idea = { text: plain, html: html, images, audios, remindAt };
     if (remindAt && remindAt > Date.now()) scheduleReminder(idea, remindAt);
     onSave(idea);
   };
@@ -246,12 +370,7 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
         <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:th.text }}>{title}</h3>
         <IconBtn name="close" onClick={onClose} color={th.accent} bg={th.accentSoft} size={18} pad="7px" />
       </div>
-      <textarea value={text} onChange={e=>setText(e.target.value)}
-        placeholder="כתוב את הרעיון שלך..." rows={5} autoFocus
-        style={{ width:"100%", border:`2px solid ${th.border}`, borderRadius:13,
-          padding:"13px 15px", fontSize:16, fontFamily:"'Rubik',sans-serif",
-          direction:"rtl", resize:"vertical", background:th.inputBg,
-          lineHeight:1.65, color:th.text, outline:"none" }} />
+      <RichEditor html={html} onChange={setHtml} th={th} placeholder="כתוב את הרעיון שלך..." />
 
       {/* Reminder section */}
       <div style={{ marginTop:12, borderRadius:11, border:`1.5px solid ${th.border}`,
@@ -486,9 +605,12 @@ function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveD
                 <Icon name="bell" size={13} color={th.accent} />
               </span>
             )}
-            {idea.text}
+            {idea.html
+              ? <span className="rich-content" dangerouslySetInnerHTML={{ __html: idea.html }} />
+              : idea.text}
           </div>
         </div>
+        <style>{`.rich-content ul{margin:4px 8px 4px 0;padding-right:18px;}.rich-content b,.rich-content strong{font-weight:700;}`}</style>
 
         {/* Show more/less */}
         {isLong && !sortMode && (
@@ -1154,17 +1276,17 @@ function AppContent({ user, dark, setDark, th }) {
   const active = ideas.filter(i=>i.pid===pid&&!i.done).length;
   const done   = ideas.filter(i=>i.pid===pid&&i.done).length;
 
-  const saveNew = ({text,images,audios,remindAt}) => {
+  const saveNew = ({text,html,images,audios,remindAt}) => {
     const id = nidRef.current;
-    const newIdea = {id,pid,text,color:"#FFFFFF",pinned:false,checked:false,done:false,images,audios:audios||[],remindAt:remindAt||null,at:Date.now()};
+    const newIdea = {id,pid,text,html:html||"",color:"#FFFFFF",pinned:false,checked:false,done:false,images,audios:audios||[],remindAt:remindAt||null,at:Date.now()};
     const newIdeas = [newIdea, ...ideas];
     const newNid = nid + 1;
     setIdeas(newIdeas); setNid(newNid); setNewOpen(false);
     persistAll(projects, newIdeas, newNid, pid);
     toast$("רעיון נוסף");
   };
-  const saveEdit = ({text,images,audios,remindAt}) => {
-    const newIdeas = ideas.map(i=>i.id===editIdea.id?{...i,text,images,audios:audios||[],remindAt:remindAt||null}:i);
+  const saveEdit = ({text,html,images,audios,remindAt}) => {
+    const newIdeas = ideas.map(i=>i.id===editIdea.id?{...i,text,html:html||"",images,audios:audios||[],remindAt:remindAt||null}:i);
     setIdeas(newIdeas); setEditIdea(null);
     persistAll(projects, newIdeas, nid, pid);
     toast$("נשמר");
