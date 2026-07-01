@@ -1,72 +1,37 @@
-// IdeaFlow Service Worker - Background Reminders
-const CACHE_NAME = "ideaflow-v1";
+// IdeaFlow Service Worker — Web Push reminders
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
-self.addEventListener("install", e => {
-  self.skipWaiting();
+// A push arrives from the server (api/send-reminders.js) when a reminder is due.
+// This fires even when the app is closed.
+self.addEventListener("push", event => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch {}
+  const title = data.title || "💡 תזכורת — IdeaFlow";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      dir: "rtl",
+      lang: "he",
+      tag: data.ideaId ? `idea-${data.ideaId}` : undefined,
+      requireInteraction: true,
+      data: { url: data.url || "/" }
+    })
+  );
 });
 
-self.addEventListener("activate", e => {
-  e.waitUntil(self.clients.claim());
-});
-
-// Active timer registry: { ideaId: timeoutId }
-const timers = new Map();
-
-self.addEventListener("message", event => {
-  const { type, idea } = event.data || {};
-
-  if (type === "SCHEDULE_REMINDER" && idea) {
-    // Cancel existing timer for this idea
-    if (timers.has(idea.id)) {
-      clearTimeout(timers.get(idea.id));
-      timers.delete(idea.id);
-    }
-
-    const delay = idea.remindAt - Date.now();
-    if (delay <= 0) return;
-
-    // Max setTimeout = ~24 days
-    const safeDelay = Math.min(delay, 2147483647);
-
-    const tid = setTimeout(() => {
-      self.registration.showNotification("💡 תזכורת — IdeaFlow", {
-        body: idea.text,
-        icon: "/icons/icon-192.png",
-        badge: "/icons/icon-192.png",
-        dir: "rtl",
-        lang: "he",
-        tag: `idea-${idea.id}`,
-        requireInteraction: true,
-        data: { ideaId: idea.id, url: "/" }
-      });
-      timers.delete(idea.id);
-    }, safeDelay);
-
-    timers.set(idea.id, tid);
-  }
-
-  if (type === "CANCEL_REMINDER" && idea) {
-    if (timers.has(idea.id)) {
-      clearTimeout(timers.get(idea.id));
-      timers.delete(idea.id);
-    }
-  }
-
-  if (type === "CANCEL_ALL") {
-    timers.forEach(tid => clearTimeout(tid));
-    timers.clear();
-  }
-});
-
-// Click on notification opens the app
+// Click on notification opens / focuses the app
 self.addEventListener("notificationclick", event => {
   event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/";
   event.waitUntil(
-    self.clients.matchAll({ type: "window" }).then(clients => {
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clients => {
       for (const c of clients) {
         if ("focus" in c) return c.focus();
       }
-      if (self.clients.openWindow) return self.clients.openWindow("/");
+      if (self.clients.openWindow) return self.clients.openWindow(url);
     })
   );
 });

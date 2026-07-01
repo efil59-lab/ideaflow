@@ -6,9 +6,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { auth, googleProvider, db } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { ref, onValue, set } from "firebase/database";
+import { enablePush } from "./push";
 
 const PROJ_COLORS = ["#2563EB","#0891B2","#7C3AED","#059669","#D97706"];
-const SK = "ideas_v22";
 
 // ── What's New ──────────────────────────────────────────────────────────────
 const APP_VERSION = "4.2";
@@ -105,23 +105,6 @@ function getTheme(dark) {
   };
 }
 
-function load() {
-  try { const r = localStorage.getItem(SK); if (r) return JSON.parse(r); } catch {}
-  return { projects:DEF_PROJECTS, ideas:DEF_IDEAS, nid:10 };
-}
-function persist(s) { try { localStorage.setItem(SK, JSON.stringify(s)); } catch {} }
-function loadPid(projects) {
-  try {
-    const saved = localStorage.getItem(SK+"_pid");
-    if (saved) {
-      const id = parseInt(saved);
-      if (projects.find(p=>p.id===id)) return id;
-    }
-  } catch {}
-  return projects[0]?.id||1;
-}
-function savePid(id) { try { localStorage.setItem(SK+"_pid", String(id)); } catch {} }
-
 function fmt(ts) {
   const d = new Date(ts);
   return d.toLocaleTimeString("he-IL",{hour:"2-digit",minute:"2-digit"}) + " " +
@@ -178,28 +161,6 @@ function Confirm({ title, message, onConfirm, onCancel, th }) {
 }
 
 // ── Reminder utils ────────────────────────────────────────────────────────────
-function scheduleReminder(idea, remindAt) {
-  if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
-  const delay = remindAt - Date.now();
-  if (delay <= 0) return;
-  Notification.requestPermission().then(perm => {
-    if (perm !== "granted") return;
-    navigator.serviceWorker.ready.then(reg => {
-      reg.active?.postMessage({
-        type: "SCHEDULE_REMINDER",
-        idea: { id: idea.id || Date.now(), text: idea.text, remindAt }
-      });
-    });
-  });
-}
-
-function cancelReminder(ideaId) {
-  if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.ready.then(reg => {
-    reg.active?.postMessage({ type: "CANCEL_REMINDER", idea: { id: ideaId } });
-  });
-}
-
 function fmtDatetimeLocal(ts) {
   if (!ts) return "";
   const d = new Date(ts);
@@ -238,18 +199,29 @@ function RichEditor({ html, onChange, th, placeholder }) {
     }
   };
 
-  // Restore the saved selection back into the editor
-  const restoreSel = () => {
+  // Guarantee a usable selection inside the editor.
+  // If a live selection already sits inside the editor (the normal case when a
+  // toolbar button is tapped with preventDefault), keep it — never clobber it.
+  // Only fall back to the last saved range when there's no live selection.
+  const ensureSel = () => {
     const sel = window.getSelection();
+    const liveInside = sel && sel.rangeCount > 0 && ref.current?.contains(sel.anchorNode);
+    if (liveInside) {
+      savedRange.current = sel.getRangeAt(0).cloneRange();
+      return sel;
+    }
+    ref.current?.focus();
     if (savedRange.current && sel) {
       sel.removeAllRanges();
       sel.addRange(savedRange.current);
     }
+    return sel;
   };
 
   const exec = (cmd, val=null) => {
-    ref.current?.focus();
-    restoreSel();
+    ensureSel();
+    // Emit inline CSS instead of legacy tags so formatting serializes & survives
+    try { document.execCommand("styleWithCSS", false, true); } catch {}
     document.execCommand(cmd, false, val);
     saveSel();
     emit();
@@ -257,9 +229,7 @@ function RichEditor({ html, onChange, th, placeholder }) {
 
   // Manual color/highlight via Range API (works on iOS Safari where execCommand fails)
   const applyStyle = (styleProp, value) => {
-    ref.current?.focus();
-    restoreSel();
-    const sel = window.getSelection();
+    const sel = ensureSel();
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
     if (range.collapsed) return; // nothing selected
@@ -421,7 +391,6 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
     const plain = htmlToText(html);
     if (!plain && !images.length && !audios.length) return;
     const idea = { text: plain, html: html, images, audios, remindAt };
-    if (remindAt && remindAt > Date.now()) scheduleReminder(idea, remindAt);
     onSave(idea);
   };
 
@@ -559,7 +528,7 @@ function IdeaEditor({ initial, onSave, onClose, title, th }) {
   );
 }
 
-function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveDown, isFirst, isLast, th, dark, sortMode, dragHandleProps }) {
+function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveDown, isFirst, isLast, th, dark, sortMode, dragHandleProps, project }) {
   const [showMore, setShowMore] = useState(false);
   const [copied, setCopied]     = useState(false);
   const [bigImg, setBigImg]     = useState(null);
@@ -653,10 +622,20 @@ function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveD
               textDecoration:stroked?"line-through":"none",
               cursor:isLong?"pointer":"default",
               fontFamily:"'Rubik',sans-serif", fontWeight:400,
-              whiteSpace:"pre-wrap", wordBreak:"break-word",
+              whiteSpace:idea.html?"normal":"pre-wrap", wordBreak:"break-word",
               direction:"rtl", textAlign:"right",
               overflow:"hidden", display:"-webkit-box",
               WebkitLineClamp:expanded?"unset":3, WebkitBoxOrient:"vertical" }}>
+            {project && (
+              <span style={{ display:"inline-flex", alignItems:"center", gap:4,
+                verticalAlign:"middle", marginLeft:6, padding:"1px 8px 1px 7px",
+                borderRadius:20, background:th.surface2, border:`1px solid ${th.border}`,
+                fontSize:11, fontWeight:700, color:th.muted }}>
+                <span style={{ width:7, height:7, borderRadius:"50%",
+                  background:project.color, flexShrink:0 }} />
+                {project.name}
+              </span>
+            )}
             {idea.pinned && (
               <span style={{ display:"inline-flex", verticalAlign:"middle", marginLeft:4 }}>
                 <Icon name="pin" size={13} color={th.accent} />
@@ -1205,6 +1184,21 @@ function AppContent({ user, dark, setDark, th }) {
 
   const persistAll = (p, i, n, lastPid) => {
     saveToFirebase({ projects:p, ideas:i, nid:n, lastPid });
+    syncReminderIndex(i);
+  };
+
+  // Mirror active (future, not-done) reminders into /reminders/<uid> so the
+  // server-side cron (api/send-reminders.js) can deliver them even when the
+  // app is closed. Rebuilt from scratch on every save → always consistent.
+  const syncReminderIndex = (i) => {
+    const now = Date.now();
+    const idx = {};
+    (i || []).forEach(x => {
+      if (x.remindAt && !x.done && x.remindAt > now) {
+        idx[x.id] = { at: x.remindAt, text: (x.text || "").slice(0, 180) };
+      }
+    });
+    set(ref(db, `reminders/${uid}`), idx).catch(()=>{});
   };
 
   const setPidAndSave = (id) => {
@@ -1238,40 +1232,20 @@ function AppContent({ user, dark, setDark, th }) {
     }
   }, [uid]);
 
-  // Register Service Worker + sync all reminders to SW
+  // Register Service Worker, then subscribe this device to Web Push so the
+  // server can deliver reminders even when the app is closed.
   useEffect(()=>{
-    if (!ideas) return;
-
-    // Register SW
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(err => {
         console.warn("SW registration failed:", err);
       });
     }
-
-    // Request notification permission
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
+    // Re-subscribe only if the user already granted notifications (don't prompt
+    // on every load). The reminder editor prompts on demand when needed.
+    if ("Notification" in window && Notification.permission === "granted") {
+      enablePush(uid);
     }
-
-    // Send all active reminders to SW
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.ready.then(reg => {
-        if (!reg.active) return;
-        // Cancel all first, then re-schedule
-        reg.active.postMessage({ type: "CANCEL_ALL" });
-        const now = Date.now();
-        ideas.forEach(idea => {
-          if (!idea.remindAt || idea.done) return;
-          if (idea.remindAt <= now) return;
-          reg.active.postMessage({
-            type: "SCHEDULE_REMINDER",
-            idea: { id: idea.id, text: idea.text, remindAt: idea.remindAt }
-          });
-        });
-      });
-    }
-  }, [ideas]);
+  }, [uid]);
   const [archive, setArchive]     = useState(false);
   const [showAI, setShowAI]     = useState(false);
   const [showProj, setShowProj] = useState(false);
@@ -1328,11 +1302,16 @@ function AppContent({ user, dark, setDark, th }) {
   );
 
   const cur = projects.find(p=>p.id===pid);
+  const projById = Object.fromEntries(projects.map(p=>[p.id, p]));
+
+  // When searching, look across ALL projects; otherwise only the active one.
+  const q = search.trim().toLowerCase();
+  const searching = q.length > 0;
 
   const filtered = ideas
-    .filter(i=>i.pid===pid)
+    .filter(i=>searching || i.pid===pid)
     .filter(i=>archive||!i.done)
-    .filter(i=>i.text.toLowerCase().includes(search.toLowerCase()))
+    .filter(i=>i.text.toLowerCase().includes(q))
     .sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0));
 
   const active = ideas.filter(i=>i.pid===pid&&!i.done).length;
@@ -1345,12 +1324,14 @@ function AppContent({ user, dark, setDark, th }) {
     const newNid = nid + 1;
     setIdeas(newIdeas); setNid(newNid); setNewOpen(false);
     persistAll(projects, newIdeas, newNid, pid);
+    if (remindAt && remindAt > Date.now()) enablePush(uid);
     toast$("רעיון נוסף");
   };
   const saveEdit = ({text,html,images,audios,remindAt}) => {
     const newIdeas = ideas.map(i=>i.id===editIdea.id?{...i,text,html:html||"",images,audios:audios||[],remindAt:remindAt||null}:i);
     setIdeas(newIdeas); setEditIdea(null);
     persistAll(projects, newIdeas, nid, pid);
+    if (remindAt && remindAt > Date.now()) enablePush(uid);
     toast$("נשמר");
   };
   const updIdea = u => {
@@ -1563,7 +1544,7 @@ function AppContent({ user, dark, setDark, th }) {
       <div style={{ maxWidth:520, margin:"0 auto", padding:"4px 12px 100px" }}>
 
         {/* Sort button row */}
-        {filtered.length > 1 && (
+        {filtered.length > 1 && !searching && (
           <div style={{ display:"flex", justifyContent:"flex-start", marginBottom:8 }}>
             <button onClick={()=>setSortMode(s=>!s)}
               style={{ display:"flex", alignItems:"center", gap:6,
@@ -1590,7 +1571,8 @@ function AppContent({ user, dark, setDark, th }) {
               <SortableContext items={filtered.map(i=>i.id)} strategy={verticalListSortingStrategy}>
                 {filtered.map((idea,idx)=>(
                   <SortableIdeaCard key={idea.id} idea={idea} th={th} dark={dark}
-                    sortMode={sortMode}
+                    sortMode={sortMode && !searching}
+                    project={searching ? projById[idea.pid] : null}
                     onUpdate={updIdea} onDelete={delIdea}
                     onShare={setShare} onEdit={()=>setEditIdea(idea)}
                     onMoveUp={()=>moveIdea(idea.id,-1)}
