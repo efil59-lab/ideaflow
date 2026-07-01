@@ -1,13 +1,10 @@
-// Runs once per minute (triggered by an external cron, e.g. cron-job.org).
-// Finds due reminders across all users and delivers a Web Push notification.
+// Runs once per minute (external cron, e.g. cron-job.org).
+// Finds due reminders in Firestore and delivers Web Push notifications.
 //
 // Required Vercel env vars:
-//   CRON_SECRET            - shared secret; the cron must send ?key=<secret> or x-cron-key header
-//   FIREBASE_SERVICE_ACCOUNT - the Firebase service-account JSON (as a single-line string)
-//   FIREBASE_DATABASE_URL  - e.g. https://<project>-default-rtdb.firebaseio.com
-//   VAPID_PUBLIC_KEY       - VAPID public key (same one the client uses)
-//   VAPID_PRIVATE_KEY      - VAPID private key
-//   VAPID_SUBJECT          - mailto:you@example.com  (optional, defaults below)
+//   CRON_SECRET              - shared secret; cron sends ?key=<secret> or x-cron-key header
+//   FIREBASE_SERVICE_ACCOUNT - Firebase service-account JSON (single-line string)
+//   VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT
 import admin from "firebase-admin";
 import webpush from "web-push";
 
@@ -15,7 +12,6 @@ function init() {
   if (!admin.apps.length) {
     admin.initializeApp({
       credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
-      databaseURL: process.env.FIREBASE_DATABASE_URL,
     });
   }
   webpush.setVapidDetails(
@@ -33,45 +29,47 @@ export default async function handler(req, res) {
 
   try {
     init();
-    const db = admin.database();
+    const db = admin.firestore();
     const now = Date.now();
+    let fired = 0, sent = 0, pruned = 0;
 
-    const remSnap = await db.ref("reminders").once("value");
-    const all = remSnap.val() || {};
-    let sent = 0, pruned = 0, fired = 0;
+    const due = await db.collection("reminders").where("at", "<=", now).limit(200).get();
 
-    for (const uid of Object.keys(all)) {
-      const entries = all[uid] || {};
-      const due = Object.entries(entries).filter(([, r]) => r && typeof r.at === "number" && r.at <= now);
-      if (!due.length) continue;
+    // Group by uid so each user's subscriptions are fetched once.
+    const byUid = {};
+    due.forEach(d => {
+      const r = d.data();
+      if (!r?.uid) return;
+      (byUid[r.uid] = byUid[r.uid] || []).push({ ref: d.ref, ...r });
+    });
 
-      const subSnap = await db.ref(`pushSubs/${uid}`).once("value");
-      const subs = subSnap.val() || {};
+    for (const [uid, reminders] of Object.entries(byUid)) {
+      const subsSnap = await db.collection("pushSubs").where("uid", "==", uid).get();
+      const subs = subsSnap.docs;
 
-      for (const [ideaId, r] of due) {
+      for (const r of reminders) {
         const payload = JSON.stringify({
           title: "💡 תזכורת — IdeaFlow",
           body: (r.text || "").slice(0, 180) || "תזכורת",
-          ideaId,
+          ideaId: r.ideaId,
           url: "/",
         });
 
-        await Promise.all(Object.entries(subs).map(async ([subId, sub]) => {
-          if (!sub || !sub.endpoint || !sub.keys) return;
+        await Promise.all(subs.map(async sd => {
+          const sub = sd.data();
+          if (!sub?.endpoint || !sub?.keys) return;
           try {
             await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload);
             sent++;
           } catch (e) {
-            // 404/410 = subscription expired; remove it
             if (e.statusCode === 404 || e.statusCode === 410) {
-              await db.ref(`pushSubs/${uid}/${subId}`).remove();
+              await sd.ref.delete();
               pruned++;
             }
           }
         }));
 
-        // Remove the reminder so it won't fire again
-        await db.ref(`reminders/${uid}/${ideaId}`).remove();
+        await r.ref.delete();
         fired++;
       }
     }

@@ -1,9 +1,8 @@
-// Web Push (VAPID) subscription helper.
-// Subscribes the current device and stores the subscription under
-// /pushSubs/<uid>/<key>. The server (api/send-reminders.js) reads these
-// subscriptions and delivers reminder notifications.
+// Web Push (VAPID) subscription helper — Firestore edition.
+// Stores this device's subscription in /pushSubs/{uid}_{key} so the server
+// cron (api/send-reminders.js) can deliver reminders to it.
 import { db } from "./firebase";
-import { ref, set } from "firebase/database";
+import { doc, setDoc } from "firebase/firestore";
 
 const VAPID_PUBLIC = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
@@ -16,17 +15,12 @@ function urlBase64ToUint8Array(base64String) {
   return arr;
 }
 
-// Firebase keys may not contain . # $ [ ] / — sanitize the endpoint into a key.
-function subKey(endpoint) {
-  return endpoint.replace(/[^A-Za-z0-9_-]/g, "_").slice(-200);
-}
+const subKey = endpoint => endpoint.replace(/[^A-Za-z0-9_-]/g, "_").slice(-140);
 
 export async function enablePush(uid) {
   try {
     if (!uid || !VAPID_PUBLIC) return false;
-    if (!("serviceWorker" in navigator) ||
-        !("PushManager" in window) ||
-        !("Notification" in window)) return false;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return false;
 
     const perm = await Notification.requestPermission();
     if (perm !== "granted") return false;
@@ -40,8 +34,9 @@ export async function enablePush(uid) {
       });
     }
 
-    const json = sub.toJSON(); // { endpoint, keys: { p256dh, auth } }
-    await set(ref(db, `pushSubs/${uid}/${subKey(json.endpoint)}`), {
+    const json = sub.toJSON();
+    await setDoc(doc(db, "pushSubs", `${uid}_${subKey(json.endpoint)}`), {
+      uid,
       endpoint: json.endpoint,
       keys: json.keys,
       ua: navigator.userAgent.slice(0, 120),

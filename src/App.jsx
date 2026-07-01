@@ -1,1740 +1,341 @@
-import { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
-import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { auth, googleProvider, db } from "./firebase";
+// IdeaFlow v5 — capture-first idea manager. Firestore + Storage + woven AI.
+import { useState, useEffect } from "react";
+import { auth, googleProvider } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { ref, onValue, set } from "firebase/database";
+import { getTheme, FONT } from "./theme";
+import { useIdeas, useProjects, addIdea, updateIdea, deleteIdea, addProject, updateProject, deleteProject } from "./data/store";
+import { migrateIfNeeded } from "./data/migrate";
+import { enrichIdea } from "./data/ai";
 import { enablePush } from "./push";
+import { Icon, IconBtn } from "./ui/Icons";
+import { Modal, Toast, Spin } from "./ui/base";
+import { ShareModal, MoveSheet } from "./ui/sheets";
+import Editor from "./ui/Editor";
+import Inbox from "./screens/Inbox";
+import Projects from "./screens/Projects";
+import Search from "./screens/Search";
+import Assistant from "./screens/Assistant";
 
-const PROJ_COLORS = ["#2563EB","#0891B2","#7C3AED","#059669","#D97706"];
-
-// ── What's New ──────────────────────────────────────────────────────────────
-const APP_VERSION = "4.2";
-const WHATS_NEW = {
-  version: "4.2",
-  date: "22.06.2026",
-  title: "כתיבה מעוצבת",
-  features: [
-    { icon:"edit", text:"עכשיו אפשר לעצב את הרעיונות — טקסט מודגש, קו תחתון, צבעים, הדגשה ורשימות. סרגל הכלים מופיע מעל שדה הכתיבה." },
-  ],
-};
-
-const PASTEL = ["#FFFFFF","#FEF9E7","#E8F8F5","#EAF2FB","#F4ECF7",
-  "#FDF2E9","#FEF5E7","#EAFAF1","#F2F4F4","#FFF5E1"];
-
-const DEF_PROJECTS = [
-  { id:1, name:"פרויקט ראשי", notes:"", color:"#2563EB" },
-  { id:2, name:"עיצוב UI",    notes:"", color:"#0891B2" },
-];
-const DEF_IDEAS = [];
-
-// ── SVG Icons ─────────────────────────────────────────────────────────────────
-const ICONS = {
-  delete: (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>,
-  edit:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
-  pin:    (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill={c} stroke={c} strokeWidth="0.5"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>,
-  more:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill={c}><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>,
-  share:  (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,
-  copy:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
-  check:  (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
-  sun:    (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
-  moon:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
-  ai:     (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1" fill={c}/></svg>,
-  eye:    (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
-  eyeoff: (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
-  bulb:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill={c}><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>,
-  search: (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
-  close:  (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
-  add:    (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
-  save:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
-  folder: (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>,
-  up:     (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>,
-  down:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>,
-  send:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
-  chart:  (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
-  chat:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
-  palette:(c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="8.5" cy="13.5" r="1.5" fill={c}/><circle cx="15.5" cy="13.5" r="1.5" fill={c}/><circle cx="12" cy="9" r="1.5" fill={c}/></svg>,
-  photo:  (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>,
-  camera: (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>,
-  refresh:(c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>,
-  email:  (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
-  time:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-  bell:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
-  belloff:(c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
-  brain:  (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-1.14"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-1.14"/></svg>,
-};
-
-function Icon({ name, size=20, color="#6B7280" }) {
-  const fn = ICONS[name];
-  if (!fn) return null;
-  return <span style={{ display:"inline-flex", alignItems:"center", justifyContent:"center",
-    flexShrink:0, lineHeight:0 }}>{fn(color, size)}</span>;
-}
-
-function IconBtn({ name, onClick, color="#6B7280", bg="transparent", size=20,
-                   pad="5px", disabled=false, style={} }) {
-  return (
-    <button onClick={onClick} disabled={disabled}
-      style={{ background:bg, border:"none", cursor:disabled?"default":"pointer",
-        borderRadius:8, padding:pad, display:"flex", alignItems:"center",
-        justifyContent:"center", opacity:disabled?0.3:1, flexShrink:0, ...style }}>
-      <Icon name={name} size={size} color={color} />
-    </button>
-  );
-}
-
-// ── Themes ────────────────────────────────────────────────────────────────────
-function getTheme(dark) {
-  if (dark) return {
-    bg:"#0F1623", surface:"#1A2232", surface2:"#222D40",
-    border:"#2A3550", accent:"#3B82F6", accentSoft:"#1E3A5F", accentTint:"#172035",
-    green:"#10B981", red:"#EF4444", greyBar:"#151F2E",
-    text:"#F1F5F9", muted:"#94A3B8", inputBg:"#1A2232", cardBg:"#1A2232",
-    pastels:["#1A2232","#2D2A1A","#162520","#1A2130","#261A30",
-             "#2D2015","#2D2510","#162618","#22252A","#2A2510"],
-  };
-  return {
-    bg:"#EEF4FB", surface:"#FFFFFF", surface2:"#F4F8FE",
-    border:"#DDE8F5", accent:"#2563EB", accentSoft:"#DBEAFE", accentTint:"#EFF6FF",
-    green:"#10B981", red:"#DC2626", greyBar:"#F1F5F9",
-    text:"#1E293B", muted:"#64748B", inputBg:"#FFFFFF", cardBg:"#FFFFFF",
-    pastels:["#FFFFFF","#FEF9E7","#E8F8F5","#EAF2FB","#F4ECF7",
-             "#FDF2E9","#FEF5E7","#EAFAF1","#F2F4F4","#FFF5E1"],
-  };
-}
-
-function fmt(ts) {
-  const d = new Date(ts);
-  return d.toLocaleTimeString("he-IL",{hour:"2-digit",minute:"2-digit"}) + " " +
-         d.toLocaleDateString("he-IL",{day:"2-digit",month:"2-digit",year:"2-digit"});
-}
-
-// ── Toast ─────────────────────────────────────────────────────────────────────
-function Toast({ msg, th }) {
-  return (
-    <div style={{ position:"fixed", top:14, left:"50%", transform:"translateX(-50%)",
-      background:th.text, color:th.bg, borderRadius:12, padding:"9px 20px",
-      fontSize:14, fontWeight:600, zIndex:9999, pointerEvents:"none" }}>
-      {msg}
-    </div>
-  );
-}
-
-// ── Modal ─────────────────────────────────────────────────────────────────────
-function Modal({ onClose, children, maxWidth=480, th }) {
-  return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)",
-      backdropFilter:"blur(6px)", zIndex:800,
-      display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-      <div onClick={e=>e.stopPropagation()}
-        style={{ background:th.surface, borderRadius:20, width:"100%", maxWidth,
-          maxHeight:"85vh", overflowY:"auto", padding:"22px 18px 24px",
-          direction:"rtl", boxShadow:"0 16px 48px rgba(0,0,0,0.4)",
-          border:`2px solid ${th.border}` }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ── Confirm ───────────────────────────────────────────────────────────────────
-function Confirm({ title, message, onConfirm, onCancel, th }) {
-  return (
-    <Modal onClose={onCancel} maxWidth={340} th={th}>
-      <div style={{ textAlign:"center", marginBottom:6 }}>
-        <Icon name="delete" size={44} color={th.red} />
-      </div>
-      <h3 style={{ margin:"0 0 6px", fontSize:18, fontWeight:800, color:th.text, textAlign:"center" }}>{title}</h3>
-      {message && <p style={{ margin:"0 0 18px", fontSize:14, color:th.muted, textAlign:"center", lineHeight:1.6 }}>{message}</p>}
-      <div style={{ display:"flex", gap:8 }}>
-        <button onClick={onCancel} style={{ flex:1, background:th.surface2, color:th.text,
-          border:`1px solid ${th.border}`, borderRadius:12, padding:"12px 0", cursor:"pointer",
-          fontSize:15, fontWeight:700, fontFamily:"'Rubik',sans-serif" }}>ביטול</button>
-        <button onClick={onConfirm} style={{ flex:1, background:th.red, color:"#fff",
-          border:"none", borderRadius:12, padding:"12px 0", cursor:"pointer",
-          fontSize:15, fontWeight:700, fontFamily:"'Rubik',sans-serif" }}>מחק</button>
-      </div>
-    </Modal>
-  );
-}
-
-// ── Reminder utils ────────────────────────────────────────────────────────────
-function fmtDatetimeLocal(ts) {
-  if (!ts) return "";
-  const d = new Date(ts);
-  const pad = n => String(n).padStart(2,"0");
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-// ── Idea Editor ───────────────────────────────────────────────────────────────
-// ── Rich Text Editor ──────────────────────────────────────────────────────────
-const RICH_COLORS = ["#1E293B","#DC2626","#EA580C","#CA8A04","#16A34A","#0891B2","#2563EB","#7C3AED","#DB2777"];
-const HILITE_COLORS = ["transparent","#FEF08A","#BBF7D0","#BFDBFE","#FBCFE8","#DDD6FE"];
-
-// Detect if a string already contains rich HTML markup
-function isHtml(s) {
-  return typeof s === "string" && /<(b|strong|u|i|em|span|ul|ol|li|div|br)[\s>]/i.test(s);
-}
-
-function RichEditor({ html, onChange, th, placeholder }) {
-  const ref = useRef(null);
-  const [showColors, setShowColors]   = useState(false);
-  const [showHilite, setShowHilite]   = useState(false);
-  const savedRange = useRef(null);
-
-  // Initialize content once
-  useEffect(() => {
-    if (ref.current && !ref.current.innerHTML) {
-      ref.current.innerHTML = html || "";
-    }
-  }, []);
-
-  // Save current selection (so it survives toolbar taps)
-  const saveSel = () => {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0 && ref.current?.contains(sel.anchorNode)) {
-      savedRange.current = sel.getRangeAt(0).cloneRange();
-    }
-  };
-
-  // Guarantee a usable selection inside the editor.
-  // If a live selection already sits inside the editor (the normal case when a
-  // toolbar button is tapped with preventDefault), keep it — never clobber it.
-  // Only fall back to the last saved range when there's no live selection.
-  const ensureSel = () => {
-    const sel = window.getSelection();
-    const liveInside = sel && sel.rangeCount > 0 && ref.current?.contains(sel.anchorNode);
-    if (liveInside) {
-      savedRange.current = sel.getRangeAt(0).cloneRange();
-      return sel;
-    }
-    ref.current?.focus();
-    if (savedRange.current && sel) {
-      sel.removeAllRanges();
-      sel.addRange(savedRange.current);
-    }
-    return sel;
-  };
-
-  const exec = (cmd, val=null) => {
-    ensureSel();
-    // Emit inline CSS instead of legacy tags so formatting serializes & survives
-    try { document.execCommand("styleWithCSS", false, true); } catch {}
-    document.execCommand(cmd, false, val);
-    saveSel();
-    emit();
-  };
-
-  // Manual color/highlight via Range API (works on iOS Safari where execCommand fails)
-  const applyStyle = (styleProp, value) => {
-    const sel = ensureSel();
-    if (!sel || sel.rangeCount === 0) return;
-    const range = sel.getRangeAt(0);
-    if (range.collapsed) return; // nothing selected
-
-    // Make sure selection is inside the editor
-    if (!ref.current?.contains(range.commonAncestorContainer)) return;
-
-    const span = document.createElement("span");
-    span.style[styleProp] = value;
-    try {
-      // Wrap the selected contents in the styled span
-      const contents = range.extractContents();
-      span.appendChild(contents);
-      range.insertNode(span);
-
-      // Re-select the newly styled span
-      const newRange = document.createRange();
-      newRange.selectNodeContents(span);
-      sel.removeAllRanges();
-      sel.addRange(newRange);
-      savedRange.current = newRange.cloneRange();
-    } catch (err) {
-      // Fallback to execCommand if extractContents fails
-      document.execCommand(styleProp === "backgroundColor" ? "hiliteColor" : "foreColor", false, value);
-    }
-    emit();
-  };
-
-  const emit = () => {
-    if (ref.current) onChange(ref.current.innerHTML);
-  };
-
-  const btnStyle = (active=false) => ({
-    background: active ? th.accentSoft : "transparent",
-    border:"none", cursor:"pointer", borderRadius:7, padding:"6px 9px",
-    display:"flex", alignItems:"center", justifyContent:"center",
-    fontSize:15, fontWeight:800, color:th.text, minWidth:32, fontFamily:"Georgia,serif",
-  });
-
-  // Prevent toolbar mousedown/touch from stealing selection
-  const keepSel = e => { e.preventDefault(); };
-
-  return (
-    <div style={{ border:`2px solid ${th.border}`, borderRadius:13, overflow:"hidden",
-      background:th.inputBg }}>
-      {/* Toolbar */}
-      <div style={{ display:"flex", alignItems:"center", gap:2, flexWrap:"wrap",
-        padding:"6px 8px", background:th.surface2, borderBottom:`1px solid ${th.border}`,
-        position:"relative" }}>
-        <button type="button" onPointerDown={e=>{ e.preventDefault(); exec("bold"); }}
-          style={btnStyle()} title="מודגש">B</button>
-        <button type="button" onPointerDown={e=>{ e.preventDefault(); exec("underline"); }}
-          style={{...btnStyle(), textDecoration:"underline"}} title="קו תחתון">U</button>
-        <button type="button" onPointerDown={e=>{ e.preventDefault(); exec("italic"); }}
-          style={{...btnStyle(), fontStyle:"italic"}} title="נטוי">I</button>
-        <div style={{ width:1, height:18, background:th.border, margin:"0 3px" }} />
-        <button type="button" onPointerDown={e=>{ e.preventDefault(); exec("insertUnorderedList"); }}
-          style={btnStyle()} title="רשימה">
-          <Icon name="more" size={16} color={th.text} />
-        </button>
-        <div style={{ width:1, height:18, background:th.border, margin:"0 3px" }} />
-        {/* Text color */}
-        <button type="button" onPointerDown={e=>{ e.preventDefault(); setShowColors(s=>!s); setShowHilite(false); }}
-          style={btnStyle(showColors)} title="צבע טקסט">
-          <span style={{ display:"inline-flex", flexDirection:"column", alignItems:"center" }}>
-            <span style={{ fontSize:14, lineHeight:1, fontFamily:"Georgia,serif" }}>A</span>
-            <span style={{ width:16, height:3, background:"linear-gradient(90deg,#DC2626,#2563EB,#16A34A)", borderRadius:2, marginTop:1 }} />
-          </span>
-        </button>
-        {/* Highlight */}
-        <button type="button" onPointerDown={e=>{ e.preventDefault(); setShowHilite(s=>!s); setShowColors(false); }}
-          style={btnStyle(showHilite)} title="הדגשה">
-          <span style={{ fontSize:14 }}>🖍</span>
-        </button>
-
-        {/* Color picker - full width row below toolbar */}
-        {showColors && (
-          <div style={{ position:"absolute", top:"calc(100% + 4px)", right:8, left:8, zIndex:50,
-            background:th.surface, border:`1.5px solid ${th.border}`, borderRadius:10,
-            padding:10, display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center",
-            boxShadow:"0 6px 20px rgba(0,0,0,0.2)" }}>
-            {RICH_COLORS.map(c=>(
-              <div key={c}
-                onPointerDown={e=>{ e.preventDefault(); applyStyle("color", c); setShowColors(false); }}
-                style={{ width:30, height:30, borderRadius:"50%", background:c,
-                  cursor:"pointer", border:`2px solid ${th.border}`, flexShrink:0 }} />
-            ))}
-          </div>
-        )}
-        {/* Highlight picker */}
-        {showHilite && (
-          <div style={{ position:"absolute", top:"calc(100% + 4px)", right:8, left:8, zIndex:50,
-            background:th.surface, border:`1.5px solid ${th.border}`, borderRadius:10,
-            padding:10, display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center",
-            boxShadow:"0 6px 20px rgba(0,0,0,0.2)" }}>
-            {HILITE_COLORS.map(c=>(
-              <div key={c}
-                onPointerDown={e=>{ e.preventDefault(); applyStyle("backgroundColor", c==="transparent"?"transparent":c); setShowHilite(false); }}
-                style={{ width:30, height:30, borderRadius:8,
-                  background: c==="transparent" ? th.inputBg : c,
-                  cursor:"pointer", border:`2px solid ${th.border}`, flexShrink:0,
-                  display:"flex", alignItems:"center", justifyContent:"center" }}>
-                {c==="transparent" && <Icon name="close" size={14} color={th.muted} />}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      {/* Editable area */}
-      <div ref={ref} contentEditable suppressContentEditableWarning
-        onInput={emit} onKeyUp={saveSel} onMouseUp={saveSel} onTouchEnd={saveSel}
-        data-ph={placeholder}
-        style={{ minHeight:120, maxHeight:260, overflowY:"auto", padding:"13px 15px",
-          fontSize:16, fontFamily:"'Rubik',sans-serif", direction:"rtl", textAlign:"right",
-          lineHeight:1.65, color:th.text, outline:"none" }} />
-      <style>{`[contenteditable][data-ph]:empty:before{content:attr(data-ph);color:${th.muted};pointer-events:none;}`}</style>
-    </div>
-  );
-}
-
-function IdeaEditor({ initial, onSave, onClose, title, th }) {
-  // Backward compat: prefer html; else convert plain text to html
-  const initialHtml = initial?.html
-    ? initial.html
-    : (initial?.text
-        ? (isHtml(initial.text) ? initial.text : initial.text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>"))
-        : "");
-  const [html, setHtml]         = useState(initialHtml);
-  const [images, setImages]     = useState(initial?.images || []);
-  const [audios, setAudios]     = useState(initial?.audios || []);
-  const [remindAt, setRemindAt] = useState(initial?.remindAt || null);
-  const [showRemind, setShowRemind] = useState(false);
-  const fileRef   = useRef();
-  const audioRef  = useRef();
-  const audioCapRef = useRef();
-
-  // Strip HTML tags to get plain text (for search, share, AI)
-  const htmlToText = h => {
-    const tmp = document.createElement("div");
-    tmp.innerHTML = h || "";
-    return (tmp.textContent || tmp.innerText || "").trim();
-  };
-
-  const addAudioFile = file => {
-    if (!file) return;
-    const r = new FileReader();
-    r.onload = e => setAudios(p => [...p, { src: e.target.result, name: file.name }]);
-    r.readAsDataURL(file);
-  };
-
-  const addImg = file => {
-    if (!file) return;
-    const r = new FileReader();
-    r.onload = e => setImages(p=>[...p, e.target.result]);
-    r.readAsDataURL(file);
-  };
-
-  const handleSave = () => {
-    const plain = htmlToText(html);
-    if (!plain && !images.length && !audios.length) return;
-    const idea = { text: plain, html: html, images, audios, remindAt };
-    onSave(idea);
-  };
-
-  return (
-    <Modal onClose={onClose} th={th}>
-      <style>{`@keyframes recPulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-        <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:th.text }}>{title}</h3>
-        <IconBtn name="close" onClick={onClose} color={th.accent} bg={th.accentSoft} size={18} pad="7px" />
-      </div>
-      <RichEditor html={html} onChange={setHtml} th={th} placeholder="כתוב את הרעיון שלך..." />
-
-      {/* Reminder section */}
-      <div style={{ marginTop:12, borderRadius:11, border:`1.5px solid ${th.border}`,
-        overflow:"hidden" }}>
-        <button onClick={()=>setShowRemind(p=>!p)}
-          style={{ width:"100%", background:remindAt?th.accentSoft:th.surface2,
-            border:"none", cursor:"pointer", padding:"10px 14px",
-            display:"flex", alignItems:"center", gap:8, direction:"rtl" }}>
-          <Icon name={remindAt?"bell":"belloff"} size={17}
-            color={remindAt?th.accent:th.muted} />
-          <span style={{ flex:1, fontSize:13, fontWeight:600, textAlign:"right",
-            color:remindAt?th.accent:th.muted, fontFamily:"'Rubik',sans-serif" }}>
-            {remindAt
-              ? `תזכורת: ${new Date(remindAt).toLocaleString("he-IL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}`
-              : "הגדר תזכורת"}
-          </span>
-          {remindAt && (
-            <span onClick={e=>{ e.stopPropagation(); setRemindAt(null); setShowRemind(false); }}
-              style={{ fontSize:11, color:th.accent, background:th.accentSoft,
-                borderRadius:20, padding:"2px 8px", fontWeight:700,
-                fontFamily:"'Rubik',sans-serif" }}>
-              הסר
-            </span>
-          )}
-        </button>
-        {showRemind && (
-          <div style={{ padding:"10px 14px", background:th.surface2,
-            borderTop:`1px solid ${th.border}` }}>
-            <input type="datetime-local"
-              value={fmtDatetimeLocal(remindAt)}
-              min={fmtDatetimeLocal(Date.now())}
-              onChange={e=>{ setRemindAt(e.target.value ? new Date(e.target.value).getTime() : null); }}
-              style={{ width:"100%", border:`1.5px solid ${th.border}`, borderRadius:9,
-                padding:"9px 12px", fontSize:14, background:th.inputBg,
-                color:th.text, fontFamily:"'Rubik',sans-serif", outline:"none" }} />
-          </div>
-        )}
-      </div>
-
-      {/* Audio recordings */}
-      {audios.length > 0 && (
-        <div style={{ marginTop:10, display:"flex", flexDirection:"column", gap:6 }}>
-          {audios.map((a,i) => (
-            <div key={i} style={{ display:"flex", alignItems:"center", gap:8,
-              background:th.accentTint, borderRadius:10, padding:"8px 10px",
-              border:`1px solid ${th.border}` }}>
-              <span style={{ fontSize:16 }}>🎵</span>
-              <audio src={a.src} controls style={{ flex:1, height:32 }} />
-              <button onClick={()=>setAudios(p=>p.filter((_,j)=>j!==i))}
-                style={{ background:th.red, border:"none", borderRadius:"50%",
-                  width:20, height:20, cursor:"pointer", flexShrink:0,
-                  display:"flex", alignItems:"center", justifyContent:"center" }}>
-                <Icon name="close" size={11} color="#fff" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Recording indicator removed - using native recorder */}
-
-      {images.length > 0 && (
-        <div style={{ display:"flex", gap:7, marginTop:10, flexWrap:"wrap" }}>
-          {images.map((src,i)=>(
-            <div key={i} style={{ position:"relative" }}>
-              <img src={src} alt="" style={{ width:64, height:64, objectFit:"cover", borderRadius:10 }} />
-              <button onClick={()=>setImages(p=>p.filter((_,j)=>j!==i))}
-                style={{ position:"absolute", top:-5, left:-5, width:20, height:20,
-                  background:th.red, border:"none", borderRadius:"50%",
-                  cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                <Icon name="close" size={12} color="#fff" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}}
-        onChange={e=>{ addImg(e.target.files[0]); e.target.value=""; }} />
-      <input ref={audioRef} type="file" accept="audio/*" style={{display:"none"}}
-        onChange={e=>{ addAudioFile(e.target.files[0]); e.target.value=""; }} />
-      <input ref={audioCapRef} type="file" accept="audio/*" capture="microphone" style={{display:"none"}}
-        onChange={e=>{ addAudioFile(e.target.files[0]); e.target.value=""; }} />
-
-      {/* Buttons row */}
-      <div style={{ display:"flex", gap:7, marginTop:12, flexWrap:"wrap" }}>
-        <button onClick={()=>{ fileRef.current.removeAttribute("capture"); fileRef.current.click(); }}
-          style={{ flex:1, background:th.accentSoft, color:th.accent, border:"none", borderRadius:11,
-            padding:"11px 0", cursor:"pointer", fontSize:13, fontWeight:700,
-            fontFamily:"'Rubik',sans-serif", display:"flex", alignItems:"center",
-            justifyContent:"center", gap:6, minWidth:70 }}>
-          <Icon name="photo" size={16} color={th.accent} /> גלריה
-        </button>
-        <button onClick={()=>{ fileRef.current.setAttribute("capture","environment"); fileRef.current.click(); }}
-          style={{ flex:1, background:th.accentSoft, color:th.accent, border:"none", borderRadius:11,
-            padding:"11px 0", cursor:"pointer", fontSize:13, fontWeight:700,
-            fontFamily:"'Rubik',sans-serif", display:"flex", alignItems:"center",
-            justifyContent:"center", gap:6, minWidth:70 }}>
-          <Icon name="camera" size={16} color={th.accent} /> צלם
-        </button>
-        <button onClick={()=>audioCapRef.current.click()}
-          style={{ flex:1, background:th.accentSoft, color:th.accent, border:"none", borderRadius:11,
-            padding:"11px 0", cursor:"pointer", fontSize:13, fontWeight:700,
-            fontFamily:"'Rubik',sans-serif", display:"flex", alignItems:"center",
-            justifyContent:"center", gap:6, minWidth:70 }}>
-          <span style={{ fontSize:15 }}>🎙</span> הקלט
-        </button>
-        <button onClick={()=>audioRef.current.click()}
-          style={{ flex:1, background:th.accentSoft, color:th.accent, border:"none", borderRadius:11,
-            padding:"11px 0", cursor:"pointer", fontSize:13, fontWeight:700,
-            fontFamily:"'Rubik',sans-serif", display:"flex", alignItems:"center",
-            justifyContent:"center", gap:6, minWidth:70 }}>
-          <span style={{ fontSize:15 }}>🎵</span> אודיו
-        </button>
-      </div>
-      <button onClick={handleSave}
-        style={{ width:"100%", marginTop:12, background:th.accent, color:"#fff",
-          border:"none", borderRadius:13, padding:"13px 0", cursor:"pointer",
-          fontSize:16, fontWeight:800, fontFamily:"'Rubik',sans-serif",
-          display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-          boxShadow:`0 4px 14px ${th.accent}55` }}>
-        <Icon name="save" size={19} color="#fff" /> שמור רעיון
-      </button>
-    </Modal>
-  );
-}
-
-function IdeaCard({ idea, onUpdate, onDelete, onShare, onEdit, onMoveUp, onMoveDown, isFirst, isLast, th, dark, sortMode, dragHandleProps, project }) {
-  const [showMore, setShowMore] = useState(false);
-  const [copied, setCopied]     = useState(false);
-  const [bigImg, setBigImg]     = useState(null);
-  const [confirmDel, setConfirmDel] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-
-  const u = patch => onUpdate({ ...idea, ...patch });
-
-  const onCheck = () => {
-    if (sortMode) return;
-    if (idea.done) { u({ done:false, checked:false }); return; }
-    u({ checked:true });
-    setTimeout(() => onUpdate({ ...idea, checked:false, done:true }), 450);
-  };
-
-  const onCopy = () => {
-    const txt = idea.text;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(txt).catch(() => fallbackCopy(txt));
-    } else {
-      fallbackCopy(txt);
-    }
-    setCopied(true); setTimeout(()=>setCopied(false), 1400);
-  };
-
-  const fallbackCopy = (txt) => {
-    const el = document.createElement("textarea");
-    el.value = txt;
-    el.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0;";
-    document.body.appendChild(el);
-    el.focus(); el.select();
-    try { document.execCommand("copy"); } catch {}
-    document.body.removeChild(el);
-  };
-
-  const stroked = idea.checked || idea.done;
-  const isLong  = idea.text?.length > 120;
-  const cardBg  = dark ? th.cardBg : (idea.color || "#fff");
-
-  return (
-    <>
-      {confirmDel && createPortal(
-        <div style={{ position:"fixed", inset:0, zIndex:9000 }}>
-          <Confirm title="מחיקת רעיון"
-            message={`"${idea.text.slice(0,50)}${idea.text.length>50?"...":""}"`}
-            onConfirm={()=>{ setConfirmDel(false); onDelete(idea.id); }}
-            onCancel={()=>setConfirmDel(false)} th={th} />
-        </div>,
-        document.body
-      )}
-      {bigImg && createPortal(
-        <div onClick={()=>setBigImg(null)} style={{ position:"fixed", inset:0,
-          background:"rgba(0,0,0,0.95)", zIndex:9000,
-          display:"flex", alignItems:"center", justifyContent:"center" }}>
-          <img src={bigImg} alt="" style={{ maxWidth:"92vw", maxHeight:"85vh", borderRadius:14 }} />
-        </div>,
-        document.body
-      )}
-
-      <div style={{ background:cardBg, borderRadius:16, marginBottom:12,
-        border:`1.5px solid ${th.border}`,
-        boxShadow:`0 1px 4px rgba(0,0,0,0.06)`,
-        opacity:idea.done?0.62:1, direction:"rtl", position:"relative" }}>
-
-        {/* Main row */}
-        <div style={{ display:"flex", alignItems:"flex-start", padding:"12px 12px 8px" }}>
-
-          {/* Checkbox (right side) OR drag handle */}
-          {sortMode ? (
-            <div {...dragHandleProps}
-              style={{ flexShrink:0, width:28, height:28, display:"flex",
-                alignItems:"center", justifyContent:"center",
-                cursor:"grab", color:th.muted, fontSize:18, marginLeft:10, marginTop:1,
-                touchAction:"none" }}>
-              ⠿
-            </div>
-          ) : (
-            <div onClick={onCheck} style={{
-              flexShrink:0, width:22, height:22, borderRadius:6, marginLeft:10, marginTop:3,
-              border: stroked?"none":`1.5px solid ${th.muted}`,
-              background: idea.done?th.green:idea.checked?"#A78BFA":"transparent",
-              display:"flex", alignItems:"center", justifyContent:"center",
-              cursor:"pointer", transition:"all .15s" }}>
-              {stroked && <Icon name="check" size={14} color="#fff" />}
-            </div>
-          )}
-
-          {/* Text */}
-          <div onClick={()=>isLong && setExpanded(p=>!p)}
-            style={{ flex:1, fontSize:15, lineHeight:1.45, color:th.text,
-              textDecoration:stroked?"line-through":"none",
-              cursor:isLong?"pointer":"default",
-              fontFamily:"'Rubik',sans-serif", fontWeight:400,
-              whiteSpace:idea.html?"normal":"pre-wrap", wordBreak:"break-word",
-              direction:"rtl", textAlign:"right",
-              overflow:"hidden", display:"-webkit-box",
-              WebkitLineClamp:expanded?"unset":3, WebkitBoxOrient:"vertical" }}>
-            {project && (
-              <span style={{ display:"inline-flex", alignItems:"center", gap:4,
-                verticalAlign:"middle", marginLeft:6, padding:"1px 8px 1px 7px",
-                borderRadius:20, background:th.surface2, border:`1px solid ${th.border}`,
-                fontSize:11, fontWeight:700, color:th.muted }}>
-                <span style={{ width:7, height:7, borderRadius:"50%",
-                  background:project.color, flexShrink:0 }} />
-                {project.name}
-              </span>
-            )}
-            {idea.pinned && (
-              <span style={{ display:"inline-flex", verticalAlign:"middle", marginLeft:4 }}>
-                <Icon name="pin" size={13} color={th.accent} />
-              </span>
-            )}
-            {idea.remindAt && idea.remindAt > Date.now() && (
-              <span style={{ display:"inline-flex", verticalAlign:"middle", marginLeft:4 }}>
-                <Icon name="bell" size={13} color={th.accent} />
-              </span>
-            )}
-            {idea.html
-              ? <span className="rich-content" dangerouslySetInnerHTML={{ __html: idea.html }} />
-              : idea.text}
-          </div>
-        </div>
-        <style>{`.rich-content ul{margin:4px 8px 4px 0;padding-right:18px;}.rich-content b,.rich-content strong{font-weight:700;}`}</style>
-
-        {/* Show more/less */}
-        {isLong && !sortMode && (
-          <div onClick={()=>setExpanded(p=>!p)}
-            style={{ padding:"0 12px 6px", textAlign:"center", cursor:"pointer" }}>
-            <span style={{ fontSize:11, color:th.accent, fontWeight:700,
-              background:th.accentSoft, padding:"3px 12px", borderRadius:20,
-              display:"inline-flex", alignItems:"center", gap:4 }}>
-              <Icon name={expanded?"up":"down"} size={12} color={th.accent} />
-              {expanded ? "הצג פחות" : "הצג עוד"}
-            </span>
-          </div>
-        )}
-
-        {/* Images */}
-        {idea.images?.length > 0 && (
-          <div style={{ display:"flex", gap:6, padding:"0 12px 8px", flexWrap:"wrap" }}>
-            {idea.images.map((src,i) => (
-              <img key={i} src={src} alt="" onClick={()=>setBigImg(src)}
-                style={{ width:64, height:64, objectFit:"cover", borderRadius:10, cursor:"pointer" }} />
-            ))}
-          </div>
-        )}
-
-        {/* Audio players */}
-        {idea.audios?.length > 0 && (
-          <div style={{ padding:"0 12px 8px", display:"flex", flexDirection:"column", gap:5 }}>
-            {idea.audios.map((a,i) => (
-              <div key={i} style={{ display:"flex", alignItems:"center", gap:7,
-                background:th.accentTint, borderRadius:9, padding:"6px 10px",
-                border:`1px solid ${th.border}` }}>
-                <span style={{ fontSize:14, flexShrink:0 }}>🎵</span>
-                <audio src={a.src} controls style={{ flex:1, height:28 }} />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Toolbar — hidden in sort mode */}
-        {!sortMode && (
-          <div style={{ background:th.greyBar, borderTop:`1px solid ${th.border}`,
-            borderRadius:"0 0 14px 14px", padding:"4px 10px",
-            display:"flex", alignItems:"center", justifyContent:"space-between",
-            overflow:"hidden", position:"relative", minHeight:40 }}>
-
-            {/* Page 1: primary actions — copy replaces delete */}
-            <div style={{ display:"flex", alignItems:"center", gap:4, width:"100%",
-              transform: showMore ? "translateX(110%)" : "translateX(0)",
-              transition:"transform 0.25s cubic-bezier(0.4,0,0.2,1)",
-              position: showMore ? "absolute" : "relative" }}>
-              <IconBtn name={copied?"check":"copy"} onClick={onCopy}
-                color={copied?th.green:th.muted} size={21} pad="6px 9px" />
-              <IconBtn name="edit" onClick={onEdit} color={th.muted} size={21} pad="6px 9px" />
-              <IconBtn name="pin"
-                onClick={()=>u({pinned:!idea.pinned})}
-                color={idea.pinned?th.accent:th.muted}
-                bg={idea.pinned?th.accentSoft:"transparent"}
-                size={21} pad="6px 9px" />
-              <div style={{ width:1, height:16, background:th.border, margin:"0 4px" }} />
-              <IconBtn name="more" onClick={()=>setShowMore(true)}
-                color={th.muted} size={21} pad="6px 9px" style={{ opacity:0.6 }} />
-            </div>
-
-            {/* Page 2: secondary — delete replaces copy */}
-            <div style={{ display:"flex", alignItems:"center", gap:4, width:"100%",
-              transform: showMore ? "translateX(0)" : "translateX(-110%)",
-              transition:"transform 0.25s cubic-bezier(0.4,0,0.2,1)",
-              position: showMore ? "relative" : "absolute" }}>
-              <IconBtn name="up" onClick={()=>setShowMore(false)}
-                color={th.accent} size={19} pad="6px 9px"
-                style={{ transform:"rotate(-90deg)" }} />
-              <div style={{ width:1, height:16, background:th.border, margin:"0 4px" }} />
-              <IconBtn name="delete" onClick={()=>{ setShowMore(false); setConfirmDel(true); }}
-                color={th.red} size={21} pad="6px 9px" />
-              <IconBtn name="share" onClick={()=>onShare(idea)}
-                color={th.muted} size={21} pad="6px 9px" />
-              <div style={{ display:"flex", gap:5, marginRight:4, alignItems:"center" }}>
-                {(dark?th.pastels:PASTEL).slice(0,6).map((c,i)=>(
-                  <div key={i} onClick={()=>u({color:c})}
-                    style={{ width:18, height:18, borderRadius:"50%", background:c,
-                      border:idea.color===c?`2px solid ${th.accent}`:`1.5px solid ${th.border}`,
-                      cursor:"pointer", flexShrink:0 }} />
-                ))}
-              </div>
-            </div>
-
-            <span style={{ fontSize:9, color:th.muted, fontWeight:600, whiteSpace:"nowrap",
-              display:"flex", alignItems:"center", gap:3, flexShrink:0,
-              opacity: showMore ? 0 : 1, transition:"opacity 0.2s" }}>
-              <Icon name="time" size={10} color={th.muted} />
-              {fmt(idea.at)}
-            </span>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-// ── Sortable wrapper ──────────────────────────────────────────────────────────
-function SortableIdeaCard({ idea, sortMode, ...props }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: idea.id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    position: "relative",
-    zIndex: isDragging ? 10 : 1,
-  };
-  return (
-    <div ref={setNodeRef} style={style}>
-      <IdeaCard idea={idea} sortMode={sortMode}
-        dragHandleProps={sortMode ? { ...attributes, ...listeners } : {}}
-        {...props} />
-    </div>
-  );
-}
-
-// ── Share Modal ───────────────────────────────────────────────────────────────
-function ShareModal({ idea, onClose, th }) {
-  const go = m => {
-    const t = encodeURIComponent(`💡 ${idea.text}`);
-    if (m==="wa")   window.open(`https://wa.me/?text=${t}`,"_blank");
-    if (m==="mail") window.open(`mailto:?subject=רעיון&body=${t}`,"_blank");
-    if (m==="copy") navigator.clipboard?.writeText(idea.text);
-    onClose();
-  };
-  return (
-    <Modal onClose={onClose} th={th}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-        <h3 style={{ margin:0, fontSize:17, fontWeight:800, color:th.text,
-          display:"flex", alignItems:"center", gap:8 }}>
-          <Icon name="share" size={20} color={th.accent} /> שתף רעיון
-        </h3>
-        <IconBtn name="close" onClick={onClose} color={th.accent} bg={th.accentSoft} size={18} pad="7px" />
-      </div>
-      <div style={{ background:th.accentTint, borderRadius:12, padding:"11px 13px", marginBottom:14,
-        border:`1px solid ${th.border}` }}>
-        <p style={{ margin:0, fontSize:14, color:th.text, lineHeight:1.6 }}>{idea.text}</p>
-      </div>
-      {[{m:"wa",  icon:"chat",  label:"WhatsApp", bg:"#25D366", col:"#fff"},
-        {m:"mail",icon:"email", label:"אימייל",   bg:th.accentSoft, col:th.accent},
-        {m:"copy",icon:"copy",  label:"העתק",     bg:th.accentTint, col:th.accent}].map(s=>(
-        <button key={s.m} onClick={()=>go(s.m)}
-          style={{ display:"flex", alignItems:"center", gap:10, width:"100%",
-            background:s.bg, color:s.col, border:"none", borderRadius:12,
-            padding:"12px 14px", marginBottom:7, cursor:"pointer",
-            fontFamily:"'Rubik',sans-serif", fontSize:14, fontWeight:700 }}>
-          <Icon name={s.icon} size={19} color={s.col} />{s.label}
-        </button>
-      ))}
-    </Modal>
-  );
-}
-
-// ── Spin ──────────────────────────────────────────────────────────────────────
-function Spin({ th }) {
-  return (
-    <div style={{ textAlign:"center", padding:"22px 0" }}>
-      <div style={{ width:36, height:36, border:`3px solid ${th.border}`,
-        borderTop:`3px solid ${th.accent}`, borderRadius:"50%",
-        margin:"0 auto 8px", animation:"sp .7s linear infinite" }} />
-      <style>{`@keyframes sp{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  );
-}
-
-// ── AI Panel ──────────────────────────────────────────────────────────────────
-function AIPanel({ ideas, onClose, th }) {
-  const [tab, setTab]   = useState("analyze");
-  const [loading, setL] = useState(false);
-  const [result, setR]  = useState(null);
-  const [q, setQ]       = useState("");
-  const [ans, setAns]   = useState("");
-
-  const analyze = async () => {
-    setL(true); setR(null);
-    const txt = ideas.filter(i=>!i.done).map(i=>i.text).join("\n");
-    try {
-      const res = await fetch("/api/ai",{
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          max_tokens:900,
-          system:"ענה בעברית. החזר JSON בלבד: {summary,insights:[],recommendations:[]}",
-          messages:[{role:"user",content:`נתח:\n${txt}`}]
-        })});
-      const d = await res.json();
-      setR(JSON.parse(d.content.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim()));
-    } catch { setR({summary:"שגיאה.",insights:[],recommendations:[]}); }
-    setL(false);
-  };
-
-  const ask = async () => {
-    if (!q.trim()) return; setL(true); setAns("");
-    const ctx = ideas.filter(i=>!i.done).map(i=>i.text).join("\n");
-    try {
-      const res = await fetch("/api/ai",{
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          max_tokens:400,
-          system:"ענה בעברית, קצר.",
-          messages:[{role:"user",content:`רעיונות:\n${ctx}\n\nשאלה: ${q}`}]
-        })});
-      const d = await res.json();
-      setAns(d.content.map(b=>b.text||"").join(""));
-    } catch { setAns("שגיאה."); }
-    setL(false);
-  };
-
-  return (
-    <Modal onClose={onClose} th={th}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-        <h3 style={{ margin:0, fontSize:17, fontWeight:800, color:th.text,
-          display:"flex", alignItems:"center", gap:8 }}>
-          <Icon name="ai" size={22} color={th.accent} /> עוזר AI
-        </h3>
-        <IconBtn name="close" onClick={onClose} color={th.accent} bg={th.accentSoft} size={18} pad="7px" />
-      </div>
-      <div style={{ display:"flex", gap:4, background:th.surface2, borderRadius:11, padding:3, marginBottom:14 }}>
-        {[{id:"analyze",icon:"chart",l:"ניתוח"},{id:"ask",icon:"chat",l:"שאל"}].map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)}
-            style={{ flex:1, padding:"8px 0", border:"none", borderRadius:9, cursor:"pointer",
-              fontFamily:"'Rubik',sans-serif", fontWeight:700, fontSize:13,
-              background:tab===t.id?th.surface:"transparent", color:tab===t.id?th.accent:th.muted,
-              display:"flex", alignItems:"center", justifyContent:"center", gap:6,
-              boxShadow:tab===t.id?"0 1px 5px rgba(0,0,0,0.12)":"none" }}>
-            <Icon name={t.icon} size={15} color={tab===t.id?th.accent:th.muted} />{t.l}
-          </button>
-        ))}
-      </div>
-
-      {tab==="analyze" && <>
-        {!result&&!loading&&(
-          <div style={{ textAlign:"center", padding:"20px 0" }}>
-            <Icon name="brain" size={52} color={th.accent} />
-            <p style={{ color:th.muted, fontSize:14, margin:"12px 0 16px" }}>
-              {ideas.filter(i=>!i.done).length} רעיונות פעילים
-            </p>
-            <button onClick={analyze}
-              style={{ background:th.accent, color:"#fff", border:"none",
-                borderRadius:12, padding:"11px 28px", fontSize:15, fontWeight:700,
-                cursor:"pointer", fontFamily:"'Rubik',sans-serif",
-                display:"inline-flex", alignItems:"center", gap:8 }}>
-              נתח
-            </button>
-          </div>
-        )}
-        {loading && <Spin th={th} />}
-        {result && <>
-          <div style={{ background:th.accentTint, borderRadius:11, padding:12, marginBottom:10,
-            border:`1px solid ${th.border}` }}>
-            <p style={{ margin:0, color:th.text, fontSize:13, lineHeight:1.7 }}>{result.summary}</p>
-          </div>
-          {result.insights?.map((x,i)=>(
-            <p key={i} style={{ margin:"0 0 5px", fontSize:12, color:th.text, lineHeight:1.6,
-              paddingRight:10, borderRight:`2px solid ${th.accent}` }}>{x}</p>
-          ))}
-          {result.recommendations?.map((x,i)=>(
-            <div key={i} style={{ background:th.accentSoft, borderRadius:9, padding:"7px 11px",
-              marginTop:5, fontSize:12, color:th.text }}>{i+1}. {x}</div>
-          ))}
-          <button onClick={analyze}
-            style={{ marginTop:12, width:"100%", background:"transparent",
-              color:th.accent, border:`2px solid ${th.accent}`, borderRadius:10, padding:"8px 0",
-              cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"'Rubik',sans-serif",
-              display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-            <Icon name="refresh" size={14} color={th.accent} /> מחדש
-          </button>
-        </>}
-      </>}
-
-      {tab==="ask" && <>
-        <div style={{ display:"flex", gap:6, marginBottom:12 }}>
-          <input value={q} onChange={e=>setQ(e.target.value)}
-            onKeyDown={e=>e.key==="Enter"&&ask()}
-            placeholder="שאל כל דבר..."
-            style={{ flex:1, border:`2px solid ${th.border}`, borderRadius:11,
-              padding:"10px 12px", fontSize:14, background:th.inputBg,
-              fontFamily:"'Rubik',sans-serif", direction:"rtl", outline:"none", color:th.text }} />
-          <button onClick={ask} disabled={loading}
-            style={{ background:th.accent, color:"#fff", border:"none", borderRadius:11,
-              padding:"0 14px", cursor:"pointer", opacity:loading?0.6:1,
-              display:"flex", alignItems:"center" }}>
-            <Icon name="send" size={18} color="#fff" />
-          </button>
-        </div>
-        {loading && <Spin th={th} />}
-        {ans && <div style={{ background:th.accentTint, borderRadius:11, padding:12,
-          border:`1px solid ${th.border}` }}>
-          <p style={{ margin:0, color:th.text, fontSize:13, lineHeight:1.7 }}>{ans}</p>
-        </div>}
-        {!ans&&!loading&&["מה הרעיון הדחוף ביותר?","סכם את הפרויקט","מה כדאי לבצע ראשון?"].map(s=>(
-          <button key={s} onClick={()=>setQ(s)}
-            style={{ display:"flex", alignItems:"center", gap:8, width:"100%",
-              background:th.accentTint, border:`1px solid ${th.border}`, borderRadius:9,
-              padding:"9px 12px", marginBottom:5, cursor:"pointer", fontSize:13,
-              color:th.text, fontFamily:"'Rubik',sans-serif" }}>
-            <Icon name="chat" size={14} color={th.muted} />{s}
-          </button>
-        ))}
-      </>}
-    </Modal>
-  );
-}
-
-// ── Project Modal ─────────────────────────────────────────────────────────────
-function ProjModal({ projects, ideas, activePid, onClose, onAdd, onDel, onEdit, onSelect, onPin, th }) {
-  const [name, setName]     = useState("");
-  const [editId, setEditId] = useState(null);
-  const [editN, setEditN]   = useState("");
-  const [confirmId, setConfirmId] = useState(null);
-
-  return (
-    <Modal onClose={onClose} th={th}>
-      {confirmId && <Confirm title="מחיקת פרויקט" message="כל הרעיונות יימחקו."
-        onConfirm={()=>{ onDel(confirmId); setConfirmId(null); }}
-        onCancel={()=>setConfirmId(null)} th={th} />}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-        <h3 style={{ margin:0, fontSize:17, fontWeight:800, color:th.text,
-          display:"flex", alignItems:"center", gap:8 }}>
-          <Icon name="folder" size={20} color={th.accent} /> פרויקטים
-        </h3>
-        <IconBtn name="close" onClick={onClose} color={th.accent} bg={th.accentSoft} size={18} pad="7px" />
-      </div>
-
-      {[...projects].sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)).map(p=>{
-        const cnt = ideas.filter(i=>i.pid===p.id&&!i.done).length;
-        return (
-          <div key={p.id} onClick={()=>onSelect(p.id)}
-            style={{ display:"flex", alignItems:"center", gap:9, marginBottom:8,
-              background:p.id===activePid?th.accentSoft:th.accentTint, borderRadius:12,
-              padding:"11px 13px", cursor:"pointer",
-              border:`2px solid ${p.id===activePid?th.accent:"transparent"}` }}>
-            <div style={{ width:12, height:12, borderRadius:"50%", background:p.color, flexShrink:0 }} />
-            {editId===p.id
-              ? <input value={editN} onChange={e=>setEditN(e.target.value)} autoFocus
-                  onClick={e=>e.stopPropagation()}
-                  onBlur={()=>{ if(editN.trim()) onEdit(p.id,editN); setEditId(null); }}
-                  style={{ flex:1, border:"none", background:"transparent", fontSize:14,
-                    fontFamily:"'Rubik',sans-serif", outline:"none", color:th.text }} />
-              : <span style={{ flex:1, fontSize:14, color:th.text,
-                  fontWeight:p.id===activePid?700:500, display:"flex", alignItems:"center", gap:5 }}>
-                  {p.pinned && <Icon name="pin" size={12} color={th.accent} />}
-                  {p.name}
-                </span>}
-            <span style={{ fontSize:11, color:th.accent, background:th.surface,
-              padding:"2px 9px", borderRadius:20, fontWeight:700 }}>{cnt}</span>
-            <IconBtn name="pin" size={16}
-              color={p.pinned?th.accent:th.muted}
-              bg={p.pinned?th.accentSoft:"transparent"} pad="4px"
-              onClick={e=>{ e.stopPropagation(); e.preventDefault(); onPin(p.id); }} />
-            <IconBtn name="edit" size={16} color={th.muted} pad="4px"
-              onClick={e=>{ e.stopPropagation(); e.preventDefault(); setEditId(p.id); setEditN(p.name); }} />
-            {projects.length>1 &&
-              <IconBtn name="delete" size={16} color={th.muted} pad="4px"
-                onClick={e=>{ e.stopPropagation(); e.preventDefault(); setConfirmId(p.id); }} />}
-          </div>
-        );
-      })}
-
-      <div style={{ display:"flex", gap:7, marginTop:12 }}>
-        <input value={name} onChange={e=>setName(e.target.value)} placeholder="פרויקט חדש..."
-          onKeyDown={e=>{ if(e.key==="Enter"&&name.trim()){ onAdd(name); setName(""); }}}
-          style={{ flex:1, border:`2px solid ${th.border}`, borderRadius:11, padding:"10px 13px",
-            fontSize:14, fontFamily:"'Rubik',sans-serif", direction:"rtl", outline:"none",
-            background:th.inputBg, color:th.text }} />
-        <button onClick={()=>{ if(name.trim()){ onAdd(name); setName(""); }}}
-          style={{ background:th.accent, color:"#fff", border:"none", borderRadius:11,
-            padding:"0 16px", cursor:"pointer", display:"flex", alignItems:"center" }}>
-          <Icon name="add" size={22} color="#fff" />
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-// ── Notes Modal ───────────────────────────────────────────────────────────────
-function NotesModal({ project, onSave, onClose, th }) {
-  const [txt, setTxt] = useState(project.notes||"");
-  return (
-    <Modal onClose={onClose} th={th}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-        <h3 style={{ margin:0, fontSize:16, fontWeight:800, color:th.text }}>{project.name}</h3>
-        <IconBtn name="close" onClick={onClose} color={th.accent} bg={th.accentSoft} size={18} pad="7px" />
-      </div>
-      <textarea value={txt} onChange={e=>setTxt(e.target.value)} placeholder="הוסף הערות..."
-        rows={7} style={{ width:"100%", border:`2px solid ${th.border}`, borderRadius:13, padding:13,
-          fontSize:14, fontFamily:"'Rubik',sans-serif", direction:"rtl", resize:"none",
-          outline:"none", lineHeight:1.7, background:th.inputBg, color:th.text }} />
-      <button onClick={()=>{ onSave(txt); onClose(); }}
-        style={{ marginTop:11, width:"100%", background:th.accent, color:"#fff", border:"none",
-          borderRadius:12, padding:"12px 0", cursor:"pointer", fontSize:14, fontWeight:700,
-          fontFamily:"'Rubik',sans-serif", display:"flex", alignItems:"center",
-          justifyContent:"center", gap:8 }}>
-        <Icon name="save" size={17} color="#fff" /> שמור
-      </button>
-    </Modal>
-  );
-}
-
-// ── Login Screen ──────────────────────────────────────────────────────────────
-function LoginScreen({ th }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState(null);
-
-  const login = async () => {
-    setLoading(true); setError(null);
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch(e) {
-      setError("שגיאה בהתחברות. נסה שוב.");
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div style={{ minHeight:"100vh", background:th.bg, display:"flex",
-      alignItems:"center", justifyContent:"center", padding:24,
-      fontFamily:"'Rubik',sans-serif", direction:"rtl" }}>
-      <div style={{ background:th.surface, borderRadius:24, padding:40,
-        maxWidth:360, width:"100%", textAlign:"center",
-        border:`1.5px solid ${th.border}`,
-        boxShadow:"0 8px 32px rgba(0,0,0,0.08)" }}>
-        <div style={{ fontSize:52, marginBottom:16 }}>💡</div>
-        <h1 style={{ margin:"0 0 8px", fontSize:28, fontWeight:900, color:th.text }}>
-          IdeaFlow
-        </h1>
-        <p style={{ margin:"0 0 32px", fontSize:15, color:th.muted, lineHeight:1.6 }}>
-          שמור וארגן את הרעיונות שלך
-        </p>
-        <button onClick={login} disabled={loading}
-          style={{ width:"100%", padding:"14px 0", borderRadius:12,
-            background: loading ? th.surface2 : "#fff",
-            border:`1.5px solid ${th.border}`,
-            cursor: loading ? "default" : "pointer",
-            fontSize:15, fontWeight:700, color:th.text,
-            display:"flex", alignItems:"center", justifyContent:"center", gap:12,
-            fontFamily:"'Rubik',sans-serif",
-            boxShadow:"0 2px 8px rgba(0,0,0,0.08)" }}>
-          {loading ? (
-            <span style={{ color:th.muted }}>מתחבר...</span>
-          ) : (
-            <>
-              <svg width="20" height="20" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-              התחבר עם Google
-            </>
-          )}
-        </button>
-        {error && (
-          <p style={{ margin:"16px 0 0", fontSize:13, color:th.red }}>{error}</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [user, setUser]         = useState(undefined); // undefined=loading
-  const [dark, setDark]         = useState(false);
+  const [user, setUser] = useState(undefined);
+  const [dark, setDark] = useState(() => localStorage.getItem("if_dark") === "1");
   const th = getTheme(dark);
 
-  // Auth state listener
-  useEffect(()=>{
-    const unsub = onAuthStateChanged(auth, u => setUser(u || null));
-    return () => unsub();
-  }, []);
+  useEffect(() => onAuthStateChanged(auth, u => setUser(u || null)), []);
+  useEffect(() => { localStorage.setItem("if_dark", dark ? "1" : "0"); }, [dark]);
 
-  if (user === undefined) return (
-    <div style={{ minHeight:"100vh", background:th.bg, display:"flex",
-      alignItems:"center", justifyContent:"center" }}>
-      <div style={{ fontSize:48 }}>💡</div>
-    </div>
-  );
+  // Dev-only UI preview (no auth): npm run dev → /?uipreview
+  // Statically stripped from production builds.
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has("uipreview")) {
+    return <Shell user={{ uid: "demo", displayName: "תצוגה מקדימה", email: "demo@local", photoURL: null }}
+      dark={dark} setDark={setDark} th={th} />;
+  }
 
-  if (!user) return <LoginScreen th={th} />;
-
-  return <AppContent user={user} dark={dark} setDark={setDark} th={th} />;
+  if (user === undefined) return <Splash th={th} />;
+  if (!user) return <Login th={th} />;
+  return <Shell user={user} dark={dark} setDark={setDark} th={th} />;
 }
 
-function AppContent({ user, dark, setDark, th }) {
-  const uid = user.uid;
-  const dbPath = `users/${uid}`;
-
-  const [projects, setProjects] = useState(null);
-  const [ideas, setIdeas]       = useState(null);
-  const [nid, setNid]           = useState(null);
-  const [pid, setPid]           = useState(null);
-  const [loaded, setLoaded]     = useState(false);
-
-  // Load data from Firebase
-  useEffect(()=>{
-    const unsub = onValue(ref(db, dbPath), snap => {
-      const data = snap.val();
-      if (data) {
-        setProjects(data.projects || DEF_PROJECTS);
-        setIdeas(data.ideas || DEF_IDEAS);
-        setNid(data.nid || 10);
-        const savedPid = data.lastPid;
-        const validPid = (data.projects||DEF_PROJECTS).find(p=>p.id===savedPid);
-        setPid(validPid ? savedPid : (data.projects||DEF_PROJECTS)[0]?.id || 1);
-      } else {
-        // First time user
-        const initData = { projects:DEF_PROJECTS, ideas:DEF_IDEAS, nid:10, lastPid:1 };
-        set(ref(db, dbPath), initData);
-        setProjects(DEF_PROJECTS);
-        setIdeas(DEF_IDEAS);
-        setNid(10);
-        setPid(1);
-      }
-      setLoaded(true);
-    });
-    return () => unsub();
-  }, [uid]);
-
-  // Save to Firebase (debounced)
-  const saveTimer = useRef(null);
-  const saveToFirebase = (data) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      set(ref(db, dbPath), data).catch(()=>{});
-    }, 800);
-  };
-
-  const persistAll = (p, i, n, lastPid) => {
-    saveToFirebase({ projects:p, ideas:i, nid:n, lastPid });
-    syncReminderIndex(i);
-  };
-
-  // Mirror active (future, not-done) reminders into /reminders/<uid> so the
-  // server-side cron (api/send-reminders.js) can deliver them even when the
-  // app is closed. Rebuilt from scratch on every save → always consistent.
-  const syncReminderIndex = (i) => {
-    const now = Date.now();
-    const idx = {};
-    (i || []).forEach(x => {
-      if (x.remindAt && !x.done && x.remindAt > now) {
-        idx[x.id] = { at: x.remindAt, text: (x.text || "").slice(0, 180) };
-      }
-    });
-    set(ref(db, `reminders/${uid}`), idx).catch(()=>{});
-  };
-
-  const setPidAndSave = (id) => {
-    setPid(id);
-    persistAll(projects, ideas, nid, id);
-  };
-  const [showLogout, setShowLogout] = useState(false);
-  const [showGuide, setShowGuide]   = useState(false);
-  const [showWhatsNew, setShowWhatsNew] = useState(false);
-  const [search, setSearch]         = useState("");
-
-  // Show guide on first visit
-  useEffect(()=>{
-    const key = `ideaflow_guide_seen_${uid}`;
-    if (!localStorage.getItem(key)) {
-      setShowGuide(true);
-      localStorage.setItem(key, "1");
-    }
-  }, [uid]);
-
-  // Show What's New once per version
-  useEffect(()=>{
-    const key = `ideaflow_whatsnew_${uid}`;
-    const seen = localStorage.getItem(key);
-    if (seen !== WHATS_NEW.version) {
-      // Don't show on the very first visit (guide handles that)
-      if (localStorage.getItem(`ideaflow_guide_seen_${uid}`)) {
-        setShowWhatsNew(true);
-      }
-      localStorage.setItem(key, WHATS_NEW.version);
-    }
-  }, [uid]);
-
-  // Register Service Worker, then subscribe this device to Web Push so the
-  // server can deliver reminders even when the app is closed.
-  useEffect(()=>{
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(err => {
-        console.warn("SW registration failed:", err);
-      });
-    }
-    // Re-subscribe only if the user already granted notifications (don't prompt
-    // on every load). The reminder editor prompts on demand when needed.
-    if ("Notification" in window && Notification.permission === "granted") {
-      enablePush(uid);
-    }
-  }, [uid]);
-  const [archive, setArchive]     = useState(false);
-  const [showAI, setShowAI]     = useState(false);
-  const [showProj, setShowProj] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
-  const [showNotes, setShowNotes] = useState(false);
-  const [shareIdea, setShare]   = useState(null);
-  const [newOpen, setNewOpen]   = useState(false);
-  const [editIdea, setEditIdea] = useState(null);
-  const [toast, setToast]       = useState(null);
-  const [fabVisible, setFabVisible] = useState(true);
-  const lastScrollY = useRef(0);
-
-  useEffect(() => {
-    const onScroll = () => {
-      const y = window.scrollY;
-      if (y > lastScrollY.current + 8) setFabVisible(false);
-      else if (y < lastScrollY.current - 8) setFabVisible(true);
-      lastScrollY.current = y;
-    };
-    window.addEventListener("scroll", onScroll, { passive:true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const [focusedId, setFocusedId] = useState(null);
-  const [sortMode, setSortMode]   = useState(false);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
-  );
-
-  const handleDragEnd = (event) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = ideas.findIndex(i => i.id === active.id);
-    const newIndex = ideas.findIndex(i => i.id === over.id);
-    const next = arrayMove(ideas, oldIndex, newIndex);
-    setIdeas(next);
-    persistAll(projects, next, nid, pid);
-  };
-
-  const nidRef = useRef(nid);
-  nidRef.current = nid;
-
-  const toast$ = msg => { setToast(msg); setTimeout(()=>setToast(null),1800); };
-
-  if (!loaded || !projects || !ideas) return (
-    <div style={{ minHeight:"100vh", background:th.bg, display:"flex",
-      alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16,
-      fontFamily:"'Rubik',sans-serif" }}>
-      <div style={{ fontSize:48 }}>💡</div>
-      <div style={{ color:th.muted, fontSize:15 }}>טוען נתונים...</div>
+function Splash({ th, text }) {
+  return (
+    <div style={{ minHeight: "100vh", background: th.bg, display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", gap: 14, fontFamily: FONT }}>
+      <Icon name="bulb" size={44} color={th.accent} />
+      {text && <p style={{ color: th.secondary, fontSize: 14, margin: 0 }}>{text}</p>}
     </div>
   );
+}
 
-  const cur = projects.find(p=>p.id===pid);
-  const projById = Object.fromEntries(projects.map(p=>[p.id, p]));
-
-  // When searching, look across ALL projects; otherwise only the active one.
-  const q = search.trim().toLowerCase();
-  const searching = q.length > 0;
-
-  const filtered = ideas
-    .filter(i=>searching || i.pid===pid)
-    .filter(i=>archive||!i.done)
-    .filter(i=>i.text.toLowerCase().includes(q))
-    .sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0));
-
-  const active = ideas.filter(i=>i.pid===pid&&!i.done).length;
-  const done   = ideas.filter(i=>i.pid===pid&&i.done).length;
-
-  const saveNew = ({text,html,images,audios,remindAt}) => {
-    const id = nidRef.current;
-    const newIdea = {id,pid,text,html:html||"",color:"#FFFFFF",pinned:false,checked:false,done:false,images,audios:audios||[],remindAt:remindAt||null,at:Date.now()};
-    const newIdeas = [newIdea, ...ideas];
-    const newNid = nid + 1;
-    setIdeas(newIdeas); setNid(newNid); setNewOpen(false);
-    persistAll(projects, newIdeas, newNid, pid);
-    if (remindAt && remindAt > Date.now()) enablePush(uid);
-    toast$("רעיון נוסף");
+function Login({ th }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const login = async () => {
+    setLoading(true); setError(null);
+    try { await signInWithPopup(auth, googleProvider); }
+    catch { setError("שגיאה בהתחברות. נסה שוב."); }
+    setLoading(false);
   };
-  const saveEdit = ({text,html,images,audios,remindAt}) => {
-    const newIdeas = ideas.map(i=>i.id===editIdea.id?{...i,text,html:html||"",images,audios:audios||[],remindAt:remindAt||null}:i);
-    setIdeas(newIdeas); setEditIdea(null);
-    persistAll(projects, newIdeas, nid, pid);
-    if (remindAt && remindAt > Date.now()) enablePush(uid);
+  return (
+    <div style={{ minHeight: "100vh", background: th.bg, display: "flex",
+      alignItems: "center", justifyContent: "center", padding: 24, fontFamily: FONT, direction: "rtl" }}>
+      <div style={{ background: th.surface, borderRadius: 20, padding: 36, maxWidth: 350, width: "100%",
+        textAlign: "center", border: `1px solid ${th.border}` }}>
+        <Icon name="bulb" size={44} color={th.accent} />
+        <h1 style={{ margin: "12px 0 6px", fontSize: 26, fontWeight: 800, color: th.text }}>IdeaFlow</h1>
+        <p style={{ margin: "0 0 26px", fontSize: 14, color: th.secondary, lineHeight: 1.6 }}>
+          תפוס כל רעיון ברגע שהוא עולה
+        </p>
+        <button onClick={login} disabled={loading}
+          style={{ width: "100%", padding: "13px 0", borderRadius: 12,
+            background: th.surface, border: `1px solid ${th.borderStrong}`,
+            cursor: loading ? "default" : "pointer", fontSize: 15, fontWeight: 600, color: th.text,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 10, fontFamily: FONT }}>
+          {loading ? <span style={{ color: th.muted }}>מתחבר...</span> : <>
+            <svg width="19" height="19" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            התחבר עם Google
+          </>}
+        </button>
+        {error && <p style={{ margin: "14px 0 0", fontSize: 13, color: th.red }}>{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+function Shell({ user, dark, setDark, th }) {
+  const uid = user.uid;
+  const [migrating, setMigrating] = useState(true);
+  const [migMsg, setMigMsg] = useState("");
+  const [tab, setTab] = useState("inbox");
+  const [openProjectId, setOpenProjectId] = useState(null);
+  const [editIdea, setEditIdea] = useState(null);
+  const [shareIdea, setShareIdea] = useState(null);
+  const [moveIdea, setMoveIdea] = useState(null);
+  const [showAI, setShowAI] = useState(false);
+  const [showUser, setShowUser] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const ideas = useIdeas(migrating ? null : uid);
+  const projects = useProjects(migrating ? null : uid);
+
+  const toast$ = m => { setToast(m); setTimeout(() => setToast(null), 1700); };
+
+  // One-time migration gate, then SW + push
+  useEffect(() => {
+    if (import.meta.env.DEV && uid === "demo") { setMigrating(false); return; }
+    let done = false;
+    const finish = () => { if (!done) { done = true; setMigrating(false); } };
+    // Safety valve: never keep the user staring at a splash — if migration is
+    // slow (many images), let the UI open and the writes finish in background.
+    const t = setTimeout(finish, 12000);
+    migrateIfNeeded(uid, setMigMsg)
+      .then(did => { if (did) toast$("הנתונים שלך עברו בהצלחה"); })
+      .catch(e => console.warn("migration:", e))
+      .finally(() => { clearTimeout(t); finish(); });
+    return () => clearTimeout(t);
+  }, [uid]);
+
+  useEffect(() => {
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+    if ("Notification" in window && Notification.permission === "granted") enablePush(uid);
+  }, [uid]);
+
+  useEffect(() => {
+    const key = `if_guide_${uid}`;
+    if (!migrating && !localStorage.getItem(key)) { setShowGuide(true); localStorage.setItem(key, "1"); }
+  }, [uid, migrating]);
+
+  if (migrating || !ideas || !projects) return <Splash th={th} text={migMsg || "טוען..."} />;
+
+  // Capture: save instantly, enrich in the background.
+  const capture = async (data) => {
+    const idea = await addIdea(uid, data);
+    toast$("נשמר");
+    if (idea.text) {
+      enrichIdea(idea.text, projects.map(p => p.name)).then(en => {
+        const match = en.project ? projects.find(p => p.name === en.project) : null;
+        updateIdea(uid, idea.id, {
+          title: en.title, tags: en.tags,
+          aiProject: (!data.projectId && match) ? match.id : null,
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+    if (data.remindAt && data.remindAt > Date.now()) enablePush(uid);
+  };
+
+  const actions = {
+    update: (id, patch) => updateIdea(uid, id, patch),
+    remove: async (id) => { await deleteIdea(uid, id); toast$("נמחק"); },
+    edit: idea => setEditIdea(idea),
+    share: idea => setShareIdea(idea),
+    move: idea => setMoveIdea(idea),
+  };
+
+  const projActions = {
+    add: async name => { const id = await addProject(uid, name, projects.length); setOpenProjectId(id); },
+    update: (id, patch) => updateProject(uid, id, patch),
+    remove: id => deleteProject(uid, id, ideas),
+  };
+
+  const saveEdit = async (data) => {
+    await updateIdea(uid, editIdea.id, data);
+    if (data.remindAt && data.remindAt > Date.now()) enablePush(uid);
+    setEditIdea(null);
     toast$("נשמר");
   };
-  const updIdea = u => {
-    const newIdeas = ideas.map(i=>i.id===u.id?u:i);
-    setIdeas(newIdeas);
-    persistAll(projects, newIdeas, nid, pid);
-  };
-  const delIdea = id => {
-    const newIdeas = ideas.filter(i=>i.id!==id);
-    setIdeas(newIdeas);
-    persistAll(projects, newIdeas, nid, pid);
-    toast$("נמחק");
-  };
-  const addProj = name => {
-    const id = nidRef.current, color = PROJ_COLORS[projects.length%PROJ_COLORS.length];
-    const newProjects = [...projects, {id,name,notes:"",color}];
-    const newNid = nid + 1;
-    setProjects(newProjects); setNid(newNid); setPid(id);
-    persistAll(newProjects, ideas, newNid, id);
-  };
-  const delProj = id => {
-    const newProjects = projects.filter(x=>x.id!==id);
-    const newIdeas = ideas.filter(i=>i.pid!==id);
-    const newPid = pid===id ? newProjects[0]?.id : pid;
-    setProjects(newProjects); setIdeas(newIdeas); setPid(newPid);
-    persistAll(newProjects, newIdeas, nid, newPid);
-  };
-  const editProj = (id,name) => {
-    const newProjects = projects.map(x=>x.id===id?{...x,name}:x);
-    setProjects(newProjects);
-    persistAll(newProjects, ideas, nid, pid);
-  };
-  const pinProj = id => {
-    const newProjects = projects.map(x=>x.id===id?{...x,pinned:!x.pinned}:x);
-    setProjects(newProjects);
-    persistAll(newProjects, ideas, nid, pid);
-  };
-  const saveNotes = notes => {
-    const newProjects = projects.map(x=>x.id===pid?{...x,notes}:x);
-    setProjects(newProjects);
-    persistAll(newProjects, ideas, nid, pid);
-  };
-  const moveIdea = (id,dir) => {
-    const a=[...ideas], idx=a.findIndex(i=>i.id===id), ti=idx+dir;
-    if(ti<0||ti>=a.length) return;
-    [a[idx],a[ti]]=[a[ti],a[idx]];
-    setIdeas(a);
-    persistAll(projects, a, nid, pid);
-  };
+
+  const inboxCount = ideas.filter(i => i.status === "inbox" && !i.projectId).length;
+
+  const navItems = [
+    { id: "inbox", icon: "inbox", label: "Inbox", badge: inboxCount },
+    { id: "projects", icon: "folder", label: "פרויקטים" },
+    { id: "search", icon: "search", label: "חיפוש" },
+  ];
 
   return (
-    <div style={{ minHeight:"100vh", background:th.bg,
-      fontFamily:"'Rubik',sans-serif", direction:"rtl", transition:"background 0.3s" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&family=Nunito:wght@400;600&display=swap');
-        *{box-sizing:border-box;}
-        input:focus,textarea:focus{outline:none;}
-        ::-webkit-scrollbar{width:4px;}
-        ::-webkit-scrollbar-thumb{background:${th.border};border-radius:4px;}
-      `}</style>
-
-      <div style={{ padding:"8px 10px 0" }}>
-        <div style={{ maxWidth:520, margin:"0 auto" }}>
-          <div style={{ background:th.surface, borderRadius:16,
-            border:`1.5px solid ${th.border}`,
-            boxShadow:`0 3px 12px rgba(0,0,0,0.1)`,
-            padding:"12px 13px", marginBottom:8 }}>
-
-            {/* Header */}
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-              <h1 onClick={()=>setShowGuide(true)}
-                style={{ margin:0, fontSize:24, fontWeight:900, color:th.text,
-                  display:"flex", alignItems:"center", gap:8, cursor:"pointer",
-                  userSelect:"none" }}>
-                <Icon name="bulb" size={28} color={th.accent} />
-                IdeaFlow
-              </h1>
-              <div style={{ display:"flex", gap:6 }}>
-                <IconBtn name={dark?"sun":"moon"}
-                  onClick={()=>setDark(d=>!d)}
-                  color={th.text} bg={th.surface2} size={19} pad="9px"
-                  style={{ border:`1.5px solid ${th.border}`, borderRadius:22 }} />
-                <IconBtn name="ai"
-                  onClick={()=>setShowAI(p=>!p)}
-                  color={showAI?"#fff":th.text}
-                  bg={showAI?th.accent:th.surface2} size={19} pad="9px"
-                  style={{ border:`1.5px solid ${showAI?th.accent:th.border}`, borderRadius:22 }} />
-                <IconBtn name={archive?"eyeoff":"eye"}
-                  onClick={()=>setArchive(p=>!p)}
-                  color={archive?"#fff":th.text}
-                  bg={archive?th.accent:th.surface2} size={19} pad="9px"
-                  style={{ border:`1.5px solid ${archive?th.accent:th.border}`, borderRadius:22 }} />
-                <button onClick={()=>setShowLogout(true)}
-                  title="התנתק"
-                  style={{ width:38, height:38, borderRadius:22, border:`1.5px solid ${th.border}`,
-                    background:th.surface2, cursor:"pointer", overflow:"hidden", padding:0 }}>
-                  {user.photoURL
-                    ? <img src={user.photoURL} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
-                    : <span style={{ fontSize:16 }}>👤</span>}
-                </button>
-              </div>
-            </div>
-
-            {/* Search */}
-            <div style={{ position:"relative", marginBottom:9 }}>
-              <input value={search} onChange={e=>setSearch(e.target.value)}
-                placeholder="חיפוש רעיון..."
-                style={{ width:"100%", border:`1.5px solid ${th.border}`,
-                  borderRadius:10, padding:"9px 36px 9px 32px",
-                  fontSize:14, background:th.inputBg,
-                  fontFamily:"'Rubik',sans-serif", direction:"rtl", color:th.text }} />
-              <span style={{ position:"absolute", right:10, top:"50%",
-                transform:"translateY(-50%)", pointerEvents:"none" }}>
-                <Icon name="search" size={17} color={th.muted} />
-              </span>
-              {search && (
-                <button onClick={()=>setSearch("")}
-                  style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)",
-                    border:"none", background:th.accentSoft, borderRadius:"50%",
-                    width:20, height:20, cursor:"pointer",
-                    display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <Icon name="close" size={12} color={th.accent} />
-                </button>
-              )}
-            </div>
-
-            {/* Project selector */}
-            <div style={{ background:th.surface2, borderRadius:11,
-              border:`1.5px solid ${th.border}`, padding:"9px 11px", marginBottom:9 }}>
-              <div style={{ display:"flex", alignItems:"center",
-                justifyContent:"space-between", marginBottom:8 }}>
-                <span style={{ fontSize:13, fontWeight:700, color:th.text }}>בחר פרויקט:</span>
-                <button onClick={()=>setShowProj(true)}
-                  style={{ background:th.surface, color:th.accent,
-                    border:`1.5px solid ${th.accent}`, borderRadius:20,
-                    padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:800,
-                    fontFamily:"'Rubik',sans-serif",
-                    display:"flex", alignItems:"center", gap:4 }}>
-                  <Icon name="add" size={13} color={th.accent} /> פרויקט חדש
-                </button>
-              </div>
-              <div style={{ position:"relative" }}>
-                <button onClick={()=>setShowMenu(p=>!p)}
-                  style={{ width:"100%", background:th.surface,
-                    border:`1.5px solid ${th.border}`, borderRadius:9,
-                    padding:"9px 12px", cursor:"pointer",
-                    display:"flex", alignItems:"center", gap:8 }}>
-                  <Icon name={showMenu?"up":"down"} size={15} color={th.accent} />
-                  <div style={{ width:10, height:10, borderRadius:"50%", background:cur?.color }} />
-                  <span style={{ flex:1, fontWeight:700, color:th.text, fontSize:14,
-                    textAlign:"right" }}>{cur?.name}</span>
-                  <span style={{ fontSize:10, color:"#fff", background:th.accent,
-                    padding:"2px 8px", borderRadius:20, fontWeight:700 }}>{active}</span>
-                </button>
-                {showMenu && (
-                  <div style={{ position:"absolute", top:"calc(100% + 3px)", right:0, left:0,
-                    background:th.surface, borderRadius:10,
-                    boxShadow:"0 6px 20px rgba(0,0,0,0.2)", zIndex:200,
-                    overflow:"hidden", border:`1.5px solid ${th.border}` }}>
-                    {[...projects].sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)).map(p=>(
-                      <div key={p.id}
-                        style={{ display:"flex", alignItems:"center", gap:4, padding:"9px 10px",
-                          background:p.id===pid?th.accentTint:th.surface,
-                          borderBottom:`1px solid ${th.border}` }}>
-                        <div onClick={e=>{ e.stopPropagation(); setPidAndSave(p.id); setShowMenu(false); }}
-                          style={{ display:"flex", alignItems:"center", gap:7, flex:1, cursor:"pointer" }}>
-                          <div style={{ width:9, height:9, borderRadius:"50%",
-                            background:p.color, flexShrink:0 }} />
-                          {p.pinned && <Icon name="pin" size={11} color={th.accent} />}
-                          <span style={{ fontSize:13, color:th.text,
-                            fontWeight:p.id===pid?700:500 }}>{p.name}</span>
-                          <span style={{ fontSize:10, color:th.accent, fontWeight:700,
-                            background:th.accentSoft, padding:"1px 7px", borderRadius:20 }}>
-                            {ideas.filter(i=>i.pid===p.id&&!i.done).length}
-                          </span>
-                        </div>
-                        <button onClick={e=>{ e.stopPropagation();
-                          const txt=ideas.filter(i=>i.pid===p.id&&!i.done).map((i,n)=>(n+1)+". "+i.text).join("\n");
-                          window.open("https://wa.me/?text="+encodeURIComponent(p.name+":\n"+txt),"_blank");
-                        }} style={{ background:"transparent", border:"none", cursor:"pointer",
-                          padding:"3px 6px", display:"flex", alignItems:"center" }}>
-                          <Icon name="share" size={15} color={th.muted} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div style={{ display:"flex", gap:7, marginBottom:8 }}>
-            {[{l:"פעילים",v:active,c:th.accent},
-              {l:"בוצעו", v:done,  c:th.green},
-              {l:'סה"כ',  v:active+done, c:th.accent}].map(s=>(
-              <div key={s.l} style={{ flex:1, background:th.surface, borderRadius:12,
-                padding:"10px 6px", textAlign:"center",
-                border:`1.5px solid ${s.c}44`, boxShadow:`0 2px 6px ${s.c}18` }}>
-                <div style={{ fontSize:28, fontWeight:600, color:s.c, lineHeight:1,
-                  fontFamily:"'Nunito', 'Rubik', sans-serif", letterSpacing:"-0.5px" }}>{s.v}</div>
-                <div style={{ fontSize:11, color:s.c, fontWeight:700, marginTop:4 }}>{s.l}</div>
-              </div>
-            ))}
+    <div style={{ minHeight: "100vh", background: th.bg, fontFamily: FONT, direction: "rtl" }}>
+      {/* Header */}
+      <div style={{ position: "sticky", top: 0, zIndex: 100, background: th.bg,
+        borderBottom: `1px solid ${th.border}` }}>
+        <div style={{ maxWidth: 560, margin: "0 auto", padding: "10px 14px",
+          display: "flex", alignItems: "center", gap: 8 }}>
+          <span onClick={() => setShowGuide(true)}
+            style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", userSelect: "none" }}>
+            <Icon name="bulb" size={22} color={th.accent} />
+            <span style={{ fontSize: 17, fontWeight: 800, color: th.text }}>IdeaFlow</span>
+          </span>
+          <div style={{ marginRight: "auto", display: "flex", gap: 5 }}>
+            <IconBtn name="sparkle" onClick={() => setShowAI(true)} color={th.accent} bg={th.accentSoft} size={17} pad="8px" />
+            <IconBtn name={dark ? "sun" : "moon"} onClick={() => setDark(d => !d)} color={th.secondary} bg={th.surface} size={17} pad="8px"
+              style={{ border: `1px solid ${th.border}` }} />
+            <button onClick={() => setShowUser(true)}
+              style={{ width: 33, height: 33, borderRadius: "50%", border: `1px solid ${th.border}`,
+                background: th.surface, cursor: "pointer", overflow: "hidden", padding: 0 }}>
+              {user.photoURL
+                ? <img src={user.photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                : <Icon name="logout" size={15} color={th.secondary} />}
+            </button>
           </div>
         </div>
       </div>
 
       {/* Body */}
-      <div style={{ maxWidth:520, margin:"0 auto", padding:"4px 12px 100px" }}>
-
-        {/* Sort button row */}
-        {filtered.length > 1 && !searching && (
-          <div style={{ display:"flex", justifyContent:"flex-start", marginBottom:8 }}>
-            <button onClick={()=>setSortMode(s=>!s)}
-              style={{ display:"flex", alignItems:"center", gap:6,
-                background: sortMode ? th.accent : th.surface,
-                color: sortMode ? "#fff" : th.muted,
-                border:`1.5px solid ${sortMode?th.accent:th.border}`,
-                borderRadius:20, padding:"5px 14px", cursor:"pointer",
-                fontSize:12, fontWeight:600, fontFamily:"'Rubik',sans-serif",
-                transition:"all 0.2s" }}>
-              {sortMode ? "✓ סיים" : "↕ סדר"}
-            </button>
-          </div>
+      <div style={{ maxWidth: 560, margin: "0 auto", padding: "14px 14px 90px" }}>
+        {tab === "inbox" && (
+          <Inbox uid={uid} ideas={ideas} projects={projects} th={th} actions={actions} onCapture={capture} />
         )}
-
-        {filtered.length===0
-          ? <div style={{ textAlign:"center", padding:"50px 0", color:th.muted }}>
-              <Icon name="bulb" size={52} color={th.border} />
-              <p style={{ fontSize:15, marginTop:10 }}>
-                {search?"לא נמצאו רעיונות":"לחץ על הכפתור הצף להוספת רעיון"}
-              </p>
-            </div>
-          : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={filtered.map(i=>i.id)} strategy={verticalListSortingStrategy}>
-                {filtered.map((idea,idx)=>(
-                  <SortableIdeaCard key={idea.id} idea={idea} th={th} dark={dark}
-                    sortMode={sortMode && !searching}
-                    project={searching ? projById[idea.pid] : null}
-                    onUpdate={updIdea} onDelete={delIdea}
-                    onShare={setShare} onEdit={()=>setEditIdea(idea)}
-                    onMoveUp={()=>moveIdea(idea.id,-1)}
-                    onMoveDown={()=>moveIdea(idea.id,1)}
-                    isFirst={idx===0} isLast={idx===filtered.length-1} />
-                ))}
-              </SortableContext>
-            </DndContext>
-          )
-        }
+        {tab === "projects" && (
+          <Projects uid={uid} ideas={ideas} projects={projects} th={th} actions={actions}
+            projActions={projActions} onCapture={capture}
+            openProjectId={openProjectId} setOpenProjectId={setOpenProjectId} />
+        )}
+        {tab === "search" && (
+          <Search ideas={ideas} projects={projects} th={th} actions={actions} />
+        )}
       </div>
 
-      {/* FAB - scroll-aware */}
-      <button onClick={()=>setNewOpen(true)}
-        style={{ position:"fixed", bottom:24, left:"50%",
-          transform: fabVisible
-            ? "translateX(-50%) translateY(0) scale(1)"
-            : "translateX(-50%) translateY(80px) scale(0.8)",
-          opacity: fabVisible ? 1 : 0,
-          pointerEvents: fabVisible ? "auto" : "none",
-          transition:"transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.3s",
-          height:42, borderRadius:21, background:th.accent,
-          border:"none", cursor:"pointer", padding:"0 20px",
-          display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-          boxShadow:`0 4px 16px ${th.accent}55, 0 1px 4px rgba(0,0,0,0.15)`,
-          zIndex:100 }}>
-        <Icon name="bulb" size={18} color="#fff" />
-        <span style={{ fontSize:14, fontWeight:700, color:"#fff",
-          fontFamily:"'Rubik',sans-serif", whiteSpace:"nowrap" }}>רעיון חדש</span>
-      </button>
+      {/* Bottom nav */}
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
+        background: th.surface, borderTop: `1px solid ${th.border}` }}>
+        <div style={{ maxWidth: 560, margin: "0 auto", display: "flex",
+          padding: "6px 8px calc(6px + env(safe-area-inset-bottom))" }}>
+          {navItems.map(n => {
+            const active = tab === n.id;
+            return (
+              <button key={n.id} onClick={() => { setTab(n.id); if (n.id === "projects") setOpenProjectId(null); }}
+                style={{ flex: 1, background: "transparent", border: "none", cursor: "pointer",
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                  padding: "5px 0", position: "relative", fontFamily: FONT }}>
+                <span style={{ position: "relative" }}>
+                  <Icon name={n.icon} size={21} color={active ? th.accent : th.muted} />
+                  {n.badge > 0 && (
+                    <span style={{ position: "absolute", top: -4, left: -10, background: th.accent,
+                      color: "#fff", fontSize: 9.5, fontWeight: 700, borderRadius: 9,
+                      minWidth: 15, height: 15, padding: "0 4px",
+                      display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {n.badge}
+                    </span>
+                  )}
+                </span>
+                <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 400,
+                  color: active ? th.accent : th.muted }}>{n.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Modals */}
-      {toast     && <Toast msg={toast} th={th} />}
-      {showWhatsNew && (
-        <Modal onClose={()=>setShowWhatsNew(false)} maxWidth={400} th={th}>
-          <div style={{ textAlign:"center", marginBottom:18 }}>
-            <div style={{ fontSize:44, marginBottom:8 }}>🎉</div>
-            <div style={{ display:"inline-flex", alignItems:"center", gap:8,
-              background:th.accentSoft, borderRadius:20, padding:"4px 14px", marginBottom:10 }}>
-              <span style={{ fontSize:13, fontWeight:800, color:th.accent }}>
-                גרסה {WHATS_NEW.version}
-              </span>
-              <span style={{ fontSize:11, color:th.accent, opacity:0.8 }}>
-                {WHATS_NEW.date}
-              </span>
-            </div>
-            <h3 style={{ margin:0, fontSize:20, fontWeight:900, color:th.text }}>
-              {WHATS_NEW.title}
-            </h3>
-          </div>
-          {WHATS_NEW.features.map((f,i)=>(
-            <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12,
-              background:th.accentTint, borderRadius:12, padding:"13px 14px",
-              marginBottom:8, border:`1px solid ${th.border}` }}>
-              <div style={{ width:34, height:34, borderRadius:10, background:th.accentSoft,
-                display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                <Icon name={f.icon} size={18} color={th.accent} />
-              </div>
-              <div style={{ flex:1, fontSize:14, color:th.text, lineHeight:1.6,
-                direction:"rtl", textAlign:"right", paddingTop:2 }}>
-                {f.text}
-              </div>
-            </div>
-          ))}
-          <button onClick={()=>setShowWhatsNew(false)}
-            style={{ width:"100%", marginTop:14, height:46, background:th.accent, color:"#fff",
-              border:"none", borderRadius:12, cursor:"pointer",
-              fontSize:15, fontWeight:800, fontFamily:"'Rubik',sans-serif" }}>
-            מגניב, בוא נתחיל!
-          </button>
-        </Modal>
+      {toast && <Toast msg={toast} th={th} />}
+      {editIdea && (
+        <Editor uid={uid} title="עריכה" initial={editIdea} projects={projects}
+          onSave={saveEdit} onClose={() => setEditIdea(null)} th={th} />
       )}
-      {showGuide && (
-        <Modal onClose={()=>setShowGuide(false)} th={th}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-            <h3 style={{ margin:0, fontSize:18, fontWeight:800, color:th.text }}>
-              💡 מדריך IdeaFlow
-            </h3>
-            <IconBtn name="close" onClick={()=>setShowGuide(false)}
-              color={th.accent} bg={th.accentSoft} size={18} pad="7px" />
-          </div>
-
-          <div style={{ fontSize:12, color:th.muted, marginBottom:14, padding:"8px 12px",
-            background:th.accentTint, borderRadius:8, lineHeight:1.5 }}>
-            💡 למדריך זה ניתן להגיע בכל עת על ידי לחיצה על הלוגו <strong>IdeaFlow</strong> בראש האפליקציה
-          </div>
-
-          {[
-            { icon:"bulb",   title:"כניסה לאפליקציה",  text:'התחבר עם חשבון Google שלך. כל המידע שלך שמור בענן ומסונכרן בין המכשירים שלך.' },
-            { icon:"moon",   title:"מצב יום / לילה",   text:'לחץ על אייקון הירח או השמש בכותרת למעבר בין תצוגה בהירה לכהה.' },
-            { icon:"folder", title:"פרויקטים",          text:'בחר פרויקט מהרשימה. לחץ על "+ חדש" ליצירת פרויקט. בתוך מסך הפרויקטים ניתן לערוך ולמחוק פרויקטים קיימים.' },
-            { icon:"bulb",   title:"רעיון חדש",         text:'לחץ על כפתור המנורה בתחתית המסך. ניתן להוסיף טקסט, תמונה מהגלריה, צילום, וגם הערה קולית — לחץ 🎙 להקלטה דרך הרשמקול או 🎵 לצירוף קובץ אודיו קיים.' },
-            { icon:"edit",   title:"עריכה",             text:'לחץ על אייקון העריכה בשורת הכלים לעריכת הטקסט, שינוי צבע והגדרת תזכורת.' },
-            { icon:"copy",   title:"העתקה",             text:'לחץ על אייקון ההעתקה בשורת הכלים — הטקסט יועתק ללוח.' },
-            { icon:"pin",    title:"הצמדה",             text:'לחץ על אייקון ההצמדה כדי שהרעיון יופיע תמיד בראש הרשימה.' },
-            { icon:"more",   title:"עוד אפשרויות",      text:'לחץ ⋯ לתפריט משני הכולל מחיקה, שיתוף ושינוי צבע הכרטיסייה.' },
-            { icon:"up",     title:"סידור רעיונות",     text:'לחץ "↕ סדר" מעל הרשימה — גרור את הרעיונות לסדר הרצוי ולחץ "✓ סיים".' },
-            { icon:"eye",    title:"ארכיון",            text:'לחץ על אייקון העין בכותרת להצגת רעיונות שסומנו כבוצעו.' },
-            { icon:"ai",     title:"עוזר AI",           text:'לחץ על אייקון הרובוט בכותרת לניתוח הרעיונות שלך וקבלת תובנות והמלצות.' },
-            { icon:"bell",   title:"תזכורות",           text:'בעריכת רעיון לחץ "הגדר תזכורת" ובחר תאריך ושעה. תקבל התראה כשיגיע הזמן.' },
-          ].map((item,i,arr) => (
-            <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12,
-              padding:"10px 0", borderBottom:i<arr.length-1?`1px solid ${th.border}`:"none" }}>
-              <div style={{ width:32, height:32, borderRadius:10, background:th.accentSoft,
-                display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                <Icon name={item.icon} size={17} color={th.accent} />
-              </div>
-              <div style={{ flex:1, fontSize:13, color:th.text, lineHeight:1.6,
-                direction:"rtl", textAlign:"right" }}>
-                <strong>{item.title}: </strong>{item.text}
-              </div>
-            </div>
-          ))}
-
-          <button onClick={()=>setShowGuide(false)}
-            style={{ width:"100%", marginTop:16, height:44, background:th.accent, color:"#fff",
-              border:"none", borderRadius:12, cursor:"pointer",
-              fontSize:15, fontWeight:700, fontFamily:"'Rubik',sans-serif" }}>
-            הבנתי!
-          </button>
-        </Modal>
+      {shareIdea && <ShareModal idea={shareIdea} onClose={() => setShareIdea(null)} th={th} />}
+      {moveIdea && (
+        <MoveSheet idea={moveIdea} projects={projects} th={th}
+          onMove={async pid => {
+            await updateIdea(uid, moveIdea.id, {
+              projectId: pid, aiProject: null,
+              status: moveIdea.status === "done" ? "done" : (pid ? "active" : "inbox"),
+            });
+            setMoveIdea(null); toast$(pid ? "הועבר" : "הוחזר ל-Inbox");
+          }}
+          onNewProject={async () => {
+            const name = prompt("שם הפרויקט החדש:");
+            if (!name?.trim()) return;
+            const pid = await addProject(uid, name.trim(), projects.length);
+            await updateIdea(uid, moveIdea.id, { projectId: pid, aiProject: null, status: "active" });
+            setMoveIdea(null); toast$("הועבר");
+          }}
+          onClose={() => setMoveIdea(null)} />
       )}
-      {showLogout && (
-        <Modal onClose={()=>setShowLogout(false)} maxWidth={300} th={th}>
-          <div style={{ textAlign:"center" }}>
-            <div style={{ marginBottom:12 }}>
-              {user.photoURL
-                ? <img src={user.photoURL} style={{ width:56, height:56, borderRadius:"50%" }} />
-                : <div style={{ fontSize:44 }}>👤</div>}
-            </div>
-            <div style={{ fontSize:15, fontWeight:700, color:th.text, marginBottom:4 }}>
-              {user.displayName}
-            </div>
-            <div style={{ fontSize:13, color:th.muted, marginBottom:20 }}>
-              {user.email}
-            </div>
-            <div style={{ display:"flex", gap:10 }}>
-              <button onClick={()=>setShowLogout(false)}
-                style={{ flex:1, height:44, background:th.surface2, color:th.text,
-                  border:`1px solid ${th.border}`, borderRadius:12, cursor:"pointer",
-                  fontSize:14, fontWeight:600, fontFamily:"'Rubik',sans-serif" }}>
-                ביטול
-              </button>
-              <button onClick={()=>{ signOut(auth); setShowLogout(false); }}
-                style={{ flex:1, height:44, background:th.red, color:"#fff",
-                  border:"none", borderRadius:12, cursor:"pointer",
-                  fontSize:14, fontWeight:700, fontFamily:"'Rubik',sans-serif" }}>
-                התנתק
-              </button>
+      {showAI && <Assistant ideas={ideas} projects={projects} onClose={() => setShowAI(false)} th={th} />}
+      {showUser && (
+        <Modal onClose={() => setShowUser(false)} maxWidth={300} th={th}>
+          <div style={{ textAlign: "center" }}>
+            {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 54, height: 54, borderRadius: "50%", marginBottom: 10 }} />}
+            <div style={{ fontSize: 15, fontWeight: 600, color: th.text }}>{user.displayName}</div>
+            <div style={{ fontSize: 13, color: th.muted, marginBottom: 18 }}>{user.email}</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setShowUser(false)}
+                style={{ flex: 1, height: 42, background: th.surface2, color: th.text,
+                  border: `1px solid ${th.border}`, borderRadius: 11, cursor: "pointer",
+                  fontSize: 14, fontWeight: 500, fontFamily: FONT }}>סגור</button>
+              <button onClick={() => { signOut(auth); setShowUser(false); }}
+                style={{ flex: 1, height: 42, background: th.red, color: "#fff",
+                  border: "none", borderRadius: 11, cursor: "pointer",
+                  fontSize: 14, fontWeight: 600, fontFamily: FONT }}>התנתק</button>
             </div>
           </div>
         </Modal>
       )}
-      {newOpen   && <IdeaEditor title="רעיון חדש" onSave={saveNew} onClose={()=>setNewOpen(false)} th={th} />}
-      {editIdea  && <IdeaEditor title="עריכה" initial={editIdea} onSave={saveEdit} onClose={()=>setEditIdea(null)} th={th} />}
-      {showAI    && <AIPanel ideas={ideas.filter(i=>i.pid===pid)} onClose={()=>setShowAI(false)} th={th} />}
-      {shareIdea && <ShareModal idea={shareIdea} onClose={()=>setShare(null)} th={th} />}
-      {showProj  && <ProjModal projects={projects} ideas={ideas} activePid={pid}
-        onClose={()=>setShowProj(false)} onAdd={addProj} onDel={delProj}
-        onEdit={editProj} onPin={pinProj} onSelect={id=>{ setPidAndSave(id); setShowProj(false); }} th={th} />}
-      {showNotes && cur && <NotesModal project={cur} onSave={saveNotes}
-        onClose={()=>setShowNotes(false)} th={th} />}
+      {showGuide && <Guide onClose={() => setShowGuide(false)} th={th} />}
     </div>
+  );
+}
+
+function Guide({ onClose, th }) {
+  const items = [
+    { icon: "bulb", title: "תפוס רעיון", text: "מסך הבית נפתח על שדה כתיבה. כתוב, צלם או הקלט — ולחץ שמור. הרעיון נכנס ל-Inbox, גם בלי אינטרנט." },
+    { icon: "sparkle", title: "ה-AI עובד בשבילך", text: "כל רעיון מקבל אוטומטית כותרת ותגיות, וכשמתאים — הצעה לאיזה פרויקט להעביר. לחיצה אחת ומוין." },
+    { icon: "inbox", title: "Inbox → פרויקטים", text: "רעיון חדש לא דורש החלטות. מיינו אחר-כך: אייקון התיקייה על כל כרטיס מעביר לפרויקט." },
+    { icon: "folder", title: "פרויקטים", text: "בתוך פרויקט אפשר לתפוס רעיון ישירות אליו, לנהל הערות, ולראות מה בוצע." },
+    { icon: "bell", title: "תזכורות אמיתיות", text: "הגדר תזכורת בעריכת רעיון — ההתראה תגיע גם כשהאפליקציה סגורה." },
+    { icon: "search", title: "חיפוש גלובלי", text: "חיפוש בכל הפרויקטים, כולל כותרות ותגיות." },
+    { icon: "sparkle", title: "עוזר AI", text: "כפתור הניצוץ למעלה: תמונת מצב שבועית, מה דחוף, ואיחוד רעיונות דומים." },
+  ];
+  return (
+    <Modal onClose={onClose} th={th}>
+      <div style={{ textAlign: "center", marginBottom: 14 }}>
+        <Icon name="bulb" size={36} color={th.accent} />
+        <h3 style={{ margin: "8px 0 2px", fontSize: 19, fontWeight: 800, color: th.text }}>ברוך הבא ל-IdeaFlow 5</h3>
+        <p style={{ margin: 0, fontSize: 13, color: th.muted }}>נבנה מחדש סביב דבר אחד: לתפוס רעיונות בלי חיכוך</p>
+      </div>
+      {items.map((it, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 11,
+          padding: "10px 0", borderBottom: i < items.length - 1 ? `1px solid ${th.border}` : "none" }}>
+          <div style={{ width: 32, height: 32, borderRadius: 10, background: th.accentSoft,
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Icon name={it.icon} size={16} color={th.accentText} />
+          </div>
+          <div style={{ flex: 1, fontSize: 13, color: th.text, lineHeight: 1.6, textAlign: "right" }}>
+            <strong style={{ fontWeight: 600 }}>{it.title}: </strong>
+            <span style={{ color: th.secondary }}>{it.text}</span>
+          </div>
+        </div>
+      ))}
+      <button onClick={onClose}
+        style={{ width: "100%", marginTop: 14, height: 44, background: th.accent, color: "#fff",
+          border: "none", borderRadius: 12, cursor: "pointer",
+          fontSize: 15, fontWeight: 700, fontFamily: FONT }}>
+        בוא נתחיל
+      </button>
+    </Modal>
   );
 }
