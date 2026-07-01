@@ -8,6 +8,7 @@ export function getTheme(dark) {
     accent: "#5B82F2", accentSoft: "#1D2740", accentText: "#9DB4F8",
     green: "#34D399", red: "#F87171", amber: "#FBBF24",
     inputBg: "#171B23",
+    pastels: ["#252112", "#16223A", "#12291F", "#241C36", "#2A1E13", "#2A1622"],
   };
   return {
     dark: false,
@@ -17,6 +18,7 @@ export function getTheme(dark) {
     accent: "#2E5BE6", accentSoft: "#E8EDFC", accentText: "#1E43B8",
     green: "#16A34A", red: "#DC2626", amber: "#D97706",
     inputBg: "#FFFFFF",
+    pastels: ["#FDF6DE", "#EAF2FB", "#E6F7F1", "#F3ECFA", "#FCEFE6", "#FBEAF0"],
   };
 }
 

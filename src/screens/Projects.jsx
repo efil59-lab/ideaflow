@@ -1,7 +1,7 @@
 // Projects: list view + project detail (capture in context, notes, done toggle).
 import { useState } from "react";
 import CaptureBar from "../ui/CaptureBar";
-import IdeaList from "../ui/IdeaList";
+import IdeaList, { SortToggle } from "../ui/IdeaList";
 import { Icon, IconBtn } from "../ui/Icons";
 import { Modal, ModalHeader, Confirm } from "../ui/base";
 import { FONT } from "../theme";
@@ -71,6 +71,7 @@ function ProjectsIndex({ projects, ideas, th, projActions, onOpen }) {
 
 function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions, onCapture, onBack }) {
   const [showDone, setShowDone] = useState(false);
+  const [sortMode, setSortMode] = useState(false);
   const [menu, setMenu] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState(project.name);
@@ -96,7 +97,10 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
         ) : (
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: th.text, flex: 1 }}>{project.name}</h2>
         )}
-        <IconBtn name={showDone ? "eyeoff" : "eye"} onClick={() => setShowDone(p => !p)}
+        {!showDone && list.length > 1 && (
+          <SortToggle sortMode={sortMode} setSortMode={setSortMode} th={th} />
+        )}
+        <IconBtn name={showDone ? "eyeoff" : "eye"} onClick={() => { setShowDone(p => !p); setSortMode(false); }}
           color={showDone ? th.accent : th.muted} size={17} pad="7px" />
         <IconBtn name="more" onClick={() => setMenu(m => !m)} color={th.muted} size={17} pad="7px" />
       </div>
@@ -121,6 +125,7 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
 
       <div style={{ height: 14 }} />
       <IdeaList ideas={list} projects={projects} th={th} actions={actions}
+        sortMode={sortMode && !showDone} onReorder={actions.reorder}
         emptyText={showDone ? "אין רעיונות שבוצעו" : "אין רעיונות בפרויקט — הוסף אחד למעלה"} />
 
       {notes && (

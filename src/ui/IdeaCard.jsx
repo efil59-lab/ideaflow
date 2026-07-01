@@ -6,7 +6,8 @@ import { Confirm, Chip } from "./base";
 import { FONT, fmt } from "../theme";
 
 export default function IdeaCard({ idea, project, projects, showProject, th,
-  onUpdate, onDelete, onEdit, onShare, onMove, onAcceptAI, onDismissAI }) {
+  onUpdate, onDelete, onEdit, onShare, onMove, onAcceptAI, onDismissAI,
+  sortMode = false, dragHandleProps = {} }) {
   const [more, setMore] = useState(false);
   const [copied, setCopied] = useState(false);
   const [bigImg, setBigImg] = useState(null);
@@ -16,6 +17,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
   const done = idea.status === "done";
   const isLong = (idea.text || "").length > 130;
   const aiProj = idea.aiProject ? projects.find(p => p.id === idea.aiProject) : null;
+  const cardBg = (idea.colorIdx != null && th.pastels[idea.colorIdx]) || th.surface;
 
   const onCheck = () => onUpdate({ status: done ? (idea.projectId ? "active" : "inbox") : "done" });
 
@@ -41,11 +43,19 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
           <img src={bigImg} alt="" style={{ maxWidth: "92vw", maxHeight: "85vh", borderRadius: 14 }} />
         </div>, document.body)}
 
-      <div style={{ background: th.surface, borderRadius: 14, marginBottom: 10,
+      <div style={{ background: cardBg, borderRadius: 14, marginBottom: 10,
         border: `1px solid ${th.border}`, opacity: done ? 0.55 : 1,
         direction: "rtl", animation: "fadeUp .18s ease-out" }}>
 
-        <div style={{ display: "flex", alignItems: "flex-start", padding: "12px 13px 6px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", padding: sortMode ? "12px 13px" : "12px 13px 6px" }}>
+          {sortMode ? (
+            <div {...dragHandleProps}
+              style={{ flexShrink: 0, width: 26, height: 26, marginLeft: 9,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "grab", color: th.muted, fontSize: 17, touchAction: "none", userSelect: "none" }}>
+              ⠿
+            </div>
+          ) : (
           <div onClick={onCheck} style={{
             flexShrink: 0, width: 21, height: 21, borderRadius: 7, marginLeft: 11, marginTop: 2,
             border: done ? "none" : `1.5px solid ${th.borderStrong}`,
@@ -54,6 +64,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
             cursor: "pointer", transition: "all .15s" }}>
             {done && <Icon name="check" size={13} color="#fff" />}
           </div>
+          )}
 
           <div style={{ flex: 1, minWidth: 0 }}>
             {idea.title && (
@@ -104,7 +115,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
         </div>
 
         {/* AI project suggestion */}
-        {aiProj && !idea.projectId && !done && (
+        {aiProj && !idea.projectId && !done && !sortMode && (
           <div style={{ margin: "2px 13px 8px 13px", display: "flex", alignItems: "center", gap: 7,
             background: th.accentSoft, borderRadius: 10, padding: "7px 11px" }}>
             <Icon name="sparkle" size={14} color={th.accentText} />
@@ -120,7 +131,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
           </div>
         )}
 
-        {idea.images?.length > 0 && (
+        {!sortMode && idea.images?.length > 0 && (
           <div style={{ display: "flex", gap: 6, padding: "0 13px 8px", flexWrap: "wrap" }}>
             {idea.images.map((src, i) => (
               <img key={i} src={src} alt="" onClick={() => setBigImg(src)}
@@ -128,7 +139,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
             ))}
           </div>
         )}
-        {idea.audios?.length > 0 && (
+        {!sortMode && idea.audios?.length > 0 && (
           <div style={{ padding: "0 13px 8px", display: "flex", flexDirection: "column", gap: 5 }}>
             {idea.audios.map((a, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 7,
@@ -141,6 +152,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
         )}
 
         {/* Action row */}
+        {!sortMode && (
         <div style={{ borderTop: `1px solid ${th.border}`, padding: "3px 8px",
           display: "flex", alignItems: "center", minHeight: 38 }}>
           {!more ? (
@@ -164,9 +176,25 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
               <IconBtn name="delete" onClick={() => { setMore(false); setConfirmDel(true); }}
                 color={th.red} size={18} pad="6px 8px" />
               <IconBtn name="share" onClick={onShare} color={th.muted} size={18} pad="6px 8px" />
+              <div style={{ display: "flex", gap: 5, marginRight: 6, alignItems: "center" }}>
+                <div onClick={() => onUpdate({ colorIdx: null })} title="ללא צבע"
+                  style={{ width: 17, height: 17, borderRadius: "50%", background: th.surface,
+                    border: `1.5px solid ${idea.colorIdx == null ? th.accent : th.borderStrong}`,
+                    cursor: "pointer", flexShrink: 0, display: "flex",
+                    alignItems: "center", justifyContent: "center" }}>
+                  <Icon name="close" size={8} color={th.muted} />
+                </div>
+                {th.pastels.map((c, i) => (
+                  <div key={i} onClick={() => onUpdate({ colorIdx: i })}
+                    style={{ width: 17, height: 17, borderRadius: "50%", background: c,
+                      border: `1.5px solid ${idea.colorIdx === i ? th.accent : th.border}`,
+                      cursor: "pointer", flexShrink: 0 }} />
+                ))}
+              </div>
             </>
           )}
         </div>
+        )}
       </div>
     </>
   );

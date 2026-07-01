@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { auth, googleProvider } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { getTheme, FONT } from "./theme";
-import { useIdeas, useProjects, addIdea, updateIdea, deleteIdea, addProject, updateProject, deleteProject } from "./data/store";
+import { useIdeas, useProjects, addIdea, updateIdea, deleteIdea, reorderIdeas, addProject, updateProject, deleteProject } from "./data/store";
 import { migrateIfNeeded } from "./data/migrate";
 import { enrichIdea } from "./data/ai";
 import { enablePush } from "./push";
@@ -154,6 +154,7 @@ function Shell({ user, dark, setDark, th }) {
     edit: idea => setEditIdea(idea),
     share: idea => setShareIdea(idea),
     move: idea => setMoveIdea(idea),
+    reorder: ids => reorderIdeas(uid, ids).catch(e => console.warn("reorder:", e)),
   };
 
   const projActions = {

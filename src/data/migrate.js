@@ -6,6 +6,16 @@ import { getDatabase, ref as rtdbRef, get } from "firebase/database";
 import { doc, getDoc, setDoc, collection } from "firebase/firestore";
 import { uploadDataUrl } from "./media";
 
+// Old v4 card colors (light + dark hex) → new pastel index
+// (0 cream, 1 blue, 2 mint, 3 lilac, 4 peach, 5 pink).
+const COLOR_MAP = {
+  "#FEF9E7": 0, "#FEF5E7": 0, "#FFF5E1": 0, "#2D2A1A": 0, "#2D2510": 0, "#2A2510": 0,
+  "#EAF2FB": 1, "#1A2130": 1,
+  "#E8F8F5": 2, "#EAFAF1": 2, "#162520": 2, "#162618": 2,
+  "#F4ECF7": 3, "#261A30": 3,
+  "#FDF2E9": 4, "#2D2015": 4,
+};
+
 export async function migrateIfNeeded(uid, onProgress = () => {}) {
   const userRef = doc(db, "users", uid);
   const userSnap = await getDoc(userRef);
@@ -74,6 +84,8 @@ export async function migrateIfNeeded(uid, onProgress = () => {}) {
         projectId: pidMap[i.pid] || null,
         aiProject: null,
         pinned: !!i.pinned,
+        colorIdx: COLOR_MAP[i.color] ?? null,
+        order: null,
         images, audios,
         remindAt: i.remindAt || null,
         createdAt: i.at || Date.now(),
