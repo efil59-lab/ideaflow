@@ -84,6 +84,7 @@ function TrashView({ ideas, th, actions, onBack }) {
 function ProjectsIndex({ projects, ideas, th, projActions, onOpen }) {
   const [name, setName] = useState("");
   const sorted = [...projects].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  const trashCount = ideas.filter(i => i.status === "trash").length;
 
   return (
     <>
@@ -96,6 +97,17 @@ function ProjectsIndex({ projects, ideas, th, projActions, onOpen }) {
           style={{ background: th.accent, color: "#fff", border: "none", borderRadius: 12,
             padding: "0 16px", cursor: "pointer", display: "flex", alignItems: "center" }}>
           <Icon name="add" size={20} color="#fff" />
+        </button>
+        <button onClick={() => onOpen("__trash__")} title="פח אשפה"
+          style={{ background: th.surface, border: `1px solid ${th.border}`, borderRadius: 12,
+            padding: "0 13px", cursor: "pointer", display: "flex", alignItems: "center",
+            gap: 5, position: "relative" }}>
+          <Icon name="delete" size={17} color={th.secondary} />
+          {trashCount > 0 && (
+            <span style={{ fontSize: 11, fontWeight: 600, color: th.secondary, fontFamily: FONT }}>
+              {trashCount}
+            </span>
+          )}
         </button>
       </div>
 

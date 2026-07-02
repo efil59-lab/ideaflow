@@ -171,11 +171,10 @@ function Shell({ user, dark, setDark, th }) {
   useEffect(() => {
     uiRef.current = { showGuide, showUser, showAI, remindIdea, moveIdea, shareIdea, editIdea, openProjectId, tab };
   });
-  const lastBackRef = useRef(0);
+  const rearmRef = useRef(null);
   useEffect(() => {
     // Re-arm the history sentinel whenever the app becomes visible again —
-    // after a double-back exit Android resumes the same page with the
-    // sentinel already consumed, which used to kill the exit-confirm feature.
+    // after an exit Android resumes the same page with the sentinel consumed.
     const arm = () => {
       try { if (!history.state?.ifApp) history.pushState({ ifApp: true }, ""); } catch { /* ignore */ }
     };
@@ -199,13 +198,17 @@ function Shell({ user, dark, setDark, th }) {
 
       if (handled) {
         history.pushState({ ifApp: true }, "");
-      } else if (Date.now() - lastBackRef.current < 2000) {
-        history.back(); // second press within 2s — really leave
       } else {
-        lastBackRef.current = Date.now();
+        // Root: show the hint and stay DISARMED — a page cannot close itself,
+        // so the real exit is simply letting the next system back-press find
+        // no history to consume (Android then minimizes the app). If the user
+        // doesn't leave within the window, quietly re-arm.
         setToast("לחץ שוב כדי לצאת");
         setTimeout(() => setToast(null), 1700);
-        history.pushState({ ifApp: true }, "");
+        clearTimeout(rearmRef.current);
+        rearmRef.current = setTimeout(() => {
+          if (document.visibilityState === "visible") arm();
+        }, 2200);
       }
     };
     window.addEventListener("popstate", onPop);
@@ -213,6 +216,7 @@ function Shell({ user, dark, setDark, th }) {
       window.removeEventListener("popstate", onPop);
       window.removeEventListener("pageshow", arm);
       document.removeEventListener("visibilitychange", onVis);
+      clearTimeout(rearmRef.current);
     };
   }, []);
 
