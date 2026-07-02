@@ -1,20 +1,84 @@
-// Projects: list view + project detail (capture in context, notes, done toggle).
+// Projects: list view + project detail (capture in context, notes, done toggle) + trash.
 import { useState } from "react";
 import CaptureBar from "../ui/CaptureBar";
 import IdeaList, { SortToggle } from "../ui/IdeaList";
 import { Icon, IconBtn } from "../ui/Icons";
 import { Modal, ModalHeader, Confirm } from "../ui/base";
-import { FONT } from "../theme";
+import { FONT, fmt } from "../theme";
 
 export default function Projects({ uid, ideas, projects, th, actions, projActions, onCapture,
   openProjectId, setOpenProjectId }) {
   const open = projects.find(p => p.id === openProjectId);
+  if (openProjectId === "__trash__") {
+    return <TrashView ideas={ideas} th={th} actions={actions} onBack={() => setOpenProjectId(null)} />;
+  }
   return open
     ? <ProjectDetail uid={uid} project={open} ideas={ideas} projects={projects} th={th}
         actions={actions} projActions={projActions} onCapture={onCapture}
         onBack={() => setOpenProjectId(null)} />
     : <ProjectsIndex projects={projects} ideas={ideas} th={th} projActions={projActions}
         onOpen={setOpenProjectId} />;
+}
+
+function TrashView({ ideas, th, actions, onBack }) {
+  const [confirmIdea, setConfirmIdea] = useState(null);
+  const list = ideas.filter(i => i.status === "trash")
+    .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <button onClick={onBack}
+          style={{ display: "inline-flex", alignItems: "center", gap: 5,
+            background: th.surface, color: th.secondary, border: `1px solid ${th.border}`,
+            borderRadius: 18, padding: "6px 12px", cursor: "pointer",
+            fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
+          <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}>
+            <Icon name="back" size={14} color={th.secondary} />
+          </span>
+          חזרה
+        </button>
+        <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: th.text, flex: 1 }}>פח אשפה</h2>
+      </div>
+      <p style={{ margin: "0 0 12px", fontSize: 12, color: th.muted }}>
+        רעיונות נמחקים לצמיתות אחרי 30 יום בפח
+      </p>
+
+      {list.length === 0 && (
+        <div style={{ textAlign: "center", padding: "36px 0", color: th.muted }}>
+          <Icon name="delete" size={40} color={th.border} />
+          <p style={{ fontSize: 14, marginTop: 8 }}>הפח ריק</p>
+        </div>
+      )}
+
+      {list.map(i => (
+        <div key={i.id} style={{ background: th.surface, border: `1px solid ${th.border}`,
+          borderRadius: 13, padding: "11px 13px", marginBottom: 9, direction: "rtl" }}>
+          <p style={{ margin: 0, fontSize: 13.5, color: th.secondary, lineHeight: 1.5,
+            overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+            {i.title || i.text || "(מדיה בלבד)"}
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 9 }}>
+            <button onClick={() => actions.restore(i)}
+              style={{ background: th.accentSoft, color: th.accentText, border: "none",
+                borderRadius: 9, padding: "6px 16px", cursor: "pointer",
+                fontSize: 12.5, fontWeight: 600, fontFamily: FONT }}>שחזר</button>
+            <button onClick={() => setConfirmIdea(i)}
+              style={{ background: "transparent", color: th.red, border: `1px solid ${th.border}`,
+                borderRadius: 9, padding: "6px 12px", cursor: "pointer",
+                fontSize: 12.5, fontWeight: 600, fontFamily: FONT }}>מחק לצמיתות</button>
+            <span style={{ marginRight: "auto", fontSize: 10.5, color: th.muted }}>{fmt(i.deletedAt)}</span>
+          </div>
+        </div>
+      ))}
+
+      {confirmIdea && (
+        <Confirm title="מחיקה לצמיתות" message="אי אפשר לשחזר אחרי זה."
+          onConfirm={() => { actions.destroy(confirmIdea); setConfirmIdea(null); }}
+          onCancel={() => setConfirmIdea(null)} th={th} />
+      )}
+    </>
+  );
 }
 
 function ProjectsIndex({ projects, ideas, th, projActions, onOpen }) {
@@ -43,7 +107,7 @@ function ProjectsIndex({ projects, ideas, th, projActions, onOpen }) {
       )}
 
       {sorted.map(p => {
-        const active = ideas.filter(i => i.projectId === p.id && i.status !== "done").length;
+        const active = ideas.filter(i => i.projectId === p.id && i.status !== "done" && i.status !== "trash").length;
         const done = ideas.filter(i => i.projectId === p.id && i.status === "done").length;
         return (
           <div key={p.id} onClick={() => onOpen(p.id)}
@@ -65,6 +129,20 @@ function ProjectsIndex({ projects, ideas, th, projActions, onOpen }) {
           </div>
         );
       })}
+
+      {/* Trash entry */}
+      <div onClick={() => onOpen("__trash__")}
+        style={{ display: "flex", alignItems: "center", gap: 11, marginTop: 16,
+          borderRadius: 14, padding: "12px 15px", cursor: "pointer", direction: "rtl",
+          border: `1px dashed ${th.borderStrong}`, opacity: 0.85 }}>
+        <Icon name="delete" size={16} color={th.muted} />
+        <span style={{ flex: 1, fontSize: 13.5, fontWeight: 500, color: th.secondary }}>פח אשפה</span>
+        {ideas.filter(i => i.status === "trash").length > 0 && (
+          <span style={{ fontSize: 11.5, color: th.muted }}>
+            {ideas.filter(i => i.status === "trash").length}
+          </span>
+        )}
+      </div>
     </>
   );
 }
@@ -80,7 +158,7 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
   const [confirmDel, setConfirmDel] = useState(false);
 
   const list = ideas.filter(i => i.projectId === project.id &&
-    (showDone ? i.status === "done" : i.status !== "done"));
+    (showDone ? i.status === "done" : (i.status !== "done" && i.status !== "trash")));
 
   return (
     <>

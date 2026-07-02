@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon, IconBtn } from "./Icons";
-import { Confirm, Chip } from "./base";
+import { Chip } from "./base";
 import { FONT, fmt } from "../theme";
 
 export default function IdeaCard({ idea, project, projects, showProject, th,
@@ -12,7 +12,6 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
   const [more, setMore] = useState(false);
   const [copied, setCopied] = useState(false);
   const [bigImg, setBigImg] = useState(null);
-  const [confirmDel, setConfirmDel] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   const done = idea.status === "done";
@@ -30,13 +29,6 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
 
   return (
     <>
-      {confirmDel && createPortal(
-        <div style={{ position: "fixed", inset: 0, zIndex: 9000 }}>
-          <Confirm title="מחיקת רעיון"
-            message={`"${(idea.text || "").slice(0, 50)}${(idea.text || "").length > 50 ? "..." : ""}"`}
-            onConfirm={() => { setConfirmDel(false); onDelete(); }}
-            onCancel={() => setConfirmDel(false)} th={th} />
-        </div>, document.body)}
       {bigImg && createPortal(
         <div onClick={() => setBigImg(null)} style={{ position: "fixed", inset: 0,
           background: "rgba(0,0,0,0.95)", zIndex: 9000,
@@ -69,19 +61,21 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
 
           <div style={{ flex: 1, minWidth: 0 }}>
             {idea.title && (
-              <p style={{ margin: "0 0 3px", fontSize: 14.5, fontWeight: 600, color: th.text,
-                textDecoration: done ? "line-through" : "none", lineHeight: 1.4 }}>
+              <p onClick={sortMode ? undefined : onEdit}
+                style={{ margin: "0 0 3px", fontSize: 14.5, fontWeight: 600, color: th.text,
+                  textDecoration: done ? "line-through" : "none", lineHeight: 1.4,
+                  cursor: sortMode ? "default" : "pointer" }}>
                 {idea.pinned && <span style={{ display: "inline-flex", verticalAlign: "middle", marginLeft: 4 }}>
                   <Icon name="pin" size={12} color={th.accent} /></span>}
                 {idea.title}
               </p>
             )}
-            <div onClick={() => isLong && setExpanded(p => !p)}
+            <div onClick={sortMode ? undefined : onEdit}
               style={{ fontSize: idea.title ? 13.5 : 14.5, lineHeight: 1.55,
                 color: idea.title ? th.secondary : th.text,
                 fontWeight: idea.title ? 400 : (done ? 400 : 450),
                 textDecoration: done ? "line-through" : "none",
-                cursor: isLong ? "pointer" : "default",
+                cursor: sortMode ? "default" : "pointer",
                 whiteSpace: idea.html ? "normal" : "pre-wrap", wordBreak: "break-word",
                 overflow: "hidden", display: "-webkit-box",
                 WebkitLineClamp: expanded ? "unset" : 3, WebkitBoxOrient: "vertical" }}>
@@ -93,6 +87,13 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
                 ? <span className="rich-content" dangerouslySetInnerHTML={{ __html: idea.html }} />
                 : idea.text}
             </div>
+            {isLong && !sortMode && (
+              <span onClick={e => { e.stopPropagation(); setExpanded(p => !p); }}
+                style={{ display: "inline-block", marginTop: 4, fontSize: 12, fontWeight: 600,
+                  color: th.accentText, cursor: "pointer" }}>
+                {expanded ? "הצג פחות" : "המשך..."}
+              </span>
+            )}
 
             {/* Context chips */}
             {(showProject && project) || idea.tags?.length > 0 || (idea.remindAt && idea.remindAt > Date.now()) ? (
@@ -163,7 +164,6 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
             <>
               <IconBtn name={copied ? "check" : "copy"} onClick={onCopy}
                 color={copied ? th.green : th.muted} size={18} pad="6px 8px" />
-              <IconBtn name="edit" onClick={onEdit} color={th.muted} size={18} pad="6px 8px" />
               <IconBtn name="pin" onClick={() => onUpdate({ pinned: !idea.pinned })}
                 color={idea.pinned ? th.accent : th.muted} size={18} pad="6px 8px" />
               <IconBtn name="bell" onClick={onRemind}
@@ -180,8 +180,8 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
             <>
               <IconBtn name="back" onClick={() => setMore(false)} color={th.accent} size={17} pad="6px 8px" />
               <div style={{ width: 1, height: 15, background: th.border, margin: "0 4px" }} />
-              <IconBtn name="delete" onClick={() => { setMore(false); setConfirmDel(true); }}
-                color={th.red} size={18} pad="6px 8px" />
+              <IconBtn name="delete" onClick={() => { setMore(false); onDelete(); }}
+                color={th.red} size={18} pad="6px 8px" title="העבר לפח האשפה" />
               <IconBtn name="share" onClick={onShare} color={th.muted} size={18} pad="6px 8px" />
               <div style={{ display: "flex", gap: 5, marginRight: 6, alignItems: "center" }}>
                 <div onClick={() => onUpdate({ colorIdx: null })} title="ללא צבע"

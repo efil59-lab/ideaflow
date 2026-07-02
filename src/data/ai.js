@@ -36,7 +36,7 @@ export async function enrichIdea(text, projectNames) {
 export async function askAI(question, ideas, projects) {
   const byProject = {};
   for (const i of ideas) {
-    if (i.status === "done") continue;
+    if (i.status === "done" || i.status === "trash") continue;
     const p = projects.find(x => x.id === i.projectId);
     const key = p ? p.name : "Inbox";
     (byProject[key] = byProject[key] || []).push(i.title || i.text.slice(0, 100));

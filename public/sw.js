@@ -22,14 +22,20 @@ self.addEventListener("push", event => {
   );
 });
 
-// Click on notification opens / focuses the app
+// Click on notification opens / focuses the app AND navigates to the idea:
+// - app already open  → focus + postMessage (the app opens the idea's editor)
+// - app closed        → openWindow with /?idea=<id> (the app reads it on boot)
 self.addEventListener("notificationclick", event => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || "/";
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clients => {
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async clients => {
       for (const c of clients) {
-        if ("focus" in c) return c.focus();
+        if ("focus" in c) {
+          await c.focus();
+          c.postMessage({ type: "OPEN_URL", url });
+          return;
+        }
       }
       if (self.clients.openWindow) return self.clients.openWindow(url);
     })

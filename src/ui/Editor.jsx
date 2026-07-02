@@ -87,14 +87,15 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
       )}
 
       {/* Project select */}
-      <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: 12, color: th.muted, fontWeight: 500 }}>שמור אל:</span>
-        <ProjPill active={projectId === null} label="Inbox" color={th.muted} th={th}
-          onClick={() => setProjectId(null)} />
-        {projects.map(p => (
-          <ProjPill key={p.id} active={projectId === p.id} label={p.name} color={p.color} th={th}
-            onClick={() => setProjectId(p.id)} />
-        ))}
+      <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
+        <span style={{ fontSize: 12.5, color: th.muted, fontWeight: 500, flexShrink: 0 }}>שמור אל:</span>
+        <select value={projectId ?? ""} onChange={e => setProjectId(e.target.value || null)}
+          style={{ flex: 1, border: `1px solid ${th.border}`, borderRadius: 10,
+            padding: "9px 10px", fontSize: 14, background: th.inputBg, color: th.text,
+            fontFamily: FONT, direction: "rtl" }}>
+          <option value="">Inbox — ללא פרויקט</option>
+          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
       </div>
 
       {/* Reminder */}
@@ -195,16 +196,3 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
   );
 }
 
-function ProjPill({ active, label, color, onClick, th }) {
-  return (
-    <button onClick={onClick}
-      style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600,
-        fontFamily: FONT, padding: "5px 11px", borderRadius: 18, cursor: "pointer",
-        background: active ? th.accentSoft : th.surface2,
-        color: active ? th.accentText : th.secondary,
-        border: `1px solid ${active ? th.accent : th.border}` }}>
-      <span style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
-      {label}
-    </button>
-  );
-}

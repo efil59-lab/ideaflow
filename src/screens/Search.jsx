@@ -10,6 +10,7 @@ export default function Search({ ideas, projects, th, actions, q, setQ }) {
   const query = q.trim().toLowerCase();
   const results = query
     ? ideas.filter(i =>
+        i.status !== "trash" &&
         (filter === "all" || (filter === "done" ? i.status === "done" : i.status !== "done")) &&
         ((i.text || "").toLowerCase().includes(query) ||
          (i.title || "").toLowerCase().includes(query) ||

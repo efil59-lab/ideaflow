@@ -52,7 +52,7 @@ export default async function handler(req, res) {
           title: "💡 תזכורת — IdeaFlow",
           body: (r.text || "").slice(0, 180) || "תזכורת",
           ideaId: r.ideaId,
-          url: "/",
+          url: `/?idea=${encodeURIComponent(r.ideaId)}`,
         });
 
         await Promise.all(subs.map(async sd => {
@@ -74,7 +74,55 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ ok: true, now, fired, sent, pruned });
+    // ── Nightly digest at 20:00 Israel time ──────────────────────────────────
+    // "You have N unassigned ideas in your inbox" — once per day per user,
+    // deduped via /digests/{uid} so overlapping cron calls can't double-send.
+    let digests = 0;
+    const ilTime = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false,
+    }).format(new Date());
+    if (ilTime === "20:00") {
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(new Date());
+      const subsAll = await db.collection("pushSubs").get();
+      const subsByUid = {};
+      subsAll.forEach(d => {
+        const s = d.data();
+        if (s?.uid) (subsByUid[s.uid] = subsByUid[s.uid] || []).push(d);
+      });
+
+      for (const [uid, subs] of Object.entries(subsByUid)) {
+        const marker = db.collection("digests").doc(uid);
+        const m = await marker.get();
+        if (m.exists && m.data().date === today) continue;
+        await marker.set({ date: today });
+
+        const inbox = await db.collection("users").doc(uid)
+          .collection("ideas").where("status", "==", "inbox").get();
+        const n = inbox.size;
+        if (n === 0) continue;
+
+        const payload = JSON.stringify({
+          title: "💡 IdeaFlow",
+          body: n === 1
+            ? "יש לך רעיון אחד באינבוקס שמחכה לשיוך"
+            : `יש לך ${n} רעיונות באינבוקס שמחכים לשיוך`,
+          ideaId: "digest",
+          url: "/",
+        });
+        await Promise.all(subs.map(async sd => {
+          const sub = sd.data();
+          if (!sub?.endpoint || !sub?.keys) return;
+          try {
+            await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload);
+          } catch (e) {
+            if (e.statusCode === 404 || e.statusCode === 410) await sd.ref.delete();
+          }
+        }));
+        digests++;
+      }
+    }
+
+    return res.status(200).json({ ok: true, now, fired, sent, pruned, digests });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

@@ -132,6 +132,39 @@ function Shell({ user, dark, setDark, th }) {
     if (!migrating && !localStorage.getItem(key)) { setShowGuide(true); localStorage.setItem(key, "1"); }
   }, [uid, migrating]);
 
+  // Purge trash older than 30 days — once per session, best-effort.
+  const purgedRef = useRef(false);
+  useEffect(() => {
+    if (!ideas || purgedRef.current) return;
+    purgedRef.current = true;
+    const cutoff = Date.now() - 30 * 86400e3;
+    ideas.filter(i => i.status === "trash" && (i.deletedAt || 0) < cutoff)
+      .forEach(i => deleteIdea(uid, i).catch(() => {}));
+  }, [ideas, uid]);
+
+  // Deep link from a notification: /?idea=<id> (cold start) or an SW message
+  // (app already open) opens that idea's editor.
+  const [pendingIdeaId, setPendingIdeaId] = useState(
+    () => new URLSearchParams(location.search).get("idea"));
+  useEffect(() => {
+    const onMsg = e => {
+      if (e.data?.type !== "OPEN_URL") return;
+      try {
+        const id = new URL(e.data.url, location.origin).searchParams.get("idea");
+        if (id) setPendingIdeaId(id);
+      } catch { /* malformed url */ }
+    };
+    navigator.serviceWorker?.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker?.removeEventListener("message", onMsg);
+  }, []);
+  useEffect(() => {
+    if (!pendingIdeaId || !ideas) return;
+    const idea = ideas.find(i => i.id === pendingIdeaId);
+    setPendingIdeaId(null);
+    try { history.replaceState({ ifApp: true }, "", location.pathname); } catch { /* ignore */ }
+    if (idea) setEditIdea(idea);
+  }, [pendingIdeaId, ideas]);
+
   // Android back button: close the topmost layer instead of leaving the app;
   // at the root, require a double-press to actually exit.
   const uiRef = useRef({});
@@ -140,7 +173,16 @@ function Shell({ user, dark, setDark, th }) {
   });
   const lastBackRef = useRef(0);
   useEffect(() => {
-    history.pushState({ ifApp: true }, "");
+    // Re-arm the history sentinel whenever the app becomes visible again —
+    // after a double-back exit Android resumes the same page with the
+    // sentinel already consumed, which used to kill the exit-confirm feature.
+    const arm = () => {
+      try { if (!history.state?.ifApp) history.pushState({ ifApp: true }, ""); } catch { /* ignore */ }
+    };
+    arm();
+    const onVis = () => { if (document.visibilityState === "visible") arm(); };
+    window.addEventListener("pageshow", arm);
+    document.addEventListener("visibilitychange", onVis);
     const onPop = () => {
       const s = uiRef.current;
       let handled = true;
@@ -167,7 +209,11 @@ function Shell({ user, dark, setDark, th }) {
       }
     };
     window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("pageshow", arm);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
   if (migrating || !ideas || !projects) return <Splash th={th} text={migMsg || "טוען..."} />;
@@ -190,7 +236,20 @@ function Shell({ user, dark, setDark, th }) {
 
   const actions = {
     update: (id, patch, base) => updateIdea(uid, id, patch, base),
-    remove: async (idea) => { await deleteIdea(uid, idea); toast$("נמחק"); },
+    // Soft delete → trash (recoverable, auto-purged after 30 days)
+    remove: async (idea) => {
+      await updateIdea(uid, idea.id, {
+        status: "trash", deletedAt: Date.now(), remindAt: null, aiProject: null, pinned: false,
+      }, idea);
+      toast$("הועבר לפח האשפה");
+    },
+    restore: async (idea) => {
+      await updateIdea(uid, idea.id, {
+        status: idea.projectId ? "active" : "inbox", deletedAt: null,
+      }, idea);
+      toast$("שוחזר");
+    },
+    destroy: async (idea) => { await deleteIdea(uid, idea); toast$("נמחק לצמיתות"); },
     edit: idea => setEditIdea(idea),
     share: idea => setShareIdea(idea),
     move: idea => setMoveIdea(idea),
@@ -364,7 +423,9 @@ function Guide({ onClose, th }) {
     { icon: "inbox", title: "Inbox → פרויקטים", text: "רעיון חדש לא דורש החלטות. מיינו אחר-כך: אייקון התיקייה 📁 בשורת הכרטיס פותח את רשימת הפרויקטים — בחר ומוין." },
     { icon: "folder", title: "פרויקטים", text: "בתוך פרויקט אפשר לתפוס רעיון ישירות אליו, לנהל הערות, ולראות מה בוצע." },
     { icon: "bell", title: "תזכורות אמיתיות", text: "לחץ על הפעמון בשורת הכרטיס — בחירה מהירה (בעוד שעה / הערב / מחר) או זמן מדויק. ההתראה תגיע גם כשהאפליקציה סגורה." },
+    { icon: "edit", title: "עריכה בלחיצה", text: "פשוט לחץ על הטקסט של רעיון — נפתח עורך מלא עם עיצוב (מודגש, צבעים), פרויקט ותזכורת. טקסט ארוך? \"המשך...\" פורש אותו." },
     { icon: "tag", title: "תגיות", text: "ה-AI מתייג כל רעיון אוטומטית. לחיצה על תגית מציגה את כל הרעיונות עם אותה תגית." },
+    { icon: "delete", title: "פח אשפה", text: "מחיקה מעבירה לפח (בתחתית מסך הפרויקטים) — אפשר לשחזר עד 30 יום, ואז הוא מתרוקן לבד." },
     { icon: "search", title: "חיפוש גלובלי", text: "חיפוש בכל הפרויקטים, כולל כותרות ותגיות." },
     { icon: "sparkle", title: "עוזר AI", text: "כפתור הניצוץ למעלה: תמונת מצב שבועית, מה דחוף, ואיחוד רעיונות דומים." },
   ];

@@ -34,13 +34,13 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
     setBusy(false);
   };
 
-  // Auto-capture: 5s after the last keystroke (or media add), the idea saves
+  // Auto-capture: 9s after the last keystroke (or media add), the idea saves
   // itself — no button needed. Any change resets the countdown.
   const saveRef = useRef(() => {});
   useEffect(() => {
     if (busy) return;
     if (!text.trim() && !pending.length) return;
-    const t = setTimeout(() => saveRef.current(), 5000);
+    const t = setTimeout(() => saveRef.current(), 9000);
     return () => clearTimeout(t);
   }, [text, pending, busy]);
 

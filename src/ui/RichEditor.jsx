@@ -142,7 +142,7 @@ export default function RichEditor({ html, onChange, th, placeholder, minHeight 
       <div ref={ref} contentEditable suppressContentEditableWarning
         onInput={emit} onKeyUp={saveSel} onMouseUp={saveSel} onTouchEnd={saveSel}
         data-ph={placeholder}
-        style={{ minHeight, maxHeight: 260, overflowY: "auto", padding: "12px 14px",
+        style={{ minHeight, maxHeight: 260, overflowY: "auto", padding: "20px 14px 12px",
           fontSize: 15.5, fontFamily: "'Rubik',sans-serif", direction: "rtl", textAlign: "right",
           lineHeight: 1.65, color: th.text, outline: "none" }} />
       <style>{`[contenteditable][data-ph]:empty:before{content:attr(data-ph);color:${th.muted};pointer-events:none;}`}</style>

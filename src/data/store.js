@@ -149,7 +149,10 @@ export const updateProject = (uid, id, patch) => updateDoc(doc(projectsCol(uid),
 export async function deleteProject(uid, id, ideas) {
   // Ideas in the project go back to the inbox — deleting a folder shouldn't delete its contents.
   for (const i of (ideas || []).filter(x => x.projectId === id)) {
-    await updateIdea(uid, i.id, { projectId: null, status: i.status === "done" ? "done" : "inbox" }, i);
+    await updateIdea(uid, i.id, {
+      projectId: null,
+      status: i.status === "done" ? "done" : i.status === "trash" ? "trash" : "inbox",
+    }, i);
   }
   await deleteDoc(doc(projectsCol(uid), id));
 }
