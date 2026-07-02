@@ -34,6 +34,16 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
     setBusy(false);
   };
 
+  // Auto-capture: 5s after the last keystroke (or media add), the idea saves
+  // itself — no button needed. Any change resets the countdown.
+  const saveRef = useRef(() => {});
+  useEffect(() => {
+    if (busy) return;
+    if (!text.trim() && !pending.length) return;
+    const t = setTimeout(() => saveRef.current(), 5000);
+    return () => clearTimeout(t);
+  }, [text, pending, busy]);
+
   const save = () => {
     const t = text.trim();
     if (!t && !pending.length) return;
@@ -47,6 +57,7 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
     try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
     taRef.current?.focus();
   };
+  useEffect(() => { saveRef.current = save; });
 
   return (
     <div style={{ background: th.surface, border: `1px solid ${th.border}`, borderRadius: 16, padding: "12px 13px" }}>
@@ -88,6 +99,9 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
           <Icon name="camera" size={18} color={th.accent} />
         </button>
         {busy && <span style={{ fontSize: 11.5, color: th.muted }}>מעלה...</span>}
+        {!busy && (text.trim() || pending.length > 0) && (
+          <span style={{ fontSize: 11, color: th.muted }}>יישמר לבד בעוד רגע</span>
+        )}
         <button onClick={save} disabled={busy || (!text.trim() && !pending.length)}
           style={{ marginRight: "auto", background: th.accent, color: "#fff", border: "none",
             borderRadius: 10, padding: "8px 22px", cursor: "pointer",
