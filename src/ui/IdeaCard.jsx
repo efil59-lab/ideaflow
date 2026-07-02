@@ -7,6 +7,7 @@ import { FONT, fmt } from "../theme";
 
 export default function IdeaCard({ idea, project, projects, showProject, th,
   onUpdate, onDelete, onEdit, onShare, onMove, onAcceptAI, onDismissAI,
+  onRemind, onTagClick, onOpenProject,
   sortMode = false, dragHandleProps = {} }) {
   const [more, setMore] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -97,12 +98,15 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
             {(showProject && project) || idea.tags?.length > 0 || (idea.remindAt && idea.remindAt > Date.now()) ? (
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>
                 {showProject && project && (
-                  <Chip th={th} border={th.border}>
+                  <Chip th={th} border={th.border} onClick={onOpenProject ? () => onOpenProject(project.id) : undefined}>
                     <span style={{ width: 7, height: 7, borderRadius: "50%", background: project.color }} />
                     {project.name}
                   </Chip>
                 )}
-                {(idea.tags || []).map(t => <Chip key={t} th={th}>#{t}</Chip>)}
+                {(idea.tags || []).map(t => (
+                  <Chip key={t} th={th} color={th.accentText}
+                    onClick={onTagClick ? () => onTagClick(t) : undefined}>#{t}</Chip>
+                ))}
                 {idea.remindAt && idea.remindAt > Date.now() && (
                   <Chip th={th} color={th.accentText} bg={th.accentSoft}>
                     <Icon name="bell" size={11} color={th.accentText} />
@@ -162,6 +166,9 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
               <IconBtn name="edit" onClick={onEdit} color={th.muted} size={18} pad="6px 8px" />
               <IconBtn name="pin" onClick={() => onUpdate({ pinned: !idea.pinned })}
                 color={idea.pinned ? th.accent : th.muted} size={18} pad="6px 8px" />
+              <IconBtn name="bell" onClick={onRemind}
+                color={idea.remindAt && idea.remindAt > Date.now() ? th.accent : th.muted}
+                size={18} pad="6px 8px" title="תזכורת" />
               <IconBtn name="folder" onClick={onMove} color={th.muted} size={18} pad="6px 8px" title="העבר לפרויקט" />
               <IconBtn name="more" onClick={() => setMore(true)} color={th.muted} size={18} pad="6px 8px" style={{ opacity: 0.6 }} />
               <span style={{ marginRight: "auto", fontSize: 10.5, color: th.muted,

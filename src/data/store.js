@@ -2,10 +2,11 @@
 // reminders and push subscriptions live in flat top-level collections so the
 // server cron can query them across users.
 import { useEffect, useState } from "react";
-import { db } from "../firebase";
+import { db, storage } from "../firebase";
 import {
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, orderBy, writeBatch,
 } from "firebase/firestore";
+import { ref as storageRef, deleteObject } from "firebase/storage";
 
 export const newId = () =>
   (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -95,8 +96,22 @@ export async function reorderIdeas(uid, ids) {
   await b.commit();
 }
 
-export async function deleteIdea(uid, id) {
+// Accepts the full idea object (preferred — enables media cleanup) or a bare id.
+export async function deleteIdea(uid, idea) {
   if (import.meta.env.DEV && uid === "demo") return;
+  const id = typeof idea === "string" ? idea : idea.id;
+
+  // Best-effort Storage cleanup — orphaned files cost money, docs don't wait for this.
+  if (typeof idea === "object") {
+    const urls = [
+      ...(idea.images || []),
+      ...(idea.audios || []).map(a => a && (a.url || a.src)),
+    ].filter(u => typeof u === "string" && u.includes("firebasestorage"));
+    for (const u of urls) {
+      try { deleteObject(storageRef(storage, u)).catch(() => {}); } catch { /* bad url — skip */ }
+    }
+  }
+
   await deleteDoc(doc(ideasCol(uid), id));
   deleteDoc(doc(db, "reminders", `${uid}_${id}`)).catch(() => {});
 }

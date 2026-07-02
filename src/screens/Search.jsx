@@ -4,8 +4,7 @@ import IdeaList from "../ui/IdeaList";
 import { Icon } from "../ui/Icons";
 import { FONT } from "../theme";
 
-export default function Search({ ideas, projects, th, actions }) {
-  const [q, setQ] = useState("");
+export default function Search({ ideas, projects, th, actions, q, setQ }) {
   const [filter, setFilter] = useState("all"); // all | active | done
 
   const query = q.trim().toLowerCase();

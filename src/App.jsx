@@ -8,8 +8,8 @@ import { migrateIfNeeded } from "./data/migrate";
 import { enrichIdea } from "./data/ai";
 import { enablePush } from "./push";
 import { Icon, IconBtn } from "./ui/Icons";
-import { Modal, Toast, Spin } from "./ui/base";
-import { ShareModal, MoveSheet } from "./ui/sheets";
+import { Modal, Toast } from "./ui/base";
+import { ShareModal, MoveSheet, ReminderSheet } from "./ui/sheets";
 import Editor from "./ui/Editor";
 import Inbox from "./screens/Inbox";
 import Projects from "./screens/Projects";
@@ -95,6 +95,8 @@ function Shell({ user, dark, setDark, th }) {
   const [editIdea, setEditIdea] = useState(null);
   const [shareIdea, setShareIdea] = useState(null);
   const [moveIdea, setMoveIdea] = useState(null);
+  const [remindIdea, setRemindIdea] = useState(null);
+  const [searchQ, setSearchQ] = useState("");
   const [showAI, setShowAI] = useState(false);
   const [showUser, setShowUser] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -150,11 +152,14 @@ function Shell({ user, dark, setDark, th }) {
 
   const actions = {
     update: (id, patch) => updateIdea(uid, id, patch),
-    remove: async (id) => { await deleteIdea(uid, id); toast$("נמחק"); },
+    remove: async (idea) => { await deleteIdea(uid, idea); toast$("נמחק"); },
     edit: idea => setEditIdea(idea),
     share: idea => setShareIdea(idea),
     move: idea => setMoveIdea(idea),
+    remind: idea => setRemindIdea(idea),
     reorder: ids => reorderIdeas(uid, ids).catch(e => console.warn("reorder:", e)),
+    tag: t => { setSearchQ(t); setTab("search"); },
+    openProject: pid => { setOpenProjectId(pid); setTab("projects"); },
   };
 
   const projActions = {
@@ -216,7 +221,8 @@ function Shell({ user, dark, setDark, th }) {
             openProjectId={openProjectId} setOpenProjectId={setOpenProjectId} />
         )}
         {tab === "search" && (
-          <Search ideas={ideas} projects={projects} th={th} actions={actions} />
+          <Search ideas={ideas} projects={projects} th={th} actions={actions}
+            q={searchQ} setQ={setSearchQ} />
         )}
       </div>
 
@@ -258,6 +264,16 @@ function Shell({ user, dark, setDark, th }) {
           onSave={saveEdit} onClose={() => setEditIdea(null)} th={th} />
       )}
       {shareIdea && <ShareModal idea={shareIdea} onClose={() => setShareIdea(null)} th={th} />}
+      {remindIdea && (
+        <ReminderSheet idea={remindIdea} th={th}
+          onSave={async ts => {
+            await updateIdea(uid, remindIdea.id, { remindAt: ts });
+            if (ts) enablePush(uid);
+            setRemindIdea(null);
+            toast$(ts ? "תזכורת נקבעה" : "התזכורת הוסרה");
+          }}
+          onClose={() => setRemindIdea(null)} />
+      )}
       {moveIdea && (
         <MoveSheet idea={moveIdea} projects={projects} th={th}
           onMove={async pid => {
@@ -305,9 +321,10 @@ function Guide({ onClose, th }) {
   const items = [
     { icon: "bulb", title: "תפוס רעיון", text: "מסך הבית נפתח על שדה כתיבה. כתוב, צלם או הקלט — ולחץ שמור. הרעיון נכנס ל-Inbox, גם בלי אינטרנט." },
     { icon: "sparkle", title: "ה-AI עובד בשבילך", text: "כל רעיון מקבל אוטומטית כותרת ותגיות, וכשמתאים — הצעה לאיזה פרויקט להעביר. לחיצה אחת ומוין." },
-    { icon: "inbox", title: "Inbox → פרויקטים", text: "רעיון חדש לא דורש החלטות. מיינו אחר-כך: אייקון התיקייה על כל כרטיס מעביר לפרויקט." },
+    { icon: "inbox", title: "Inbox → פרויקטים", text: "רעיון חדש לא דורש החלטות. מיינו אחר-כך: אייקון התיקייה 📁 בשורת הכרטיס פותח את רשימת הפרויקטים — בחר ומוין." },
     { icon: "folder", title: "פרויקטים", text: "בתוך פרויקט אפשר לתפוס רעיון ישירות אליו, לנהל הערות, ולראות מה בוצע." },
-    { icon: "bell", title: "תזכורות אמיתיות", text: "הגדר תזכורת בעריכת רעיון — ההתראה תגיע גם כשהאפליקציה סגורה." },
+    { icon: "bell", title: "תזכורות אמיתיות", text: "לחץ על הפעמון בשורת הכרטיס — בחירה מהירה (בעוד שעה / הערב / מחר) או זמן מדויק. ההתראה תגיע גם כשהאפליקציה סגורה." },
+    { icon: "tag", title: "תגיות", text: "ה-AI מתייג כל רעיון אוטומטית. לחיצה על תגית מציגה את כל הרעיונות עם אותה תגית." },
     { icon: "search", title: "חיפוש גלובלי", text: "חיפוש בכל הפרויקטים, כולל כותרות ותגיות." },
     { icon: "sparkle", title: "עוזר AI", text: "כפתור הניצוץ למעלה: תמונת מצב שבועית, מה דחוף, ואיחוד רעיונות דומים." },
   ];

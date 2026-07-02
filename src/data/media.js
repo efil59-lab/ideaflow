@@ -13,7 +13,7 @@ export async function uploadFile(uid, file) {
 }
 
 async function uploadBlob(uid, blob, name) {
-  const safe = String(name).replace(/[^\w.\-]/g, "_").slice(-60);
+  const safe = String(name).replace(/[^\w.-]/g, "_").slice(-60);
   const path = `users/${uid}/media/${newId()}_${safe}`;
   const r = ref(storage, path);
   await uploadBytes(r, blob);

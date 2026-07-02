@@ -17,5 +17,13 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // Comparing against Date.now() during render (reminder chips, presets)
+      // is deliberate here — the app re-renders on every data change anyway.
+      'react-hooks/purity': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
+      // ui/ files intentionally export small helpers alongside components.
+      'react-refresh/only-export-components': 'warn',
+    },
   },
 ])

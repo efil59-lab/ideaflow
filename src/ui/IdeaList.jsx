@@ -34,10 +34,13 @@ export default function IdeaList({ ideas, projects, showProject = false, th, act
       project={projects.find(p => p.id === idea.projectId)}
       showProject={showProject}
       onUpdate={patch => actions.update(idea.id, patch)}
-      onDelete={() => actions.remove(idea.id)}
+      onDelete={() => actions.remove(idea)}
       onEdit={() => actions.edit(idea)}
       onShare={() => actions.share(idea)}
       onMove={() => actions.move(idea)}
+      onRemind={() => actions.remind(idea)}
+      onTagClick={actions.tag}
+      onOpenProject={actions.openProject}
       onAcceptAI={() => actions.update(idea.id, { projectId: idea.aiProject, aiProject: null, status: "active" })}
       onDismissAI={() => actions.update(idea.id, { aiProject: null })}
     />
