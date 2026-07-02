@@ -1,5 +1,5 @@
 // IdeaFlow v5 — capture-first idea manager. Firestore + Storage + woven AI.
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { auth, googleProvider } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { getTheme, FONT } from "./theme";
@@ -132,6 +132,44 @@ function Shell({ user, dark, setDark, th }) {
     if (!migrating && !localStorage.getItem(key)) { setShowGuide(true); localStorage.setItem(key, "1"); }
   }, [uid, migrating]);
 
+  // Android back button: close the topmost layer instead of leaving the app;
+  // at the root, require a double-press to actually exit.
+  const uiRef = useRef({});
+  useEffect(() => {
+    uiRef.current = { showGuide, showUser, showAI, remindIdea, moveIdea, shareIdea, editIdea, openProjectId, tab };
+  });
+  const lastBackRef = useRef(0);
+  useEffect(() => {
+    history.pushState({ ifApp: true }, "");
+    const onPop = () => {
+      const s = uiRef.current;
+      let handled = true;
+      if (s.showGuide) setShowGuide(false);
+      else if (s.showUser) setShowUser(false);
+      else if (s.showAI) setShowAI(false);
+      else if (s.remindIdea) setRemindIdea(null);
+      else if (s.moveIdea) setMoveIdea(null);
+      else if (s.shareIdea) setShareIdea(null);
+      else if (s.editIdea) setEditIdea(null);
+      else if (s.openProjectId) setOpenProjectId(null);
+      else if (s.tab !== "inbox") setTab("inbox");
+      else handled = false;
+
+      if (handled) {
+        history.pushState({ ifApp: true }, "");
+      } else if (Date.now() - lastBackRef.current < 2000) {
+        history.back(); // second press within 2s — really leave
+      } else {
+        lastBackRef.current = Date.now();
+        setToast("לחץ שוב כדי לצאת");
+        setTimeout(() => setToast(null), 1700);
+        history.pushState({ ifApp: true }, "");
+      }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   if (migrating || !ideas || !projects) return <Splash th={th} text={migMsg || "טוען..."} />;
 
   // Capture: save instantly, enrich in the background.
@@ -261,7 +299,9 @@ function Shell({ user, dark, setDark, th }) {
       {toast && <Toast msg={toast} th={th} />}
       {editIdea && (
         <Editor uid={uid} title="עריכה" initial={editIdea} projects={projects}
-          onSave={saveEdit} onClose={() => setEditIdea(null)} th={th} />
+          onSave={saveEdit}
+          onAutosave={data => updateIdea(uid, editIdea.id, data).catch(() => {})}
+          onClose={() => setEditIdea(null)} th={th} />
       )}
       {shareIdea && <ShareModal idea={shareIdea} onClose={() => setShareIdea(null)} th={th} />}
       {remindIdea && (

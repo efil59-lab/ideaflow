@@ -85,8 +85,16 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <IconBtn name="back" onClick={onBack} color={th.secondary} bg={th.surface}
-          size={16} pad="9px" style={{ border: `1px solid ${th.border}`, transform: "rotate(180deg)" }} />
+        <button onClick={onBack}
+          style={{ display: "inline-flex", alignItems: "center", gap: 5,
+            background: th.surface, color: th.secondary, border: `1px solid ${th.border}`,
+            borderRadius: 18, padding: "6px 12px", cursor: "pointer",
+            fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
+          <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}>
+            <Icon name="back" size={14} color={th.secondary} />
+          </span>
+          חזרה
+        </button>
         <span style={{ width: 12, height: 12, borderRadius: "50%", background: project.color }} />
         {renaming ? (
           <input value={newName} autoFocus onChange={e => setNewName(e.target.value)}

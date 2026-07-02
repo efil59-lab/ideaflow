@@ -1,12 +1,12 @@
 // Full idea editor — rich text, media, project, reminder.
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Modal, ModalHeader } from "./base";
 import { Icon } from "./Icons";
 import RichEditor, { htmlToText, isHtml } from "./RichEditor";
 import { uploadFile } from "../data/media";
 import { FONT, fmtDatetimeLocal } from "../theme";
 
-export default function Editor({ uid, initial, projects, onSave, onClose, title, th }) {
+export default function Editor({ uid, initial, projects, onSave, onAutosave, onClose, title, th }) {
   const initialHtml = initial?.html
     ? initial.html
     : (initial?.text
@@ -20,9 +20,26 @@ export default function Editor({ uid, initial, projects, onSave, onClose, title,
   const [projectId, setProjectId] = useState(initial?.projectId ?? null);
   const [showRemind, setShowRemind] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [autoSaved, setAutoSaved] = useState(false);
   const fileRef = useRef();
   const audioRef = useRef();
   const audioCapRef = useRef();
+
+  // Autosave text 2.5s after the last keystroke (existing ideas only).
+  // Media/project/reminder still commit via the save button.
+  const lastSavedRef = useRef(initialHtml);
+  useEffect(() => {
+    if (!onAutosave || html === lastSavedRef.current) return;
+    setAutoSaved(false);
+    const t = setTimeout(() => {
+      const plain = htmlToText(html);
+      if (!plain) return;
+      lastSavedRef.current = html;
+      onAutosave({ text: plain, html });
+      setAutoSaved(true);
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [html, onAutosave]);
 
   const addMedia = async (file, kind) => {
     if (!file) return;
@@ -54,6 +71,12 @@ export default function Editor({ uid, initial, projects, onSave, onClose, title,
     <Modal onClose={onClose} th={th}>
       <ModalHeader title={title} icon="edit" onClose={onClose} th={th} />
       <RichEditor html={html} onChange={setHtml} th={th} placeholder="מה עולה לך בראש?" />
+      {autoSaved && (
+        <p style={{ margin: "6px 2px 0", fontSize: 11.5, color: th.green,
+          display: "flex", alignItems: "center", gap: 4 }}>
+          <Icon name="check" size={12} color={th.green} /> נשמר אוטומטית
+        </p>
+      )}
 
       {/* Project select */}
       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
