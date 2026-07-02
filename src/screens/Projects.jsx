@@ -129,6 +129,7 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
       )}
 
       <CaptureBar uid={uid} th={th} placeholder={`רעיון חדש ב"${project.name}"...`}
+        draftKey={`if_draft_p_${project.id}`}
         onCapture={data => onCapture({ ...data, projectId: project.id, status: "active" })} />
 
       <div style={{ height: 14 }} />

@@ -189,7 +189,7 @@ function Shell({ user, dark, setDark, th }) {
   };
 
   const actions = {
-    update: (id, patch) => updateIdea(uid, id, patch),
+    update: (id, patch, base) => updateIdea(uid, id, patch, base),
     remove: async (idea) => { await deleteIdea(uid, idea); toast$("נמחק"); },
     edit: idea => setEditIdea(idea),
     share: idea => setShareIdea(idea),
@@ -207,7 +207,7 @@ function Shell({ user, dark, setDark, th }) {
   };
 
   const saveEdit = async (data) => {
-    await updateIdea(uid, editIdea.id, data);
+    await updateIdea(uid, editIdea.id, data, editIdea);
     if (data.remindAt && data.remindAt > Date.now()) enablePush(uid);
     setEditIdea(null);
     toast$("נשמר");
@@ -307,7 +307,7 @@ function Shell({ user, dark, setDark, th }) {
       {remindIdea && (
         <ReminderSheet idea={remindIdea} th={th}
           onSave={async ts => {
-            await updateIdea(uid, remindIdea.id, { remindAt: ts });
+            await updateIdea(uid, remindIdea.id, { remindAt: ts }, remindIdea);
             if (ts) enablePush(uid);
             setRemindIdea(null);
             toast$(ts ? "תזכורת נקבעה" : "התזכורת הוסרה");
@@ -327,7 +327,7 @@ function Shell({ user, dark, setDark, th }) {
             const name = prompt("שם הפרויקט החדש:");
             if (!name?.trim()) return;
             const pid = await addProject(uid, name.trim(), projects.length);
-            await updateIdea(uid, moveIdea.id, { projectId: pid, aiProject: null, status: "active" });
+            await updateIdea(uid, moveIdea.id, { projectId: pid, aiProject: null, status: "active" }, moveIdea);
             setMoveIdea(null); toast$("הועבר");
           }}
           onClose={() => setMoveIdea(null)} />

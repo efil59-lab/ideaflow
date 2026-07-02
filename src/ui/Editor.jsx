@@ -25,21 +25,29 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
   const audioRef = useRef();
   const audioCapRef = useRef();
 
-  // Autosave text 2.5s after the last keystroke (existing ideas only).
+  // Autosave text 1.5s after the last keystroke (existing ideas only).
   // Media/project/reminder still commit via the save button.
   const lastSavedRef = useRef(initialHtml);
+  const flushRef = useRef(() => {});
+  useEffect(() => {
+    flushRef.current = () => {
+      if (!onAutosave || html === lastSavedRef.current) return false;
+      const plain = htmlToText(html);
+      if (!plain) return false;
+      lastSavedRef.current = html;
+      onAutosave({ text: plain, html });
+      return true;
+    };
+  });
   useEffect(() => {
     if (!onAutosave || html === lastSavedRef.current) return;
     setAutoSaved(false);
-    const t = setTimeout(() => {
-      const plain = htmlToText(html);
-      if (!plain) return;
-      lastSavedRef.current = html;
-      onAutosave({ text: plain, html });
-      setAutoSaved(true);
-    }, 2500);
+    const t = setTimeout(() => { if (flushRef.current()) setAutoSaved(true); }, 1500);
     return () => clearTimeout(t);
   }, [html, onAutosave]);
+  // Closing the editor in any way (X, backdrop, hardware back) must not lose
+  // a pending edit — flush it on unmount.
+  useEffect(() => () => { flushRef.current(); }, []);
 
   const addMedia = async (file, kind) => {
     if (!file) return;

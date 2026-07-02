@@ -1,11 +1,23 @@
 // The hero of the app: type → save. Three seconds from thought to stored idea.
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Icon } from "./Icons";
 import { uploadFile } from "../data/media";
 import { FONT } from "../theme";
 
-export default function CaptureBar({ uid, onCapture, th, placeholder = "מה עולה לך בראש?" }) {
-  const [text, setText] = useState("");
+export default function CaptureBar({ uid, onCapture, th, placeholder = "מה עולה לך בראש?", draftKey = "if_draft" }) {
+  // Draft survives closing/refreshing the app — nothing typed is ever lost.
+  const [text, setText] = useState(() => {
+    try { return localStorage.getItem(draftKey) || ""; } catch { return ""; }
+  });
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        if (text.trim()) localStorage.setItem(draftKey, text);
+        else localStorage.removeItem(draftKey);
+      } catch { /* storage full/blocked */ }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [text, draftKey]);
   const [pending, setPending] = useState([]); // [{kind:'image'|'audio', url, name}]
   const [busy, setBusy] = useState(false);
   const taRef = useRef();
@@ -32,6 +44,7 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
     });
     setText("");
     setPending([]);
+    try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
     taRef.current?.focus();
   };
 

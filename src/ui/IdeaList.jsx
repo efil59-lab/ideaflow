@@ -33,7 +33,7 @@ export default function IdeaList({ ideas, projects, showProject = false, th, act
       projects={projects}
       project={projects.find(p => p.id === idea.projectId)}
       showProject={showProject}
-      onUpdate={patch => actions.update(idea.id, patch)}
+      onUpdate={patch => actions.update(idea.id, patch, idea)}
       onDelete={() => actions.remove(idea)}
       onEdit={() => actions.edit(idea)}
       onShare={() => actions.share(idea)}
@@ -41,8 +41,8 @@ export default function IdeaList({ ideas, projects, showProject = false, th, act
       onRemind={() => actions.remind(idea)}
       onTagClick={actions.tag}
       onOpenProject={actions.openProject}
-      onAcceptAI={() => actions.update(idea.id, { projectId: idea.aiProject, aiProject: null, status: "active" })}
-      onDismissAI={() => actions.update(idea.id, { aiProject: null })}
+      onAcceptAI={() => actions.update(idea.id, { projectId: idea.aiProject, aiProject: null, status: "active" }, idea)}
+      onDismissAI={() => actions.update(idea.id, { aiProject: null }, idea)}
     />
   );
 

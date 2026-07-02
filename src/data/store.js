@@ -80,11 +80,14 @@ export async function addIdea(uid, data) {
   return { id, ...idea };
 }
 
-export async function updateIdea(uid, id, patch) {
+// `base` is the current idea object — required for correct reminder sync when
+// the patch touches remindAt/status (the mirror needs the merged state, not
+// just the delta; syncing from a bare patch used to wipe reminders).
+export async function updateIdea(uid, id, patch, base = null) {
   if (import.meta.env.DEV && uid === "demo") return;
   await updateDoc(doc(ideasCol(uid), id), { ...patch, updatedAt: Date.now() });
-  if ("remindAt" in patch || "status" in patch || "text" in patch) {
-    syncReminder(uid, id, patch);
+  if ("remindAt" in patch || "status" in patch) {
+    syncReminder(uid, id, base ? { ...base, ...patch } : patch);
   }
 }
 
@@ -146,7 +149,7 @@ export const updateProject = (uid, id, patch) => updateDoc(doc(projectsCol(uid),
 export async function deleteProject(uid, id, ideas) {
   // Ideas in the project go back to the inbox — deleting a folder shouldn't delete its contents.
   for (const i of (ideas || []).filter(x => x.projectId === id)) {
-    await updateIdea(uid, i.id, { projectId: null, status: i.status === "done" ? "done" : "inbox" });
+    await updateIdea(uid, i.id, { projectId: null, status: i.status === "done" ? "done" : "inbox" }, i);
   }
   await deleteDoc(doc(projectsCol(uid), id));
 }
