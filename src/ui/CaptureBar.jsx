@@ -24,6 +24,16 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
   const imgRef = useRef();
   const micRef = useRef();
 
+  // App shortcut / share intent asked to jump straight into typing.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("if_focus_capture") === "1") {
+        localStorage.removeItem("if_focus_capture");
+        taRef.current?.focus();
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   const addMedia = async (file, kind) => {
     if (!file) return;
     setBusy(true);

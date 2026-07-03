@@ -6,6 +6,7 @@ import { getTheme, FONT } from "./theme";
 import { useIdeas, useProjects, addIdea, updateIdea, deleteIdea, reorderIdeas, addProject, updateProject, deleteProject } from "./data/store";
 import { migrateIfNeeded } from "./data/migrate";
 import { enrichIdea } from "./data/ai";
+import { exportIdeas } from "./data/export";
 import { enablePush } from "./push";
 import { Icon, IconBtn } from "./ui/Icons";
 import { Modal, Toast } from "./ui/base";
@@ -20,6 +21,26 @@ export default function App() {
   const [user, setUser] = useState(undefined);
   const [dark, setDark] = useState(() => localStorage.getItem("if_dark") === "1");
   const th = getTheme(dark);
+
+  // Intake from Android intents (runs once, before any screen mounts):
+  // - share_target: /?title=..&text=..&url=..  → becomes the capture draft
+  // - app shortcut: /?capture=1                → focus the capture box
+  useState(() => {
+    try {
+      const p = new URLSearchParams(location.search);
+      const shared = [p.get("title"), p.get("text"), p.get("url")].filter(Boolean).join("\n");
+      if (shared) {
+        const prev = localStorage.getItem("if_draft");
+        localStorage.setItem("if_draft", prev ? prev + "\n" + shared : shared);
+        localStorage.setItem("if_focus_capture", "1");
+        history.replaceState(null, "", location.pathname);
+      } else if (p.has("capture")) {
+        localStorage.setItem("if_focus_capture", "1");
+        history.replaceState(null, "", location.pathname);
+      }
+    } catch { /* ignore */ }
+    return null;
+  });
 
   useEffect(() => onAuthStateChanged(auth, u => setUser(u || null)), []);
   useEffect(() => { localStorage.setItem("if_dark", dark ? "1" : "0"); }, [dark]);
@@ -261,6 +282,11 @@ function Shell({ user, dark, setDark, th }) {
     reorder: ids => reorderIdeas(uid, ids).catch(e => console.warn("reorder:", e)),
     tag: t => { setSearchQ(t); setTab("search"); },
     openProject: pid => { setOpenProjectId(pid); setTab("projects"); },
+    exportList: async (name, list) => {
+      if (!list.length) { toast$("אין רעיונות לייצוא"); return; }
+      const copied = await exportIdeas(name, list);
+      toast$(copied ? "הועתק ללוח והורד כקובץ — הדבק בקלוד" : "הקובץ הורד");
+    },
   };
 
   const projActions = {
@@ -297,6 +323,8 @@ function Shell({ user, dark, setDark, th }) {
             <span style={{ fontSize: 17, fontWeight: 800, color: th.text }}>IdeaFlow</span>
           </span>
           <div style={{ marginRight: "auto", display: "flex", gap: 5 }}>
+            <IconBtn name="help" onClick={() => setShowGuide(true)} color={th.secondary} bg={th.surface} size={17} pad="8px"
+              style={{ border: `1px solid ${th.border}` }} title="מדריך" />
             <IconBtn name="sparkle" onClick={() => setShowAI(true)} color={th.accent} bg={th.accentSoft} size={17} pad="8px" />
             <IconBtn name={dark ? "sun" : "moon"} onClick={() => setDark(d => !d)} color={th.secondary} bg={th.surface} size={17} pad="8px"
               style={{ border: `1px solid ${th.border}` }} />
@@ -421,40 +449,58 @@ function Shell({ user, dark, setDark, th }) {
 }
 
 function Guide({ onClose, th }) {
-  const items = [
-    { icon: "bulb", title: "תפוס רעיון", text: "מסך הבית נפתח על שדה כתיבה. כתוב, צלם או הקלט — והפסק להקליד: אחרי 5 שניות הרעיון נשמר לבד (או לחץ שמור). עובד גם בלי אינטרנט." },
-    { icon: "sparkle", title: "ה-AI עובד בשבילך", text: "כל רעיון מקבל אוטומטית כותרת ותגיות, וכשמתאים — הצעה לאיזה פרויקט להעביר. לחיצה אחת ומוין." },
-    { icon: "inbox", title: "Inbox → פרויקטים", text: "רעיון חדש לא דורש החלטות. מיינו אחר-כך: אייקון התיקייה 📁 בשורת הכרטיס פותח את רשימת הפרויקטים — בחר ומוין." },
-    { icon: "folder", title: "פרויקטים", text: "בתוך פרויקט אפשר לתפוס רעיון ישירות אליו, לנהל הערות, ולראות מה בוצע." },
-    { icon: "bell", title: "תזכורות אמיתיות", text: "לחץ על הפעמון בשורת הכרטיס — בחירה מהירה (בעוד שעה / הערב / מחר) או זמן מדויק. ההתראה תגיע גם כשהאפליקציה סגורה." },
-    { icon: "edit", title: "עריכה בלחיצה", text: "פשוט לחץ על הטקסט של רעיון — נפתח עורך מלא עם עיצוב (מודגש, צבעים), פרויקט ותזכורת. טקסט ארוך? \"המשך...\" פורש אותו." },
-    { icon: "tag", title: "תגיות", text: "ה-AI מתייג כל רעיון אוטומטית. לחיצה על תגית מציגה את כל הרעיונות עם אותה תגית." },
-    { icon: "delete", title: "פח אשפה", text: "מחיקה מעבירה לפח (בתחתית מסך הפרויקטים) — אפשר לשחזר עד 30 יום, ואז הוא מתרוקן לבד." },
-    { icon: "search", title: "חיפוש גלובלי", text: "חיפוש בכל הפרויקטים, כולל כותרות ותגיות." },
-    { icon: "sparkle", title: "עוזר AI", text: "כפתור הניצוץ למעלה: תמונת מצב שבועית, מה דחוף, ואיחוד רעיונות דומים." },
+  const steps = [
+    { icon: "inbox", title: "שלב 1 — זרוק ל-Inbox", text: "עלה לך רעיון? כתוב אותו, צלם או הקלט — וזהו. בלי לבחור תיקייה, בלי החלטות. הוא נשמר לבד 9 שניות אחרי שהפסקת להקליד (או בלחיצה על שמור), עובד גם בלי אינטרנט, וגם טיוטה שלא סיימת מחכה לך בפעם הבאה." },
+    { icon: "sparkle", title: "שלב 2 — ה-AI מסדר איתך", text: "כמה שניות אחרי השמירה הרעיון מקבל כותרת ותגיות אוטומטיות, ואם הוא מתאים לאחד הפרויקטים שלך — תופיע הצעה \"להעביר אל...?\" שמסתדרת בלחיצה אחת. מיון ידני: אייקון התיקייה על הכרטיס." },
+    { icon: "folder", title: "שלב 3 — עבוד מתוך הפרויקטים", text: "כל פרויקט הוא מרחב משלו: תפיסת רעיונות ישירות אליו, הערות, סימון בוצע, וסידור ידני בגרירה. בכל ערב ב-20:00 תקבל תזכורת אם נשארו רעיונות ב-Inbox שמחכים לשיבוץ." },
   ];
+  const features = [
+    { icon: "edit", title: "עריכה", text: "לחץ על הטקסט של כל רעיון. סרגל העיצוב (מודגש, קו תחתון, צבעים) נמצא מתחת לשדה. הכל נשמר אוטומטית תוך כדי כתיבה." },
+    { icon: "bell", title: "תזכורות", text: "פעמון על כל כרטיס: בעוד שעה / הערב / מחר או זמן מדויק. ההתראה מגיעה גם כשהאפליקציה סגורה, ולחיצה עליה פותחת את הרעיון עצמו." },
+    { icon: "share", title: "מכל אפליקציה", text: "ראית משהו בוואטסאפ או בדפדפן? שתף → IdeaFlow והוא יחכה בתיבת התפיסה. ולחיצה ארוכה על אייקון האפליקציה — קיצור \"רעיון חדש\"." },
+    { icon: "export", title: "ייצוא לקלוד", text: "בתפריט של כל פרויקט (וב-Inbox): \"ייצוא לקלוד\" מעתיק את כל הרעיונות הפתוחים כטקסט מוכן להדבקה בצ'אט." },
+    { icon: "search", title: "חיפוש ותגיות", text: "חיפוש בכל הפרויקטים, כולל כותרות ותגיות. כל תגית היא כפתור — לחיצה מציגה את כל הרעיונות הדומים." },
+    { icon: "delete", title: "פח אשפה", text: "מחיקה היא הפיכה: הרעיון עובר לפח (אייקון הפח במסך הפרויקטים) ונשאר שם 30 יום לפני שנמחק לצמיתות." },
+  ];
+  const Row = ({ it, last }) => (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 11,
+      padding: "9px 0", borderBottom: last ? "none" : `1px solid ${th.border}` }}>
+      <div style={{ width: 32, height: 32, borderRadius: 10, background: th.accentSoft,
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Icon name={it.icon} size={16} color={th.accentText} />
+      </div>
+      <div style={{ flex: 1, fontSize: 13, color: th.text, lineHeight: 1.6, textAlign: "right" }}>
+        <strong style={{ fontWeight: 600 }}>{it.title}: </strong>
+        <span style={{ color: th.secondary }}>{it.text}</span>
+      </div>
+    </div>
+  );
   return (
     <Modal onClose={onClose} th={th}>
-      <div style={{ textAlign: "center", marginBottom: 14 }}>
+      <div style={{ textAlign: "center", marginBottom: 12 }}>
         <Icon name="bulb" size={36} color={th.accent} />
-        <h3 style={{ margin: "8px 0 2px", fontSize: 19, fontWeight: 800, color: th.text }}>ברוך הבא ל-IdeaFlow 5</h3>
-        <p style={{ margin: 0, fontSize: 13, color: th.muted }}>נבנה מחדש סביב דבר אחד: לתפוס רעיונות בלי חיכוך</p>
+        <h3 style={{ margin: "8px 0 2px", fontSize: 19, fontWeight: 800, color: th.text }}>איך IdeaFlow עובד</h3>
       </div>
-      {items.map((it, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 11,
-          padding: "10px 0", borderBottom: i < items.length - 1 ? `1px solid ${th.border}` : "none" }}>
-          <div style={{ width: 32, height: 32, borderRadius: 10, background: th.accentSoft,
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Icon name={it.icon} size={16} color={th.accentText} />
-          </div>
-          <div style={{ flex: 1, fontSize: 13, color: th.text, lineHeight: 1.6, textAlign: "right" }}>
-            <strong style={{ fontWeight: 600 }}>{it.title}: </strong>
-            <span style={{ color: th.secondary }}>{it.text}</span>
-          </div>
-        </div>
-      ))}
+
+      <div style={{ background: th.accentSoft, borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+        <p style={{ margin: 0, fontSize: 13.5, color: th.accentText, lineHeight: 1.7, textAlign: "right", fontWeight: 500 }}>
+          הרעיון פשוט: <strong>אל תסדר — תזרוק.</strong> כל מחשבה נזרקת ל-Inbox ברגע שהיא עולה,
+          בלי שום החלטה. המיון קורה אחר-כך, כשנוח לך — וה-AI עוזר בדרך.
+        </p>
+      </div>
+
+      {steps.map((it, i) => <Row key={it.title} it={it} last={i === steps.length - 1} />)}
+
+      <p style={{ fontSize: 11.5, fontWeight: 600, color: th.muted, letterSpacing: 0.5, margin: "16px 2px 4px" }}>
+        עוד כלים
+      </p>
+      {features.map((it, i) => <Row key={it.title} it={it} last={i === features.length - 1} />)}
+
+      <p style={{ fontSize: 11.5, color: th.muted, margin: "12px 2px 0", textAlign: "center" }}>
+        המדריך זמין תמיד בכפתור ? למעלה
+      </p>
       <button onClick={onClose}
-        style={{ width: "100%", marginTop: 14, height: 44, background: th.accent, color: "#fff",
+        style={{ width: "100%", marginTop: 10, height: 44, background: th.accent, color: "#fff",
           border: "none", borderRadius: 12, cursor: "pointer",
           fontSize: 15, fontWeight: 700, fontFamily: FONT }}>
         בוא נתחיל

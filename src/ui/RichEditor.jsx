@@ -89,8 +89,17 @@ export default function RichEditor({ html, onChange, th, placeholder, minHeight 
 
   return (
     <div style={{ border: `1px solid ${th.border}`, borderRadius: 13, overflow: "hidden", background: th.inputBg }}>
+      {/* Editable area first — the format toolbar sits BELOW it so Android's
+          floating selection menu (which appears above the text) never covers it. */}
+      <div ref={ref} contentEditable suppressContentEditableWarning
+        onInput={emit} onKeyUp={saveSel} onMouseUp={saveSel} onTouchEnd={saveSel}
+        data-ph={placeholder}
+        style={{ minHeight, maxHeight: 260, overflowY: "auto", padding: "12px 14px",
+          fontSize: 15.5, fontFamily: "'Rubik',sans-serif", direction: "rtl", textAlign: "right",
+          lineHeight: 1.65, color: th.text, outline: "none" }} />
+
       <div style={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap",
-        padding: "5px 8px", background: th.surface2, borderBottom: `1px solid ${th.border}`, position: "relative" }}>
+        padding: "5px 8px", background: th.surface2, borderTop: `1px solid ${th.border}`, position: "relative" }}>
         <button type="button" onPointerDown={e => { e.preventDefault(); exec("bold"); }} style={btn()}>B</button>
         <button type="button" onPointerDown={e => { e.preventDefault(); exec("underline"); }} style={{ ...btn(), textDecoration: "underline" }}>U</button>
         <button type="button" onPointerDown={e => { e.preventDefault(); exec("italic"); }} style={{ ...btn(), fontStyle: "italic" }}>I</button>
@@ -112,7 +121,7 @@ export default function RichEditor({ html, onChange, th, placeholder, minHeight 
         </button>
 
         {showColors && (
-          <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 8, left: 8, zIndex: 50,
+          <div style={{ position: "absolute", bottom: "calc(100% + 4px)", right: 8, left: 8, zIndex: 50,
             background: th.surface, border: `1px solid ${th.border}`, borderRadius: 10,
             padding: 10, display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
             {RICH_COLORS.map(c => (
@@ -123,7 +132,7 @@ export default function RichEditor({ html, onChange, th, placeholder, minHeight 
           </div>
         )}
         {showHilite && (
-          <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 8, left: 8, zIndex: 50,
+          <div style={{ position: "absolute", bottom: "calc(100% + 4px)", right: 8, left: 8, zIndex: 50,
             background: th.surface, border: `1px solid ${th.border}`, borderRadius: 10,
             padding: 10, display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
             {HILITE_COLORS.map(c => (
@@ -138,13 +147,6 @@ export default function RichEditor({ html, onChange, th, placeholder, minHeight 
           </div>
         )}
       </div>
-
-      <div ref={ref} contentEditable suppressContentEditableWarning
-        onInput={emit} onKeyUp={saveSel} onMouseUp={saveSel} onTouchEnd={saveSel}
-        data-ph={placeholder}
-        style={{ minHeight, maxHeight: 260, overflowY: "auto", padding: "12px 14px",
-          fontSize: 15.5, fontFamily: "'Rubik',sans-serif", direction: "rtl", textAlign: "right",
-          lineHeight: 1.65, color: th.text, outline: "none" }} />
       <style>{`[contenteditable][data-ph]:empty:before{content:attr(data-ph);color:${th.muted};pointer-events:none;}`}</style>
     </div>
   );

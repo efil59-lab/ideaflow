@@ -4,6 +4,7 @@ import CaptureBar from "../ui/CaptureBar";
 import IdeaList, { SortToggle } from "../ui/IdeaList";
 import { Icon, IconBtn } from "../ui/Icons";
 import { Modal, ModalHeader, Confirm } from "../ui/base";
+
 import { FONT, fmt } from "../theme";
 
 export default function Projects({ uid, ideas, projects, th, actions, projActions, onCapture,
@@ -213,6 +214,11 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
             setMenu(false);
             const txt = list.map((i, n) => `${n + 1}. ${i.text}`).join("\n");
             window.open("https://wa.me/?text=" + encodeURIComponent(project.name + ":\n" + txt), "_blank");
+          }} />
+          <MenuBtn th={th} icon="export" label="ייצוא לקלוד" onClick={() => {
+            setMenu(false);
+            const open = ideas.filter(i => i.projectId === project.id && i.status !== "done" && i.status !== "trash");
+            actions.exportList(project.name, open);
           }} />
           <MenuBtn th={th} icon="delete" label="מחק" danger onClick={() => { setMenu(false); setConfirmDel(true); }} />
         </div>

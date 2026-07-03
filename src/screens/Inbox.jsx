@@ -24,9 +24,14 @@ export default function Inbox({ uid, ideas, projects, th, actions, onCapture }) 
         {!showDone && inbox.length > 1 && (
           <SortToggle sortMode={sortMode} setSortMode={setSortMode} th={th} />
         )}
-        <IconBtn name={showDone ? "eyeoff" : "eye"} onClick={() => { setShowDone(p => !p); setSortMode(false); }}
-          color={showDone ? th.accent : th.muted} size={16} pad="4px" style={{ marginRight: "auto" }}
-          title="הצג בוצעו" />
+        <span style={{ marginRight: "auto", display: "flex", gap: 2 }}>
+          {!showDone && inbox.length > 0 && (
+            <IconBtn name="export" onClick={() => actions.exportList("Inbox", inbox)}
+              color={th.muted} size={16} pad="4px" title="ייצוא לקלוד" />
+          )}
+          <IconBtn name={showDone ? "eyeoff" : "eye"} onClick={() => { setShowDone(p => !p); setSortMode(false); }}
+            color={showDone ? th.accent : th.muted} size={16} pad="4px" title="הצג בוצעו" />
+        </span>
       </div>
 
       <IdeaList ideas={inbox} projects={projects} th={th} actions={actions}

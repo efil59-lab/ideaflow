@@ -9,6 +9,20 @@
   "orientation": "portrait",
   "lang": "he",
   "dir": "rtl",
+  "shortcuts": [
+    {
+      "name": "רעיון חדש",
+      "short_name": "רעיון",
+      "description": "תפיסת רעיון מהירה ל-Inbox",
+      "url": "/?capture=1",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  },
   "icons": [
     {
       "src": "/icons/icon-192.png",
