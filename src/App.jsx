@@ -57,22 +57,19 @@ export default function App() {
   // Dev-only UI preview (no auth): npm run dev → /?uipreview
   // Statically stripped from production builds.
   if (import.meta.env.DEV && new URLSearchParams(location.search).has("uipreview")) {
-    return <>
-      <Shell user={{ uid: "demo", displayName: "תצוגה מקדימה", email: "demo@local", photoURL: null }}
-        dark={dark} setDark={setDark} th={th} />
-      <InstallBanner th={th} />
-    </>;
+    return <Shell user={{ uid: "demo", displayName: "תצוגה מקדימה", email: "demo@local", photoURL: null }}
+      dark={dark} setDark={setDark} th={th} />;
   }
 
   if (user === undefined) return <Splash th={th} />;
   if (!user) return <><Login th={th} /><InstallBanner th={th} /></>;
-  return <><Shell user={user} dark={dark} setDark={setDark} th={th} /><InstallBanner th={th} /></>;
+  return <Shell user={user} dark={dark} setDark={setDark} th={th} />;
 }
 
 // Prompts browser visitors to install the PWA. Hidden when already installed,
 // snoozed politely when dismissed. Android gets Chrome's real install prompt;
 // iOS gets the manual add-to-home-screen hint.
-function InstallBanner({ th }) {
+function InstallBanner({ th, hidden = false }) {
   const [evt, setEvt] = useState(deferredInstall);
   const [visible, setVisible] = useState(() => {
     try {
@@ -95,7 +92,7 @@ function InstallBanner({ th }) {
     };
   }, []);
 
-  if (!visible || (!evt && !isIOS)) return null;
+  if (hidden || !visible || (!evt && !isIOS)) return null;
 
   const snooze = days => {
     try { localStorage.setItem("if_install_snooze", String(Date.now() + days * 86400e3)); } catch { /* ignore */ }
@@ -532,6 +529,9 @@ function Shell({ user, dark, setDark, th }) {
         </Modal>
       )}
       {showGuide && <Guide onClose={() => setShowGuide(false)} th={th} />}
+
+      {/* Install banner waits politely while the guide (or any modal) is open */}
+      <InstallBanner th={th} hidden={showGuide || showAI || showUser || !!editIdea || !!remindIdea || !!moveIdea || !!shareIdea} />
     </div>
   );
 }
