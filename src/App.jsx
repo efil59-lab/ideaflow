@@ -17,6 +17,15 @@ import Projects from "./screens/Projects";
 import Search from "./screens/Search";
 import Assistant from "./screens/Assistant";
 
+// Captured at module scope — Chrome fires beforeinstallprompt very early,
+// often before React mounts. We stash the event and re-announce it.
+let deferredInstall = null;
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault();
+  deferredInstall = e;
+  window.dispatchEvent(new Event("if-installable"));
+});
+
 export default function App() {
   const [user, setUser] = useState(undefined);
   const [dark, setDark] = useState(() => localStorage.getItem("if_dark") === "1");
@@ -48,13 +57,88 @@ export default function App() {
   // Dev-only UI preview (no auth): npm run dev → /?uipreview
   // Statically stripped from production builds.
   if (import.meta.env.DEV && new URLSearchParams(location.search).has("uipreview")) {
-    return <Shell user={{ uid: "demo", displayName: "תצוגה מקדימה", email: "demo@local", photoURL: null }}
-      dark={dark} setDark={setDark} th={th} />;
+    return <>
+      <Shell user={{ uid: "demo", displayName: "תצוגה מקדימה", email: "demo@local", photoURL: null }}
+        dark={dark} setDark={setDark} th={th} />
+      <InstallBanner th={th} />
+    </>;
   }
 
   if (user === undefined) return <Splash th={th} />;
-  if (!user) return <Login th={th} />;
-  return <Shell user={user} dark={dark} setDark={setDark} th={th} />;
+  if (!user) return <><Login th={th} /><InstallBanner th={th} /></>;
+  return <><Shell user={user} dark={dark} setDark={setDark} th={th} /><InstallBanner th={th} /></>;
+}
+
+// Prompts browser visitors to install the PWA. Hidden when already installed,
+// snoozed politely when dismissed. Android gets Chrome's real install prompt;
+// iOS gets the manual add-to-home-screen hint.
+function InstallBanner({ th }) {
+  const [evt, setEvt] = useState(deferredInstall);
+  const [visible, setVisible] = useState(() => {
+    try {
+      const standalone = window.matchMedia("(display-mode: standalone)").matches
+        || navigator.standalone === true;
+      if (standalone) return false;
+      return Date.now() > Number(localStorage.getItem("if_install_snooze") || 0);
+    } catch { return false; }
+  });
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  useEffect(() => {
+    const onInstallable = () => setEvt(deferredInstall);
+    const onInstalled = () => { deferredInstall = null; setVisible(false); };
+    window.addEventListener("if-installable", onInstallable);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("if-installable", onInstallable);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  if (!visible || (!evt && !isIOS)) return null;
+
+  const snooze = days => {
+    try { localStorage.setItem("if_install_snooze", String(Date.now() + days * 86400e3)); } catch { /* ignore */ }
+    setVisible(false);
+  };
+
+  const install = async () => {
+    if (!evt) return;
+    evt.prompt();
+    try {
+      const { outcome } = await evt.userChoice;
+      deferredInstall = null;
+      setEvt(null);
+      if (outcome === "accepted") setVisible(false);
+      else snooze(3);
+    } catch { snooze(3); }
+  };
+
+  return (
+    <div style={{ position: "fixed", bottom: "calc(66px + env(safe-area-inset-bottom))",
+      left: 12, right: 12, zIndex: 500, display: "flex", justifyContent: "center" }}>
+      <div style={{ maxWidth: 536, width: "100%", background: th.surface,
+        border: `1px solid ${th.border}`, borderRadius: 14, padding: "10px 12px",
+        display: "flex", alignItems: "center", gap: 10, direction: "rtl",
+        boxShadow: "0 4px 18px rgba(0,0,0,0.14)", animation: "fadeUp .25s ease-out" }}>
+        <Icon name="bulb" size={20} color={th.accent} />
+        <span style={{ flex: 1, fontSize: 12.5, color: th.text, lineHeight: 1.45, fontFamily: FONT }}>
+          {(isIOS && !evt)
+            ? <>להתקנה: כפתור השיתוף בספארי ← <b>הוסף למסך הבית</b></>
+            : "התקן את IdeaFlow במסך הבית — התראות, קיצור מהיר ושיתוף מכל אפליקציה"}
+        </span>
+        {evt && (
+          <button onClick={install}
+            style={{ background: th.accent, color: "#fff", border: "none", borderRadius: 9,
+              padding: "7px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: FONT,
+              cursor: "pointer", flexShrink: 0 }}>
+            התקן
+          </button>
+        )}
+        <IconBtn name="close" onClick={() => snooze(7)} color={th.muted} size={13} pad="5px" />
+      </div>
+    </div>
+  );
 }
 
 function Splash({ th, text }) {
