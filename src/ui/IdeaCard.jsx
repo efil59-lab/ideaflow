@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon, IconBtn } from "./Icons";
-import { Chip } from "./base";
+import { Chip, Confirm } from "./base";
 import { FONT, fmt } from "../theme";
 
 export default function IdeaCard({ idea, project, projects, showProject, th,
@@ -13,6 +13,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
   const [copied, setCopied] = useState(false);
   const [bigImg, setBigImg] = useState(null);
   const [expanded, setExpanded] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
 
   const done = idea.status === "done";
   const isLong = (idea.text || "").length > 130;
@@ -29,6 +30,14 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
 
   return (
     <>
+      {confirmDel && createPortal(
+        <div style={{ position: "fixed", inset: 0, zIndex: 9000 }}>
+          <Confirm title="העברה לפח האשפה" icon="delete"
+            message="הרעיון יעבור לפח — אפשר לשחזר משם תוך 30 יום."
+            confirmLabel="העבר לפח"
+            onConfirm={() => { setConfirmDel(false); onDelete(); }}
+            onCancel={() => setConfirmDel(false)} th={th} />
+        </div>, document.body)}
       {bigImg && createPortal(
         <div onClick={() => setBigImg(null)} style={{ position: "fixed", inset: 0,
           background: "rgba(0,0,0,0.95)", zIndex: 9000,
@@ -180,7 +189,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
             <>
               <IconBtn name="back" onClick={() => setMore(false)} color={th.accent} size={17} pad="6px 8px" />
               <div style={{ width: 1, height: 15, background: th.border, margin: "0 4px" }} />
-              <IconBtn name="delete" onClick={() => { setMore(false); onDelete(); }}
+              <IconBtn name="delete" onClick={() => { setMore(false); setConfirmDel(true); }}
                 color={th.red} size={18} pad="6px 8px" title="העבר לפח האשפה" />
               <IconBtn name="share" onClick={onShare} color={th.muted} size={18} pad="6px 8px" />
               <div style={{ display: "flex", gap: 5, marginRight: 6, alignItems: "center" }}>

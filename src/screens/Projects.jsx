@@ -1,11 +1,19 @@
 // Projects: list view + project detail (capture in context, notes, done toggle) + trash.
 import { useState } from "react";
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import CaptureBar from "../ui/CaptureBar";
 import IdeaList, { SortToggle } from "../ui/IdeaList";
 import { Icon, IconBtn } from "../ui/Icons";
 import { Modal, ModalHeader, Confirm } from "../ui/base";
 
 import { FONT, fmt } from "../theme";
+
+const projSort = (a, b) =>
+  (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)
+  || (a.order ?? Infinity) - (b.order ?? Infinity)
+  || (a.createdAt || 0) - (b.createdAt || 0);
 
 export default function Projects({ uid, ideas, projects, th, actions, projActions, onCapture,
   openProjectId, setOpenProjectId }) {
@@ -84,12 +92,23 @@ function TrashView({ ideas, th, actions, onBack }) {
 
 function ProjectsIndex({ projects, ideas, th, projActions, onOpen }) {
   const [name, setName] = useState("");
-  const sorted = [...projects].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  const [sortMode, setSortMode] = useState(false);
+  const sorted = [...projects].sort(projSort);
   const trashCount = ideas.filter(i => i.status === "trash").length;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
+  );
+
+  const counts = p => ({
+    active: ideas.filter(i => i.projectId === p.id && i.status !== "done" && i.status !== "trash").length,
+    done: ideas.filter(i => i.projectId === p.id && i.status === "done").length,
+  });
 
   return (
     <>
-      <div style={{ display: "flex", gap: 7, marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 7, marginBottom: 12 }}>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="פרויקט חדש..."
           onKeyDown={e => { if (e.key === "Enter" && name.trim()) { projActions.add(name.trim()); setName(""); } }}
           style={{ flex: 1, border: `1px solid ${th.border}`, borderRadius: 12, padding: "11px 14px",
@@ -112,6 +131,12 @@ function ProjectsIndex({ projects, ideas, th, projActions, onOpen }) {
         </button>
       </div>
 
+      {projects.length > 1 && (
+        <div style={{ display: "flex", marginBottom: 8 }}>
+          <SortToggle sortMode={sortMode} setSortMode={setSortMode} th={th} />
+        </div>
+      )}
+
       {sorted.length === 0 && (
         <div style={{ textAlign: "center", padding: "36px 0", color: th.muted }}>
           <Icon name="folder" size={40} color={th.border} />
@@ -119,44 +144,80 @@ function ProjectsIndex({ projects, ideas, th, projActions, onOpen }) {
         </div>
       )}
 
-      {sorted.map(p => {
-        const active = ideas.filter(i => i.projectId === p.id && i.status !== "done" && i.status !== "trash").length;
-        const done = ideas.filter(i => i.projectId === p.id && i.status === "done").length;
-        return (
-          <div key={p.id} onClick={() => onOpen(p.id)}
-            style={{ display: "flex", alignItems: "center", gap: 11, background: th.surface,
-              border: `1px solid ${th.border}`, borderRadius: 14, padding: "14px 15px",
-              marginBottom: 9, cursor: "pointer", direction: "rtl" }}>
-            <span style={{ width: 13, height: 13, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: th.text,
-                display: "flex", alignItems: "center", gap: 5 }}>
-                {p.pinned && <Icon name="pin" size={12} color={th.accent} />}
-                {p.name}
-              </p>
-              <p style={{ margin: "2px 0 0", fontSize: 12, color: th.muted }}>
-                {active} פעילים{done ? ` · ${done} בוצעו` : ""}
-              </p>
-            </div>
-            <Icon name="back" size={16} color={th.muted} />
-          </div>
-        );
-      })}
-
-      {/* Trash entry */}
-      <div onClick={() => onOpen("__trash__")}
-        style={{ display: "flex", alignItems: "center", gap: 11, marginTop: 16,
-          borderRadius: 14, padding: "12px 15px", cursor: "pointer", direction: "rtl",
-          border: `1px dashed ${th.borderStrong}`, opacity: 0.85 }}>
-        <Icon name="delete" size={16} color={th.muted} />
-        <span style={{ flex: 1, fontSize: 13.5, fontWeight: 500, color: th.secondary }}>פח אשפה</span>
-        {ideas.filter(i => i.status === "trash").length > 0 && (
-          <span style={{ fontSize: 11.5, color: th.muted }}>
-            {ideas.filter(i => i.status === "trash").length}
-          </span>
-        )}
-      </div>
+      {sortMode ? (
+        <DndContext sensors={sensors} collisionDetection={closestCenter}
+          onDragEnd={e => {
+            const { active, over } = e;
+            if (!over || active.id === over.id) return;
+            const oldI = sorted.findIndex(p => p.id === active.id);
+            const newI = sorted.findIndex(p => p.id === over.id);
+            projActions.reorder(arrayMove(sorted, oldI, newI).map(p => p.id));
+          }}>
+          <SortableContext items={sorted.map(p => p.id)} strategy={verticalListSortingStrategy}>
+            {sorted.map(p => (
+              <SortableProjectRow key={p.id} p={p} th={th} counts={counts(p)} />
+            ))}
+          </SortableContext>
+        </DndContext>
+      ) : (
+        sorted.map(p => (
+          <ProjectRow key={p.id} p={p} th={th} counts={counts(p)}
+            onOpen={() => onOpen(p.id)}
+            onPin={() => projActions.update(p.id, { pinned: !p.pinned })} />
+        ))
+      )}
     </>
+  );
+}
+
+function ProjectRow({ p, th, counts, onOpen, onPin }) {
+  return (
+    <div onClick={onOpen}
+      style={{ display: "flex", alignItems: "center", gap: 11, background: th.surface,
+        border: `1px solid ${p.pinned ? th.accent : th.border}`, borderRadius: 14, padding: "14px 15px",
+        marginBottom: 9, cursor: "pointer", direction: "rtl" }}>
+      <span style={{ width: 13, height: 13, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: th.text }}>{p.name}</p>
+        <p style={{ margin: "2px 0 0", fontSize: 12, color: th.muted }}>
+          {counts.active} פעילים{counts.done ? ` · ${counts.done} בוצעו` : ""}
+        </p>
+      </div>
+      <IconBtn name="pin" onClick={e => { e.stopPropagation(); onPin(); }}
+        color={p.pinned ? th.accent : th.muted} size={16} pad="6px"
+        title={p.pinned ? "בטל נעיצה" : "נעץ לראש"} />
+      <Icon name="back" size={15} color={th.muted} />
+    </div>
+  );
+}
+
+function SortableProjectRow({ p, th, counts }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: p.id });
+  return (
+    <div ref={setNodeRef} style={{
+      transform: CSS.Transform.toString(transform), transition,
+      opacity: isDragging ? 0.55 : 1, position: "relative", zIndex: isDragging ? 10 : 1 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, background: th.surface,
+        border: `1px solid ${th.border}`, borderRadius: 14, padding: "14px 13px",
+        marginBottom: 9, direction: "rtl" }}>
+        <div {...attributes} {...listeners}
+          style={{ flexShrink: 0, width: 26, height: 26, display: "flex", alignItems: "center",
+            justifyContent: "center", cursor: "grab", color: th.muted, fontSize: 17,
+            touchAction: "none", userSelect: "none" }}>⠿</div>
+        <span style={{ width: 12, height: 12, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: th.text,
+            display: "flex", alignItems: "center", gap: 5 }}>
+            {p.pinned && <Icon name="pin" size={12} color={th.accent} />}
+            {p.name}
+          </p>
+          <p style={{ margin: "2px 0 0", fontSize: 12, color: th.muted }}>
+            {counts.active} פעילים{counts.done ? ` · ${counts.done} בוצעו` : ""}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 

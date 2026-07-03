@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { auth, googleProvider } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { getTheme, FONT } from "./theme";
-import { useIdeas, useProjects, addIdea, updateIdea, deleteIdea, reorderIdeas, addProject, updateProject, deleteProject, guideNotSeenYet } from "./data/store";
+import { useIdeas, useProjects, addIdea, updateIdea, deleteIdea, reorderIdeas, addProject, updateProject, deleteProject, reorderProjects, guideNotSeenYet } from "./data/store";
 import { migrateIfNeeded } from "./data/migrate";
 import { enrichIdea } from "./data/ai";
 import { exportIdeas } from "./data/export";
@@ -378,6 +378,7 @@ function Shell({ user, dark, setDark, th }) {
     add: async name => { const id = await addProject(uid, name, projects.length); setOpenProjectId(id); },
     update: (id, patch) => updateProject(uid, id, patch),
     remove: id => deleteProject(uid, id, ideas),
+    reorder: ids => reorderProjects(uid, ids).catch(e => console.warn("reorder projects:", e)),
   };
 
   const saveEdit = async (data) => {

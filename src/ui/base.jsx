@@ -30,17 +30,23 @@ export function ModalHeader({ title, icon, onClose, th }) {
   );
 }
 
-export function Confirm({ title, message, confirmLabel = "מחק", onConfirm, onCancel, th }) {
+export function Confirm({ title, message, confirmLabel = "מחק", icon = "delete", tone = "red", onConfirm, onCancel, th }) {
+  const accent = tone === "red" ? th.red : th.accent;
+  const tint = tone === "red" ? (th.dark ? "#3A1A1E" : "#FDECEC") : th.accentSoft;
   return (
     <Modal onClose={onCancel} maxWidth={330} th={th}>
+      <div style={{ width: 46, height: 46, borderRadius: "50%", background: tint,
+        display: "flex", alignItems: "center", justifyContent: "center", margin: "2px auto 12px" }}>
+        <Icon name={icon} size={22} color={accent} />
+      </div>
       <h3 style={{ margin: "0 0 6px", fontSize: 17, fontWeight: 700, color: th.text, textAlign: "center" }}>{title}</h3>
-      {message && <p style={{ margin: "0 0 18px", fontSize: 14, color: th.secondary, textAlign: "center", lineHeight: 1.6 }}>{message}</p>}
+      {message && <p style={{ margin: "0 0 18px", fontSize: 13.5, color: th.secondary, textAlign: "center", lineHeight: 1.6 }}>{message}</p>}
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={onCancel} style={{ flex: 1, background: th.surface2, color: th.text,
-          border: `1px solid ${th.border}`, borderRadius: 11, padding: "11px 0", cursor: "pointer",
+          border: `1px solid ${th.border}`, borderRadius: 11, padding: "12px 0", cursor: "pointer",
           fontSize: 14, fontWeight: 600, fontFamily: FONT }}>ביטול</button>
-        <button onClick={onConfirm} style={{ flex: 1, background: th.red, color: "#fff",
-          border: "none", borderRadius: 11, padding: "11px 0", cursor: "pointer",
+        <button onClick={onConfirm} style={{ flex: 1, background: accent, color: "#fff",
+          border: "none", borderRadius: 11, padding: "12px 0", cursor: "pointer",
           fontSize: 14, fontWeight: 600, fontFamily: FONT }}>{confirmLabel}</button>
       </div>
     </Modal>

@@ -153,7 +153,7 @@ export const PROJ_COLORS = ["#2E5BE6", "#0E9488", "#7C3AED", "#16A34A", "#D97706
 export async function addProject(uid, name, existingCount = 0) {
   const id = newId();
   await setDoc(doc(projectsCol(uid), id), {
-    name, notes: "", pinned: false,
+    name, notes: "", pinned: false, order: existingCount,
     color: PROJ_COLORS[existingCount % PROJ_COLORS.length],
     createdAt: Date.now(),
   });
@@ -161,6 +161,14 @@ export async function addProject(uid, name, existingCount = 0) {
 }
 
 export const updateProject = (uid, id, patch) => updateDoc(doc(projectsCol(uid), id), patch);
+
+// Persist a manual project ordering: each id gets order = its index.
+export async function reorderProjects(uid, ids) {
+  if (import.meta.env.DEV && uid === "demo") return;
+  const b = writeBatch(db);
+  ids.forEach((id, i) => b.update(doc(projectsCol(uid), id), { order: i }));
+  await b.commit();
+}
 
 export async function deleteProject(uid, id, ideas) {
   // Ideas in the project go back to the inbox — deleting a folder shouldn't delete its contents.
