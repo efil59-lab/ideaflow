@@ -141,9 +141,25 @@ function InstallBanner({ th, hidden = false }) {
 function Splash({ th, text }) {
   return (
     <div style={{ minHeight: "100vh", background: th.bg, display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", gap: 14, fontFamily: FONT }}>
-      <Icon name="bulb" size={44} color={th.accent} />
-      {text && <p style={{ color: th.secondary, fontSize: 14, margin: 0 }}>{text}</p>}
+      alignItems: "center", justifyContent: "center", gap: 18, fontFamily: FONT }}>
+      {/* The bulb "lights up": soft disc pops in, a ring ripples outward */}
+      <div style={{ position: "relative", width: 88, height: 88,
+        display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ position: "absolute", inset: 0, borderRadius: "50%",
+          border: `2px solid ${th.accent}`,
+          animation: "ringExpand 1.1s ease-out 0.25s both" }} />
+        <span style={{ position: "absolute", inset: 0, borderRadius: "50%",
+          background: th.accentSoft,
+          animation: "bulbPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both" }} />
+        <span style={{ position: "relative", display: "inline-flex",
+          animation: "bulbPop 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.08s both" }}>
+          <Icon name="bulb" size={40} color={th.accent} />
+        </span>
+      </div>
+      <div style={{ textAlign: "center", animation: "fadeUp 0.45s ease-out 0.3s both" }}>
+        <span style={{ fontSize: 22, fontWeight: 800, color: th.text, letterSpacing: 0.3 }}>IdeaFlow</span>
+        {text && <p style={{ color: th.secondary, fontSize: 13.5, margin: "7px 0 0" }}>{text}</p>}
+      </div>
     </div>
   );
 }
@@ -161,8 +177,11 @@ function Login({ th }) {
     <div style={{ minHeight: "100vh", background: th.bg, display: "flex",
       alignItems: "center", justifyContent: "center", padding: 24, fontFamily: FONT, direction: "rtl" }}>
       <div style={{ background: th.surface, borderRadius: 20, padding: 36, maxWidth: 350, width: "100%",
-        textAlign: "center", border: `1px solid ${th.border}` }}>
-        <Icon name="bulb" size={44} color={th.accent} />
+        textAlign: "center", border: `1px solid ${th.border}`,
+        animation: "fadeUp 0.5s ease-out both" }}>
+        <span style={{ display: "inline-flex", animation: "bulbPop 0.55s cubic-bezier(0.34,1.56,0.64,1) 0.15s both" }}>
+          <Icon name="bulb" size={44} color={th.accent} />
+        </span>
         <h1 style={{ margin: "12px 0 6px", fontSize: 26, fontWeight: 800, color: th.text }}>IdeaFlow</h1>
         <p style={{ margin: "0 0 26px", fontSize: 14, color: th.secondary, lineHeight: 1.6 }}>
           תפוס כל רעיון ברגע שהוא עולה
@@ -400,7 +419,8 @@ function Shell({ user, dark, setDark, th }) {
     <div style={{ minHeight: "100vh", background: th.bg, fontFamily: FONT, direction: "rtl" }}>
       {/* Header */}
       <div style={{ position: "sticky", top: 0, zIndex: 100, background: th.bg,
-        borderBottom: `1px solid ${th.border}` }}>
+        borderBottom: `1px solid ${th.border}`,
+        animation: "fadeDown 0.4s ease-out both" }}>
         <div style={{ maxWidth: 560, margin: "0 auto", padding: "10px 14px",
           display: "flex", alignItems: "center", gap: 8 }}>
           <span onClick={() => setShowGuide(true)}
@@ -426,7 +446,8 @@ function Shell({ user, dark, setDark, th }) {
       </div>
 
       {/* Body */}
-      <div style={{ maxWidth: 560, margin: "0 auto", padding: "14px 14px 90px" }}>
+      <div style={{ maxWidth: 560, margin: "0 auto", padding: "14px 14px 90px",
+        animation: "fadeUp 0.45s ease-out 0.1s both" }}>
         {tab === "inbox" && (
           <Inbox uid={uid} ideas={ideas} projects={projects} th={th} actions={actions} onCapture={capture} />
         )}
@@ -443,7 +464,8 @@ function Shell({ user, dark, setDark, th }) {
 
       {/* Bottom nav */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
-        background: th.surface, borderTop: `1px solid ${th.border}` }}>
+        background: th.surface, borderTop: `1px solid ${th.border}`,
+        animation: "navUp 0.4s ease-out 0.15s both" }}>
         <div style={{ maxWidth: 560, margin: "0 auto", display: "flex",
           padding: "6px 8px calc(6px + env(safe-area-inset-bottom))" }}>
           {navItems.map(n => {
