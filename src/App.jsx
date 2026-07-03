@@ -31,6 +31,14 @@ export default function App() {
   const [dark, setDark] = useState(() => localStorage.getItem("if_dark") === "1");
   const th = getTheme(dark);
 
+  // Hold the splash for a minimum beat so the light-up animation is actually
+  // seen — cached auth resolves in milliseconds and used to skip right past it.
+  const [bootDone, setBootDone] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setBootDone(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
+
   // Intake from Android intents (runs once, before any screen mounts):
   // - share_target: /?title=..&text=..&url=..  → becomes the capture draft
   // - app shortcut: /?capture=1                → focus the capture box
@@ -56,6 +64,8 @@ export default function App() {
 
   // Dev-only UI preview (no auth): npm run dev → /?uipreview
   // Statically stripped from production builds.
+  if (!bootDone) return <Splash th={th} />;
+
   if (import.meta.env.DEV && new URLSearchParams(location.search).has("uipreview")) {
     return <Shell user={{ uid: "demo", displayName: "תצוגה מקדימה", email: "demo@local", photoURL: null }}
       dark={dark} setDark={setDark} th={th} />;
@@ -138,25 +148,30 @@ function InstallBanner({ th, hidden = false }) {
   );
 }
 
-function Splash({ th, text }) {
+// still=true renders the final frame with no animation — used by loading
+// states that follow the animated boot splash, so the light-up never replays.
+function Splash({ th, text, still = false }) {
   return (
     <div style={{ minHeight: "100vh", background: th.bg, display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center", gap: 18, fontFamily: FONT }}>
       {/* The bulb "lights up": soft disc pops in, a ring ripples outward */}
       <div style={{ position: "relative", width: 88, height: 88,
         display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ position: "absolute", inset: 0, borderRadius: "50%",
-          border: `2px solid ${th.accent}`,
-          animation: "ringExpand 1.1s ease-out 0.25s both" }} />
+        {!still && (
+          <span style={{ position: "absolute", inset: 0, borderRadius: "50%",
+            border: `2px solid ${th.accent}`,
+            animation: "ringExpand 1.3s ease-out 0.35s both" }} />
+        )}
         <span style={{ position: "absolute", inset: 0, borderRadius: "50%",
           background: th.accentSoft,
-          animation: "bulbPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both" }} />
+          animation: still ? "none" : "bulbPop 0.65s cubic-bezier(0.34,1.56,0.64,1) both" }} />
         <span style={{ position: "relative", display: "inline-flex",
-          animation: "bulbPop 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.08s both" }}>
+          animation: still ? "none" : "bulbPop 0.65s cubic-bezier(0.34,1.56,0.64,1) 0.12s both" }}>
           <Icon name="bulb" size={40} color={th.accent} />
         </span>
       </div>
-      <div style={{ textAlign: "center", animation: "fadeUp 0.45s ease-out 0.3s both" }}>
+      <div style={{ textAlign: "center",
+        animation: still ? "none" : "fadeUp 0.5s ease-out 0.45s both" }}>
         <span style={{ fontSize: 22, fontWeight: 800, color: th.text, letterSpacing: 0.3 }}>IdeaFlow</span>
         {text && <p style={{ color: th.secondary, fontSize: 13.5, margin: "7px 0 0" }}>{text}</p>}
       </div>
@@ -345,7 +360,7 @@ function Shell({ user, dark, setDark, th }) {
     };
   }, []);
 
-  if (migrating || !ideas || !projects) return <Splash th={th} text={migMsg || "טוען..."} />;
+  if (migrating || !ideas || !projects) return <Splash th={th} still text={migMsg || "טוען..."} />;
 
   // Capture: save instantly, enrich in the background.
   const capture = async (data) => {
@@ -420,7 +435,7 @@ function Shell({ user, dark, setDark, th }) {
       {/* Header */}
       <div style={{ position: "sticky", top: 0, zIndex: 100, background: th.bg,
         borderBottom: `1px solid ${th.border}`,
-        animation: "fadeDown 0.4s ease-out both" }}>
+        animation: "fadeDown 0.55s ease-out both" }}>
         <div style={{ maxWidth: 560, margin: "0 auto", padding: "10px 14px",
           display: "flex", alignItems: "center", gap: 8 }}>
           <span onClick={() => setShowGuide(true)}
@@ -447,7 +462,7 @@ function Shell({ user, dark, setDark, th }) {
 
       {/* Body */}
       <div style={{ maxWidth: 560, margin: "0 auto", padding: "14px 14px 90px",
-        animation: "fadeUp 0.45s ease-out 0.1s both" }}>
+        animation: "fadeUp 0.6s ease-out 0.15s both" }}>
         {tab === "inbox" && (
           <Inbox uid={uid} ideas={ideas} projects={projects} th={th} actions={actions} onCapture={capture} />
         )}
@@ -465,7 +480,7 @@ function Shell({ user, dark, setDark, th }) {
       {/* Bottom nav */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
         background: th.surface, borderTop: `1px solid ${th.border}`,
-        animation: "navUp 0.4s ease-out 0.15s both" }}>
+        animation: "navUp 0.55s ease-out 0.25s both" }}>
         <div style={{ maxWidth: 560, margin: "0 auto", display: "flex",
           padding: "6px 8px calc(6px + env(safe-area-inset-bottom))" }}>
           {navItems.map(n => {
