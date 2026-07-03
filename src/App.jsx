@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { auth, googleProvider } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { getTheme, FONT } from "./theme";
-import { useIdeas, useProjects, addIdea, updateIdea, deleteIdea, reorderIdeas, addProject, updateProject, deleteProject } from "./data/store";
+import { useIdeas, useProjects, addIdea, updateIdea, deleteIdea, reorderIdeas, addProject, updateProject, deleteProject, guideNotSeenYet } from "./data/store";
 import { migrateIfNeeded } from "./data/migrate";
 import { enrichIdea } from "./data/ai";
 import { exportIdeas } from "./data/export";
@@ -232,9 +232,13 @@ function Shell({ user, dark, setDark, th }) {
     if ("Notification" in window && Notification.permission === "granted") enablePush(uid);
   }, [uid]);
 
+  // Welcome guide on the user's true first open — flag lives on the user's
+  // Firestore doc, so reinstalling the app or switching devices won't skip it.
   useEffect(() => {
-    const key = `if_guide_${uid}`;
-    if (!migrating && !localStorage.getItem(key)) { setShowGuide(true); localStorage.setItem(key, "1"); }
+    if (migrating) return;
+    guideNotSeenYet(uid)
+      .then(firstTime => { if (firstTime) setShowGuide(true); })
+      .catch(() => {});
   }, [uid, migrating]);
 
   // Purge trash older than 30 days — once per session, best-effort.

@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { db, storage } from "../firebase";
 import {
-  collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, orderBy, writeBatch,
+  collection, doc, getDoc, onSnapshot, setDoc, updateDoc, deleteDoc, query, orderBy, writeBatch,
 } from "firebase/firestore";
 import { ref as storageRef, deleteObject } from "firebase/storage";
 
@@ -61,6 +61,22 @@ export function useProjects(uid) {
     }, err => { console.warn("projects snapshot:", err); setProjects([]); });
   }, [uid]);
   return projects;
+}
+
+// First-open check for the welcome guide — stored on the user's Firestore doc,
+// so it's per-user (survives reinstall, works across devices), not per-browser.
+// Returns true exactly once per user and marks it seen.
+export async function guideNotSeenYet(uid) {
+  if (import.meta.env.DEV && uid === "demo") {
+    if (localStorage.getItem("if_guide_demo")) return false;
+    localStorage.setItem("if_guide_demo", "1");
+    return true;
+  }
+  const userRef = doc(db, "users", uid);
+  const snap = await getDoc(userRef);
+  if (snap.exists() && snap.data().guideSeenAt) return false;
+  await setDoc(userRef, { guideSeenAt: Date.now() }, { merge: true });
+  return true;
 }
 
 // ── Ideas ─────────────────────────────────────────────────────────────────────
