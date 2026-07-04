@@ -91,6 +91,7 @@ function SharedProjectView({ uid, share, th, actions, onCapture, onBack }) {
 
 function TrashView({ ideas, th, actions, onBack }) {
   const [confirmIdea, setConfirmIdea] = useState(null);
+  const [confirmAll, setConfirmAll] = useState(false);
   const list = ideas.filter(i => i.status === "trash")
     .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
 
@@ -108,6 +109,14 @@ function TrashView({ ideas, th, actions, onBack }) {
           חזרה
         </button>
         <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: th.text, flex: 1 }}>פח אשפה</h2>
+        {list.length > 0 && (
+          <button onClick={() => setConfirmAll(true)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "transparent",
+              color: th.red, border: `1px solid ${th.border}`, borderRadius: 18, padding: "6px 13px",
+              cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
+            <Icon name="delete" size={14} color={th.red} /> רוקן הכל
+          </button>
+        )}
       </div>
       <p style={{ margin: "0 0 12px", fontSize: 12, color: th.muted }}>
         רעיונות נמחקים לצמיתות אחרי 30 יום בפח
@@ -145,6 +154,13 @@ function TrashView({ ideas, th, actions, onBack }) {
         <Confirm title="מחיקה לצמיתות" message="אי אפשר לשחזר אחרי זה."
           onConfirm={() => { actions.destroy(confirmIdea); setConfirmIdea(null); }}
           onCancel={() => setConfirmIdea(null)} th={th} />
+      )}
+      {confirmAll && (
+        <Confirm title="לרוקן את כל הפח?"
+          message={`${list.length} רעיונות יימחקו לצמיתות. אי אפשר לשחזר אחרי זה.`}
+          confirmLabel="רוקן הכל"
+          onConfirm={() => { actions.emptyTrash(list); setConfirmAll(false); onBack(); }}
+          onCancel={() => setConfirmAll(false)} th={th} />
       )}
     </>
   );

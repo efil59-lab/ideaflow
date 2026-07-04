@@ -621,6 +621,10 @@ function Shell({ user, dark, setDark, th }) {
       toast$("שוחזר");
     },
     destroy: async (idea) => { await deleteIdea(uid, idea); toast$("נמחק לצמיתות"); },
+    emptyTrash: async (list) => {
+      await Promise.all((list || []).map(i => deleteIdea(uid, i).catch(() => {})));
+      toast$("הפח רוקן");
+    },
     edit: idea => setEditIdea(idea),
     share: idea => setShareIdea(idea),
     move: idea => setMoveIdea(idea),

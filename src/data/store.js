@@ -33,6 +33,7 @@ function demoData() {
       { ...base, id: "d3", text: "רעיון לפתיח: מחרוזת פתיחים של שנות השמונים ברצף אחד", title: "מחרוזת פתיחים", tags: [], colorIdx: 2, createdAt: now - 10800e3 },
       { ...base, id: "d4", text: "מדור 'מאחורי הקלעים' עם סיפורים מההפקות", title: "מאחורי הקלעים", tags: ["תוכן"], status: "active", projectId: "p1", createdAt: now - 14400e3,
         comments: [{ id: "c1", text: "רעיון מעולה! אפשר להתחיל מ'זהו זה'", authorUid: "guest", authorName: "דנה", at: now - 600e3 }] },
+      { ...base, id: "d5", text: "רעיון ישן שכבר לא רלוונטי", title: "רעיון ישן", status: "trash", deletedAt: now - 172800e3, createdAt: now - 200000e3 },
     ],
   };
 }
