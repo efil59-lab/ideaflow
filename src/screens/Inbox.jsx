@@ -4,7 +4,7 @@ import CaptureBar from "../ui/CaptureBar";
 import IdeaList, { SortToggle } from "../ui/IdeaList";
 import { IconBtn } from "../ui/Icons";
 
-export default function Inbox({ uid, ideas, projects, th, actions, onCapture }) {
+export default function Inbox({ uid, ideas, projects, th, actions, onCapture, myShares = {} }) {
   const [showDone, setShowDone] = useState(false);
   const [sortMode, setSortMode] = useState(false);
 
@@ -43,7 +43,7 @@ export default function Inbox({ uid, ideas, projects, th, actions, onCapture }) 
           <p style={{ fontSize: 12, fontWeight: 600, color: th.muted, letterSpacing: 0.6, margin: "18px 2px 8px" }}>
             פעילים לאחרונה
           </p>
-          <IdeaList ideas={recentActive} projects={projects} showProject th={th} actions={actions} />
+          <IdeaList ideas={recentActive} projects={projects} showProject th={th} actions={actions} myShares={myShares} />
         </>
       )}
     </>

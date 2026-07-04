@@ -1,7 +1,7 @@
 // Web Push (VAPID) subscription helper — Firestore edition.
 // Stores this device's subscription in /pushSubs/{uid}_{key} so the server
 // cron (api/send-reminders.js) can deliver reminders to it.
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import { doc, setDoc } from "firebase/firestore";
 
 const VAPID_PUBLIC = import.meta.env.VITE_VAPID_PUBLIC_KEY;
@@ -37,6 +37,7 @@ export async function enablePush(uid) {
     const json = sub.toJSON();
     await setDoc(doc(db, "pushSubs", `${uid}_${subKey(json.endpoint)}`), {
       uid,
+      email: (auth.currentUser?.email || "").toLowerCase(),
       endpoint: json.endpoint,
       keys: json.keys,
       ua: navigator.userAgent.slice(0, 120),

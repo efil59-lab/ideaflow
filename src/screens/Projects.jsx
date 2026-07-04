@@ -7,6 +7,8 @@ import CaptureBar from "../ui/CaptureBar";
 import IdeaList, { SortToggle } from "../ui/IdeaList";
 import { Icon, IconBtn } from "../ui/Icons";
 import { Modal, ModalHeader, Confirm } from "../ui/base";
+import { ProjectShareModal } from "../ui/sheets";
+import { useSharedIdeas } from "../data/store";
 
 import { FONT, fmt } from "../theme";
 
@@ -16,17 +18,70 @@ const projSort = (a, b) =>
   || (a.createdAt || 0) - (b.createdAt || 0);
 
 export default function Projects({ uid, ideas, projects, th, actions, projActions, onCapture,
-  openProjectId, setOpenProjectId }) {
+  openProjectId, setOpenProjectId,
+  myShares = {}, sharedWithMe = [], shareActions, onSharedCapture }) {
   const open = projects.find(p => p.id === openProjectId);
   if (openProjectId === "__trash__") {
     return <TrashView ideas={ideas} th={th} actions={actions} onBack={() => setOpenProjectId(null)} />;
   }
+  if (typeof openProjectId === "string" && openProjectId.startsWith("share:")) {
+    const share = sharedWithMe.find(s => s.id === openProjectId.slice(6));
+    if (share) {
+      return <SharedProjectView uid={uid} share={share} th={th} actions={actions}
+        onCapture={onSharedCapture} onBack={() => setOpenProjectId(null)} />;
+    }
+    setOpenProjectId(null);
+    return null;
+  }
   return open
     ? <ProjectDetail uid={uid} project={open} ideas={ideas} projects={projects} th={th}
         actions={actions} projActions={projActions} onCapture={onCapture}
+        share={myShares[open.id]} shareActions={shareActions}
         onBack={() => setOpenProjectId(null)} />
     : <ProjectsIndex projects={projects} ideas={ideas} th={th} projActions={projActions}
+        myShares={myShares} sharedWithMe={sharedWithMe}
         onOpen={setOpenProjectId} />;
+}
+
+// Guest view of a project shared with me: live ideas, comment, add — no editing.
+function SharedProjectView({ uid, share, th, actions, onCapture, onBack }) {
+  const ideas = useSharedIdeas(share.ownerUid, share.projectId);
+  const list = (ideas || []).filter(i => i.status !== "trash");
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+        <button onClick={onBack}
+          style={{ display: "inline-flex", alignItems: "center", gap: 5,
+            background: th.surface, color: th.secondary, border: `1px solid ${th.border}`,
+            borderRadius: 18, padding: "6px 12px", cursor: "pointer",
+            fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
+          <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}>
+            <Icon name="back" size={14} color={th.secondary} />
+          </span>
+          חזרה
+        </button>
+        <span style={{ width: 12, height: 12, borderRadius: "50%", background: share.projectColor }} />
+        <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: th.text, flex: 1 }}>{share.projectName}</h2>
+      </div>
+      <p style={{ margin: "0 0 12px", fontSize: 12, color: th.muted,
+        display: "flex", alignItems: "center", gap: 5 }}>
+        <Icon name="share" size={12} color={th.muted} />
+        משותף על ידי {share.ownerName || share.ownerEmail}
+      </p>
+
+      <CaptureBar uid={uid} th={th} placeholder={`רעיון חדש ב"${share.projectName}"...`}
+        draftKey={`if_draft_s_${share.id}`}
+        onCapture={data => onCapture(share, data)} />
+
+      <div style={{ height: 14 }} />
+      {ideas === null
+        ? <p style={{ textAlign: "center", color: th.muted, fontSize: 13, padding: "20px 0" }}>טוען...</p>
+        : <IdeaList ideas={list} projects={[]} th={th} shared
+            actions={{ comments: idea => actions.shareComments(share, idea), tag: null, openProject: null }}
+            emptyText="אין רעיונות בפרויקט עדיין — הוסף את הראשון" />}
+    </>
+  );
 }
 
 function TrashView({ ideas, th, actions, onBack }) {
@@ -90,7 +145,7 @@ function TrashView({ ideas, th, actions, onBack }) {
   );
 }
 
-function ProjectsIndex({ projects, ideas, th, projActions, onOpen }) {
+function ProjectsIndex({ projects, ideas, th, projActions, onOpen, myShares = {}, sharedWithMe = [] }) {
   const [name, setName] = useState("");
   const [sortMode, setSortMode] = useState(false);
   const sorted = [...projects].sort(projSort);
@@ -162,15 +217,43 @@ function ProjectsIndex({ projects, ideas, th, projActions, onOpen }) {
       ) : (
         sorted.map(p => (
           <ProjectRow key={p.id} p={p} th={th} counts={counts(p)}
+            isShared={!!myShares[p.id]}
             onOpen={() => onOpen(p.id)}
             onPin={() => projActions.update(p.id, { pinned: !p.pinned })} />
         ))
+      )}
+
+      {/* Projects shared with me by others */}
+      {sharedWithMe.length > 0 && !sortMode && (
+        <>
+          <p style={{ fontSize: 12, fontWeight: 600, color: th.muted, letterSpacing: 0.6,
+            margin: "18px 2px 8px" }}>
+            משותפים איתי
+          </p>
+          {sharedWithMe.map(s => (
+            <div key={s.id} onClick={() => onOpen("share:" + s.id)}
+              style={{ display: "flex", alignItems: "center", gap: 11, background: th.surface,
+                border: `1px dashed ${th.borderStrong}`, borderRadius: 14, padding: "14px 15px",
+                marginBottom: 9, cursor: "pointer", direction: "rtl" }}>
+              <span style={{ width: 13, height: 13, borderRadius: "50%", background: s.projectColor, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: th.text }}>{s.projectName}</p>
+                <p style={{ margin: "2px 0 0", fontSize: 12, color: th.muted,
+                  display: "flex", alignItems: "center", gap: 4 }}>
+                  <Icon name="share" size={11} color={th.muted} />
+                  {s.ownerName || s.ownerEmail}
+                </p>
+              </div>
+              <Icon name="back" size={15} color={th.muted} />
+            </div>
+          ))}
+        </>
       )}
     </>
   );
 }
 
-function ProjectRow({ p, th, counts, onOpen, onPin }) {
+function ProjectRow({ p, th, counts, onOpen, onPin, isShared = false }) {
   return (
     <div onClick={onOpen}
       style={{ display: "flex", alignItems: "center", gap: 11, background: th.surface,
@@ -178,7 +261,11 @@ function ProjectRow({ p, th, counts, onOpen, onPin }) {
         marginBottom: 9, cursor: "pointer", direction: "rtl" }}>
       <span style={{ width: 13, height: 13, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: th.text }}>{p.name}</p>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: th.text,
+          display: "flex", alignItems: "center", gap: 6 }}>
+          {p.name}
+          {isShared && <Icon name="share" size={12} color={th.accent} />}
+        </p>
         <p style={{ margin: "2px 0 0", fontSize: 12, color: th.muted }}>
           {counts.active} פעילים{counts.done ? ` · ${counts.done} בוצעו` : ""}
         </p>
@@ -221,10 +308,12 @@ function SortableProjectRow({ p, th, counts }) {
   );
 }
 
-function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions, onCapture, onBack }) {
+function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions, onCapture, onBack,
+  share = null, shareActions }) {
   const [showDone, setShowDone] = useState(false);
   const [sortMode, setSortMode] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState(project.name);
   const [notes, setNotes] = useState(false);
@@ -255,7 +344,19 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
             style={{ flex: 1, fontSize: 17, fontWeight: 700, fontFamily: FONT, color: th.text,
               background: "transparent", border: "none", borderBottom: `1.5px solid ${th.accent}`, direction: "rtl" }} />
         ) : (
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: th.text, flex: 1 }}>{project.name}</h2>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: th.text, flex: 1,
+            display: "flex", alignItems: "center", gap: 7 }}>
+            {project.name}
+            {share && (
+              <span onClick={() => setShowShare(true)}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5,
+                  fontWeight: 600, color: th.accentText, background: th.accentSoft,
+                  borderRadius: 12, padding: "2px 8px", cursor: "pointer" }}>
+                <Icon name="share" size={10} color={th.accentText} />
+                משותף
+              </span>
+            )}
+          </h2>
         )}
         {!showDone && list.length > 1 && (
           <SortToggle sortMode={sortMode} setSortMode={setSortMode} th={th} />
@@ -271,7 +372,7 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
           <MenuBtn th={th} icon="notes" label="הערות" onClick={() => { setMenu(false); setNotesTxt(project.notes || ""); setNotes(true); }} />
           <MenuBtn th={th} icon="pin" label={project.pinned ? "בטל נעיצה" : "נעץ"}
             onClick={() => { setMenu(false); projActions.update(project.id, { pinned: !project.pinned }); }} />
-          <MenuBtn th={th} icon="share" label="שתף" onClick={() => {
+          <MenuBtn th={th} icon="chat" label="שלח בוואטסאפ" onClick={() => {
             setMenu(false);
             const txt = list.map((i, n) => `${n + 1}. ${i.text}`).join("\n");
             window.open("https://wa.me/?text=" + encodeURIComponent(project.name + ":\n" + txt), "_blank");
@@ -281,6 +382,8 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
             const open = ideas.filter(i => i.projectId === project.id && i.status !== "done" && i.status !== "trash");
             actions.exportList(project.name, open);
           }} />
+          <MenuBtn th={th} icon="share" label={share ? `שיתוף (${share.sharedWith.length})` : "שיתוף"}
+            onClick={() => { setMenu(false); setShowShare(true); }} />
           <MenuBtn th={th} icon="delete" label="מחק" danger onClick={() => { setMenu(false); setConfirmDel(true); }} />
         </div>
       )}
@@ -292,7 +395,14 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
       <div style={{ height: 14 }} />
       <IdeaList ideas={list} projects={projects} th={th} actions={actions}
         sortMode={sortMode && !showDone} onReorder={actions.reorder}
+        myShares={share ? { [project.id]: share } : {}}
         emptyText={showDone ? "אין רעיונות שבוצעו" : "אין רעיונות בפרויקט — הוסף אחד למעלה"} />
+
+      {showShare && (
+        <ProjectShareModal project={project} share={share} th={th}
+          onSave={emails => shareActions.save(project, emails)}
+          onClose={() => setShowShare(false)} />
+      )}
 
       {notes && (
         <Modal onClose={() => setNotes(false)} th={th}>

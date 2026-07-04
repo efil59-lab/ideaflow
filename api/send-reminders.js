@@ -122,7 +122,38 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ ok: true, now, fired, sent, pruned, digests });
+    // ── Share notifications (comments / new shared ideas) ────────────────────
+    // Queued by clients in /notifications, delivered here and deleted.
+    let notified = 0;
+    const nSnap = await db.collection("notifications").limit(100).get();
+    for (const nd of nSnap.docs) {
+      const n = nd.data() || {};
+      let subs = [];
+      if (n.toUid) {
+        subs = (await db.collection("pushSubs").where("uid", "==", n.toUid).get()).docs;
+      } else if (n.toEmail) {
+        subs = (await db.collection("pushSubs").where("email", "==", n.toEmail).get()).docs;
+      }
+      const payload = JSON.stringify({
+        title: n.title || "IdeaFlow",
+        body: (n.body || "").slice(0, 180),
+        ideaId: n.ideaId || "share",
+        url: n.url || "/",
+      });
+      await Promise.all(subs.map(async sd => {
+        const sub = sd.data();
+        if (!sub?.endpoint || !sub?.keys) return;
+        try {
+          await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload);
+          notified++;
+        } catch (e) {
+          if (e.statusCode === 404 || e.statusCode === 410) await sd.ref.delete();
+        }
+      }));
+      await nd.ref.delete();
+    }
+
+    return res.status(200).json({ ok: true, now, fired, sent, pruned, digests, notified });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

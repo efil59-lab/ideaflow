@@ -116,6 +116,141 @@ export function ReminderSheet({ idea, onSave, onClose, th }) {
   );
 }
 
+// Owner manages who a project is shared with (Google account emails).
+export function ProjectShareModal({ project, share, onSave, onClose, th }) {
+  const [emails, setEmails] = useState(share?.sharedWith || []);
+  const [input, setInput] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const add = () => {
+    const e = input.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return;
+    if (!emails.includes(e)) setEmails(p => [...p, e]);
+    setInput("");
+  };
+
+  const save = async () => {
+    setSaving(true);
+    await onSave(emails);
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <Modal onClose={onClose} maxWidth={400} th={th}>
+      <ModalHeader title={`שיתוף · ${project.name}`} icon="share" onClose={onClose} th={th} />
+      <p style={{ margin: "0 0 12px", fontSize: 12.5, color: th.secondary, lineHeight: 1.6 }}>
+        מי שברשימה ייכנס לאפליקציה עם חשבון Google של הכתובת — יראה את רעיונות הפרויקט,
+        יגיב עליהם ויוכל להוסיף רעיונות. הוא לא יוכל לערוך או למחוק את שלך.
+      </p>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        <input value={input} onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && add()}
+          placeholder="name@gmail.com" type="email" dir="ltr"
+          style={{ flex: 1, border: `1px solid ${th.border}`, borderRadius: 10,
+            padding: "10px 12px", fontSize: 14, background: th.inputBg,
+            color: th.text, fontFamily: FONT }} />
+        <button onClick={add}
+          style={{ background: th.accent, color: "#fff", border: "none", borderRadius: 10,
+            padding: "0 14px", cursor: "pointer", display: "flex", alignItems: "center" }}>
+          <Icon name="add" size={17} color="#fff" />
+        </button>
+      </div>
+
+      {emails.map(e => (
+        <div key={e} style={{ display: "flex", alignItems: "center", gap: 8,
+          background: th.surface2, borderRadius: 10, padding: "8px 12px", marginBottom: 6 }}>
+          <span style={{ flex: 1, fontSize: 13.5, color: th.text, direction: "ltr", textAlign: "left" }}>{e}</span>
+          <button onClick={() => setEmails(p => p.filter(x => x !== e))}
+            style={{ background: "transparent", border: "none", cursor: "pointer", padding: 3,
+              display: "flex", alignItems: "center" }}>
+            <Icon name="close" size={12} color={th.muted} />
+          </button>
+        </div>
+      ))}
+      {emails.length === 0 && (
+        <p style={{ margin: "4px 0 8px", fontSize: 12, color: th.muted, textAlign: "center" }}>
+          {share ? "שמירה בלי כתובות תבטל את השיתוף" : "הוסף כתובת ראשונה כדי לשתף"}
+        </p>
+      )}
+
+      <button onClick={save} disabled={saving}
+        style={{ width: "100%", marginTop: 10, background: th.accent, color: "#fff",
+          border: "none", borderRadius: 12, padding: "13px 0", cursor: "pointer",
+          fontSize: 15, fontWeight: 700, fontFamily: FONT, opacity: saving ? 0.6 : 1 }}>
+        {emails.length === 0 && share ? "בטל שיתוף" : "שמור שיתוף"}
+      </button>
+    </Modal>
+  );
+}
+
+// Comment thread on a single idea — both owner and guests use this.
+export function CommentsSheet({ idea, liveComments, onAdd, onClose, th }) {
+  const [text, setText] = useState("");
+  const [local, setLocal] = useState([]); // optimistic additions
+  const comments = [...(liveComments ?? idea.comments ?? []), ...local]
+    .sort((a, b) => (a.at || 0) - (b.at || 0));
+
+  const send = () => {
+    const t = text.trim();
+    if (!t) return;
+    onAdd(t);
+    setLocal(p => [...p, { id: `local-${p.length}`, text: t, authorName: "אני", at: Date.now() }]);
+    setText("");
+  };
+
+  return (
+    <Modal onClose={onClose} maxWidth={420} th={th}>
+      <ModalHeader title="תגובות" icon="chat" onClose={onClose} th={th} />
+      <p style={{ margin: "0 0 12px", fontSize: 12.5, color: th.secondary, lineHeight: 1.5,
+        overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+        {(idea.title || idea.text || "").slice(0, 100)}
+      </p>
+
+      <div style={{ maxHeight: 300, overflowY: "auto", marginBottom: 10 }}>
+        {comments.length === 0 && (
+          <p style={{ textAlign: "center", fontSize: 13, color: th.muted, padding: "16px 0" }}>
+            אין תגובות עדיין — היה הראשון
+          </p>
+        )}
+        {comments.map(c => (
+          <div key={c.id} style={{ background: th.surface2, borderRadius: 11,
+            padding: "8px 12px", marginBottom: 7 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: th.accentText }}>
+                {c.authorName || c.authorEmail || "אורח"}
+              </span>
+              <span style={{ fontSize: 10, color: th.muted }}>{fmtShort(c.at)}</span>
+            </div>
+            <p style={{ margin: "3px 0 0", fontSize: 13.5, color: th.text, lineHeight: 1.55,
+              whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{c.text}</p>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 6 }}>
+        <input value={text} onChange={e => setText(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && send()}
+          placeholder="כתוב תגובה..."
+          style={{ flex: 1, border: `1px solid ${th.border}`, borderRadius: 11,
+            padding: "10px 12px", fontSize: 14, background: th.inputBg,
+            color: th.text, fontFamily: FONT, direction: "rtl" }} />
+        <button onClick={send}
+          style={{ background: th.accent, color: "#fff", border: "none", borderRadius: 11,
+            padding: "0 14px", cursor: "pointer", display: "flex", alignItems: "center" }}>
+          <Icon name="send" size={16} color="#fff" />
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function fmtShort(ts) {
+  if (!ts) return "";
+  return new Date(ts).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
 function Row({ label, dot, active, onClick, th }) {
   return (
     <button onClick={onClick}

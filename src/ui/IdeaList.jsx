@@ -12,7 +12,7 @@ import { FONT } from "../theme";
 const eff = i => (typeof i.order === "number" ? i.order : -(i.createdAt || 0));
 
 export default function IdeaList({ ideas, projects, showProject = false, th, actions,
-  emptyText, sortMode = false, onReorder }) {
+  emptyText, sortMode = false, onReorder, shared = false, myShares = {} }) {
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
@@ -33,16 +33,19 @@ export default function IdeaList({ ideas, projects, showProject = false, th, act
       projects={projects}
       project={projects.find(p => p.id === idea.projectId)}
       showProject={showProject}
-      onUpdate={patch => actions.update(idea.id, patch, idea)}
-      onDelete={() => actions.remove(idea)}
-      onEdit={() => actions.edit(idea)}
-      onShare={() => actions.share(idea)}
-      onMove={() => actions.move(idea)}
-      onRemind={() => actions.remind(idea)}
+      shared={shared}
+      commentable={shared || !!myShares[idea.projectId]}
+      onComments={() => actions.comments?.(idea)}
+      onUpdate={patch => actions.update?.(idea.id, patch, idea)}
+      onDelete={() => actions.remove?.(idea)}
+      onEdit={() => actions.edit?.(idea)}
+      onShare={() => actions.share?.(idea)}
+      onMove={() => actions.move?.(idea)}
+      onRemind={() => actions.remind?.(idea)}
       onTagClick={actions.tag}
       onOpenProject={actions.openProject}
-      onAcceptAI={() => actions.update(idea.id, { projectId: idea.aiProject, aiProject: null, status: "active" }, idea)}
-      onDismissAI={() => actions.update(idea.id, { aiProject: null }, idea)}
+      onAcceptAI={() => actions.update?.(idea.id, { projectId: idea.aiProject, aiProject: null, status: "active" }, idea)}
+      onDismissAI={() => actions.update?.(idea.id, { aiProject: null }, idea)}
     />
   );
 

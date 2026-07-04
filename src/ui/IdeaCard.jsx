@@ -7,7 +7,8 @@ import { FONT, fmt } from "../theme";
 
 export default function IdeaCard({ idea, project, projects, showProject, th,
   onUpdate, onDelete, onEdit, onShare, onMove, onAcceptAI, onDismissAI,
-  onRemind, onTagClick, onOpenProject,
+  onRemind, onTagClick, onOpenProject, onComments,
+  shared = false, commentable = false,
   sortMode = false, dragHandleProps = {} }) {
   const [more, setMore] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -58,19 +59,20 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
               ⠿
             </div>
           ) : (
-          <div onClick={onCheck} style={{
+          <div onClick={shared ? undefined : onCheck} style={{
             flexShrink: 0, width: 21, height: 21, borderRadius: 7, marginLeft: 11, marginTop: 2,
             border: done ? "none" : `1.5px solid ${th.borderStrong}`,
             background: done ? th.green : "transparent",
             display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", transition: "all .15s" }}>
+            cursor: shared ? "default" : "pointer", transition: "all .15s",
+            opacity: shared ? 0.55 : 1 }}>
             {done && <Icon name="check" size={13} color="#fff" />}
           </div>
           )}
 
           <div style={{ flex: 1, minWidth: 0 }}>
             {idea.title && (
-              <p onClick={sortMode ? undefined : onEdit}
+              <p onClick={sortMode ? undefined : (shared ? () => setExpanded(p => !p) : onEdit)}
                 style={{ margin: "0 0 3px", fontSize: 14.5, fontWeight: 600, color: th.text,
                   textDecoration: done ? "line-through" : "none", lineHeight: 1.4,
                   cursor: sortMode ? "default" : "pointer" }}>
@@ -79,7 +81,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
                 {idea.title}
               </p>
             )}
-            <div onClick={sortMode ? undefined : onEdit}
+            <div onClick={sortMode ? undefined : (shared ? () => setExpanded(p => !p) : onEdit)}
               style={{ fontSize: idea.title ? 13.5 : 14.5, lineHeight: 1.55,
                 color: idea.title ? th.secondary : th.text,
                 fontWeight: idea.title ? 400 : (done ? 400 : 450),
@@ -105,7 +107,8 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
             )}
 
             {/* Context chips */}
-            {(showProject && project) || idea.tags?.length > 0 || (idea.remindAt && idea.remindAt > Date.now()) ? (
+            {(showProject && project) || idea.tags?.length > 0 || (idea.remindAt && idea.remindAt > Date.now())
+              || idea.comments?.length > 0 || idea.createdBy ? (
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>
                 {showProject && project && (
                   <Chip th={th} border={th.border} onClick={onOpenProject ? () => onOpenProject(project.id) : undefined}>
@@ -121,6 +124,19 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
                   <Chip th={th} color={th.accentText} bg={th.accentSoft}>
                     <Icon name="bell" size={11} color={th.accentText} />
                     {new Date(idea.remindAt).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                  </Chip>
+                )}
+                {idea.comments?.length > 0 && (
+                  <Chip th={th} color={th.accentText} bg={th.accentSoft}
+                    onClick={onComments}>
+                    <Icon name="chat" size={11} color={th.accentText} />
+                    {idea.comments.length}
+                  </Chip>
+                )}
+                {idea.createdBy && (
+                  <Chip th={th}>
+                    <Icon name="edit" size={10} color={th.muted} />
+                    {idea.createdBy.name || idea.createdBy.email}
                   </Chip>
                 )}
               </div>
@@ -165,8 +181,22 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
           </div>
         )}
 
+        {/* Action row — guests get a slim read-only strip */}
+        {!sortMode && shared && (
+        <div style={{ borderTop: `1px solid ${th.border}`, padding: "3px 8px",
+          display: "flex", alignItems: "center", minHeight: 38 }}>
+          <IconBtn name="chat" onClick={onComments} color={th.accent} size={18} pad="6px 8px" title="תגובות" />
+          <IconBtn name={copied ? "check" : "copy"} onClick={onCopy}
+            color={copied ? th.green : th.muted} size={18} pad="6px 8px" />
+          <span style={{ marginRight: "auto", fontSize: 10.5, color: th.muted,
+            display: "flex", alignItems: "center", gap: 4, paddingLeft: 4 }}>
+            {fmt(idea.createdAt)}
+          </span>
+        </div>
+        )}
+
         {/* Action row */}
-        {!sortMode && (
+        {!sortMode && !shared && (
         <div style={{ borderTop: `1px solid ${th.border}`, padding: "3px 8px",
           display: "flex", alignItems: "center", minHeight: 38 }}>
           {!more ? (
@@ -178,6 +208,9 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
               <IconBtn name="bell" onClick={onRemind}
                 color={idea.remindAt && idea.remindAt > Date.now() ? th.accent : th.muted}
                 size={18} pad="6px 8px" title="תזכורת" />
+              {commentable && (
+                <IconBtn name="chat" onClick={onComments} color={th.muted} size={18} pad="6px 8px" title="תגובות" />
+              )}
               <IconBtn name="folder" onClick={onMove} color={th.muted} size={18} pad="6px 8px" title="העבר לפרויקט" />
               <IconBtn name="more" onClick={() => setMore(true)} color={th.muted} size={18} pad="6px 8px" style={{ opacity: 0.6 }} />
               <span style={{ marginRight: "auto", fontSize: 10.5, color: th.muted,

@@ -1,19 +1,66 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isMe(uid) { return signedIn() && request.auth.uid == uid; }
+    function myEmail() { return request.auth.token.email.lower(); }
+    // Membership check against the share certificate shares/{ownerUid}_{projectId}
+    function isShareMember(ownerUid, projectId) {
+      return signedIn()
+        && myEmail() in get(/databases/$(database)/documents/shares/$(ownerUid + '_' + projectId)).data.sharedWith;
+    }
+
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read, write: if isMe(uid);
       match /{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read, write: if isMe(uid);
+      }
+
+      // Shared-project access for invited guests (owner already covered above)
+      match /ideas/{ideaId} {
+        // Guests can read ideas of a project shared with them
+        allow read: if resource.data.projectId is string
+                    && isShareMember(uid, resource.data.projectId);
+        // Guests can add NEW ideas into the shared project, attributed to themselves
+        allow create: if request.resource.data.projectId is string
+                      && isShareMember(uid, request.resource.data.projectId)
+                      && request.resource.data.createdBy.uid == request.auth.uid;
+        // Guests can ONLY append comments — nothing else on the idea may change
+        allow update: if resource.data.projectId is string
+                      && isShareMember(uid, resource.data.projectId)
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['comments', 'updatedAt']);
       }
     }
-    match /reminders/{rid} {
-      allow read, delete: if request.auth != null && resource.data.uid == request.auth.uid;
-      allow create, update: if request.auth != null && request.resource.data.uid == request.auth.uid;
+
+    // Share certificates: shares/{ownerUid}_{projectId}
+    match /shares/{shareId} {
+      allow read: if signedIn()
+                  && (resource.data.ownerUid == request.auth.uid
+                      || myEmail() in resource.data.sharedWith);
+      allow create, update: if signedIn()
+                  && request.resource.data.ownerUid == request.auth.uid
+                  && shareId == request.auth.uid + '_' + request.resource.data.projectId;
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
     }
+
+    match /reminders/{rid} {
+      allow read, delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create, update: if signedIn() && request.resource.data.uid == request.auth.uid;
+    }
+
     match /pushSubs/{sid} {
-      allow read, delete: if request.auth != null && resource.data.uid == request.auth.uid;
-      allow create, update: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow read, delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create, update: if signedIn() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // Push-notification queue (comments / shared ideas) — write-only for clients,
+    // consumed and deleted by the server cron.
+    match /notifications/{nid} {
+      allow create: if signedIn()
+                    && request.resource.data.fromUid == request.auth.uid
+                    && request.resource.data.keys().hasAll(['title', 'body']);
     }
   }
 }

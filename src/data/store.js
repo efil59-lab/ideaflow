@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { db, storage } from "../firebase";
 import {
-  collection, doc, getDoc, onSnapshot, setDoc, updateDoc, deleteDoc, query, orderBy, writeBatch,
+  collection, doc, getDoc, onSnapshot, setDoc, updateDoc, deleteDoc, query, orderBy, where, writeBatch, arrayUnion,
 } from "firebase/firestore";
 import { ref as storageRef, deleteObject } from "firebase/storage";
 
@@ -87,7 +87,7 @@ export async function addIdea(uid, data) {
     text: "", html: "", title: "", tags: [],
     status: "inbox", projectId: null, aiProject: null,
     pinned: false, colorIdx: null, order: null,
-    images: [], audios: [], remindAt: null,
+    images: [], audios: [], remindAt: null, comments: [],
     createdAt: Date.now(), updatedAt: Date.now(),
     ...data,
   };
@@ -179,4 +179,102 @@ export async function deleteProject(uid, id, ideas) {
     }, i);
   }
   await deleteDoc(doc(projectsCol(uid), id));
+  removeShare(uid, id).catch(() => {});
+}
+
+// ── Sharing ───────────────────────────────────────────────────────────────────
+// A "share certificate" at shares/{ownerUid}_{projectId} lists invited emails.
+// Security rules use it to grant guests scoped access to that project's ideas.
+export const shareIdOf = (uid, pid) => `${uid}_${pid}`;
+
+export async function saveShare(uid, project, emails, owner) {
+  if (import.meta.env.DEV && uid === "demo") return;
+  await setDoc(doc(db, "shares", shareIdOf(uid, project.id)), {
+    ownerUid: uid,
+    projectId: project.id,
+    projectName: project.name,
+    projectColor: project.color || "#2E5BE6",
+    ownerName: owner.name || owner.email || "",
+    ownerEmail: (owner.email || "").toLowerCase(),
+    sharedWith: [...new Set(emails.map(e => String(e).trim().toLowerCase()).filter(Boolean))],
+    updatedAt: Date.now(),
+  });
+}
+
+export async function removeShare(uid, pid) {
+  if (import.meta.env.DEV && uid === "demo") return;
+  await deleteDoc(doc(db, "shares", shareIdOf(uid, pid)));
+}
+
+// Owner side: my shares, keyed by projectId (drives badges + the share modal)
+export function useMyShares(uid) {
+  const [shares, setShares] = useState({});
+  useEffect(() => {
+    if (!uid || (import.meta.env.DEV && uid === "demo")) return;
+    const q = query(collection(db, "shares"), where("ownerUid", "==", uid));
+    return onSnapshot(q, snap => {
+      const m = {};
+      snap.docs.forEach(d => { m[d.data().projectId] = { id: d.id, ...d.data() }; });
+      setShares(m);
+    }, () => setShares({}));
+  }, [uid]);
+  return shares;
+}
+
+// Guest side: projects shared with my email
+export function useSharedWithMe(email) {
+  const [list, setList] = useState([]);
+  useEffect(() => {
+    if (!email) return;
+    const q = query(collection(db, "shares"), where("sharedWith", "array-contains", email.toLowerCase()));
+    return onSnapshot(q, snap => setList(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      () => setList([]));
+  }, [email]);
+  return list;
+}
+
+// Guest side: live ideas of one shared project (owner's collection, scoped query)
+export function useSharedIdeas(ownerUid, projectId) {
+  const [ideas, setIdeas] = useState(null);
+  useEffect(() => {
+    if (!ownerUid || !projectId) return;
+    const q = query(ideasCol(ownerUid), where("projectId", "==", projectId));
+    return onSnapshot(q, snap => setIdeas(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      err => { console.warn("shared ideas:", err); setIdeas([]); });
+  }, [ownerUid, projectId]);
+  return ideas;
+}
+
+// Append a comment to an idea (owner or guest — rules restrict guests to this)
+export async function addComment(ownerUid, ideaId, comment) {
+  if (import.meta.env.DEV && ownerUid === "demo") return;
+  await updateDoc(doc(collection(db, "users", ownerUid, "ideas"), ideaId), {
+    comments: arrayUnion({ ...comment, id: newId(), at: Date.now() }),
+    updatedAt: Date.now(),
+  });
+}
+
+// Guest adds a new idea into the owner's shared project
+export async function addSharedIdea(ownerUid, data, createdBy) {
+  const id = newId();
+  const idea = {
+    text: "", html: "", title: "", tags: [],
+    status: "active", projectId: null, aiProject: null,
+    pinned: false, colorIdx: null, order: null,
+    images: [], audios: [], remindAt: null, comments: [],
+    createdBy,
+    createdAt: Date.now(), updatedAt: Date.now(),
+    ...data,
+  };
+  await setDoc(doc(collection(db, "users", ownerUid, "ideas"), id), idea);
+  return { id, ...idea };
+}
+
+// Queue a push notification (consumed by the server cron within a minute).
+// target: { toUid } or { toEmail }.
+export function queueNotification(fromUid, target, payload) {
+  if (import.meta.env.DEV && fromUid === "demo") return Promise.resolve();
+  return setDoc(doc(collection(db, "notifications"), newId()), {
+    fromUid, ...target, ...payload, createdAt: Date.now(),
+  }).catch(() => {});
 }

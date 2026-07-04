@@ -3,14 +3,19 @@ import { useState, useEffect, useRef } from "react";
 import { auth, googleProvider } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { getTheme, FONT } from "./theme";
-import { useIdeas, useProjects, addIdea, updateIdea, deleteIdea, reorderIdeas, addProject, updateProject, deleteProject, reorderProjects, guideNotSeenYet } from "./data/store";
+import {
+  useIdeas, useProjects, addIdea, updateIdea, deleteIdea, reorderIdeas,
+  addProject, updateProject, deleteProject, reorderProjects, guideNotSeenYet,
+  useMyShares, useSharedWithMe, saveShare, removeShare,
+  addComment, addSharedIdea, queueNotification,
+} from "./data/store";
 import { migrateIfNeeded } from "./data/migrate";
 import { enrichIdea } from "./data/ai";
 import { exportIdeas } from "./data/export";
 import { enablePush } from "./push";
 import { Icon, IconBtn } from "./ui/Icons";
 import { Modal, Toast } from "./ui/base";
-import { ShareModal, MoveSheet, ReminderSheet } from "./ui/sheets";
+import { ShareModal, MoveSheet, ReminderSheet, CommentsSheet } from "./ui/sheets";
 import Editor from "./ui/Editor";
 import Inbox from "./screens/Inbox";
 import Projects from "./screens/Projects";
@@ -241,6 +246,14 @@ function Shell({ user, dark, setDark, th }) {
   const ideas = useIdeas(migrating ? null : uid);
   const projects = useProjects(migrating ? null : uid);
 
+  // Sharing
+  const myEmail = (user.email || "").toLowerCase();
+  const myName = user.displayName || myEmail;
+  const myShares = useMyShares(migrating ? null : uid);
+  const sharedWithMe = useSharedWithMe(migrating ? null : myEmail);
+  // Comments context: { idea, ownerUid, share? } — share present when viewing a guest project
+  const [commentsCtx, setCommentsCtx] = useState(null);
+
   const toast$ = m => { setToast(m); setTimeout(() => setToast(null), 1700); };
 
   // One-time migration gate, then SW + push
@@ -286,17 +299,29 @@ function Shell({ user, dark, setDark, th }) {
   // (app already open) opens that idea's editor.
   const [pendingIdeaId, setPendingIdeaId] = useState(
     () => new URLSearchParams(location.search).get("idea"));
+  const [pendingShareId, setPendingShareId] = useState(
+    () => new URLSearchParams(location.search).get("share"));
   useEffect(() => {
     const onMsg = e => {
       if (e.data?.type !== "OPEN_URL") return;
       try {
-        const id = new URL(e.data.url, location.origin).searchParams.get("idea");
-        if (id) setPendingIdeaId(id);
+        const params = new URL(e.data.url, location.origin).searchParams;
+        if (params.get("idea")) setPendingIdeaId(params.get("idea"));
+        if (params.get("share")) setPendingShareId(params.get("share"));
       } catch { /* malformed url */ }
     };
     navigator.serviceWorker?.addEventListener("message", onMsg);
     return () => navigator.serviceWorker?.removeEventListener("message", onMsg);
   }, []);
+  useEffect(() => {
+    if (!pendingShareId || !sharedWithMe.length) return;
+    const share = sharedWithMe.find(s => s.id === pendingShareId);
+    if (!share) return;
+    setPendingShareId(null);
+    try { history.replaceState({ ifApp: true }, "", location.pathname); } catch { /* ignore */ }
+    setOpenProjectId("share:" + share.id);
+    setTab("projects");
+  }, [pendingShareId, sharedWithMe]);
   useEffect(() => {
     if (!pendingIdeaId || !ideas) return;
     const idea = ideas.find(i => i.id === pendingIdeaId);
@@ -309,7 +334,7 @@ function Shell({ user, dark, setDark, th }) {
   // at the root, require a double-press to actually exit.
   const uiRef = useRef({});
   useEffect(() => {
-    uiRef.current = { showGuide, showUser, showAI, remindIdea, moveIdea, shareIdea, editIdea, openProjectId, tab };
+    uiRef.current = { showGuide, showUser, showAI, remindIdea, moveIdea, shareIdea, editIdea, commentsCtx, openProjectId, tab };
   });
   const rearmRef = useRef(null);
   useEffect(() => {
@@ -328,6 +353,7 @@ function Shell({ user, dark, setDark, th }) {
       if (s.showGuide) setShowGuide(false);
       else if (s.showUser) setShowUser(false);
       else if (s.showAI) setShowAI(false);
+      else if (s.commentsCtx) setCommentsCtx(null);
       else if (s.remindIdea) setRemindIdea(null);
       else if (s.moveIdea) setMoveIdea(null);
       else if (s.shareIdea) setShareIdea(null);
@@ -406,11 +432,71 @@ function Shell({ user, dark, setDark, th }) {
       const copied = await exportIdeas(name, list);
       toast$(copied ? "הועתק ללוח והורד כקובץ — הדבק בקלוד" : "הקובץ הורד");
     },
+    // Comments — on my own idea (owner side) / on an idea in a project shared with me
+    comments: idea => setCommentsCtx({ idea, ownerUid: uid, share: myShares[idea.projectId] || null }),
+    shareComments: (share, idea) => setCommentsCtx({ idea, ownerUid: share.ownerUid, share }),
+  };
+
+  // Notify everyone in a share except the author (owner by uid, guests by email).
+  const notifyShare = (share, ownerUid, { title, body, ideaId }) => {
+    if (!share) return;
+    if (ownerUid !== uid) {
+      queueNotification(uid, { toUid: ownerUid }, { title, body, ideaId, url: `/?idea=${ideaId}` });
+    }
+    for (const email of share.sharedWith || []) {
+      if (email === myEmail) continue;
+      queueNotification(uid, { toEmail: email }, { title, body, ideaId, url: `/?share=${share.id}` });
+    }
+  };
+
+  const postComment = async (text) => {
+    const { idea, ownerUid, share } = commentsCtx;
+    await addComment(ownerUid, idea.id, {
+      text, authorUid: uid, authorName: myName, authorEmail: myEmail,
+    });
+    notifyShare(share, ownerUid, {
+      title: "💬 תגובה חדשה — IdeaFlow",
+      body: `${myName}: ${text.slice(0, 100)}`,
+      ideaId: idea.id,
+    });
+  };
+
+  // Guest capture into a shared project
+  const sharedCapture = async (share, data) => {
+    await addSharedIdea(share.ownerUid, { ...data, projectId: share.projectId },
+      { uid, name: myName, email: myEmail });
+    toast$("נשמר");
+    notifyShare(share, share.ownerUid, {
+      title: "💡 רעיון חדש בפרויקט משותף",
+      body: `${myName} הוסיף ל"${share.projectName}": ${(data.text || "").slice(0, 80)}`,
+      ideaId: "shared",
+    });
+  };
+
+  const shareActions = {
+    save: async (project, emails) => {
+      if (emails.length) {
+        await saveShare(uid, project, emails, { name: myName, email: myEmail });
+        toast$("השיתוף נשמר");
+      } else {
+        await removeShare(uid, project.id);
+        toast$("השיתוף בוטל");
+      }
+    },
   };
 
   const projActions = {
     add: async name => { const id = await addProject(uid, name, projects.length); setOpenProjectId(id); },
-    update: (id, patch) => updateProject(uid, id, patch),
+    update: async (id, patch) => {
+      await updateProject(uid, id, patch);
+      // Keep the share certificate's denormalized name/color fresh
+      const share = myShares[id];
+      if (share && ("name" in patch || "color" in patch)) {
+        const p = projects.find(x => x.id === id);
+        if (p) saveShare(uid, { ...p, ...patch }, share.sharedWith,
+          { name: myName, email: myEmail }).catch(() => {});
+      }
+    },
     remove: id => deleteProject(uid, id, ideas),
     reorder: ids => reorderProjects(uid, ids).catch(e => console.warn("reorder projects:", e)),
   };
@@ -464,11 +550,13 @@ function Shell({ user, dark, setDark, th }) {
       <div style={{ maxWidth: 560, margin: "0 auto", padding: "14px 14px 90px",
         animation: "fadeUp 0.6s ease-out 0.15s both" }}>
         {tab === "inbox" && (
-          <Inbox uid={uid} ideas={ideas} projects={projects} th={th} actions={actions} onCapture={capture} />
+          <Inbox uid={uid} ideas={ideas} projects={projects} th={th} actions={actions} onCapture={capture} myShares={myShares} />
         )}
         {tab === "projects" && (
           <Projects uid={uid} ideas={ideas} projects={projects} th={th} actions={actions}
             projActions={projActions} onCapture={capture}
+            myShares={myShares} sharedWithMe={sharedWithMe}
+            shareActions={shareActions} onSharedCapture={sharedCapture}
             openProjectId={openProjectId} setOpenProjectId={setOpenProjectId} />
         )}
         {tab === "search" && (
@@ -518,6 +606,16 @@ function Shell({ user, dark, setDark, th }) {
           onClose={() => setEditIdea(null)} th={th} />
       )}
       {shareIdea && <ShareModal idea={shareIdea} onClose={() => setShareIdea(null)} th={th} />}
+      {commentsCtx && (
+        <CommentsSheet idea={commentsCtx.idea} th={th}
+          liveComments={
+            commentsCtx.ownerUid === uid
+              ? (ideas.find(i => i.id === commentsCtx.idea.id)?.comments || commentsCtx.idea.comments)
+              : null /* guest view: optimistic local append inside the sheet */
+          }
+          onAdd={postComment}
+          onClose={() => setCommentsCtx(null)} />
+      )}
       {remindIdea && (
         <ReminderSheet idea={remindIdea} th={th}
           onSave={async ts => {
@@ -569,7 +667,7 @@ function Shell({ user, dark, setDark, th }) {
       {showGuide && <Guide onClose={() => setShowGuide(false)} th={th} />}
 
       {/* Install banner waits politely while the guide (or any modal) is open */}
-      <InstallBanner th={th} hidden={showGuide || showAI || showUser || !!editIdea || !!remindIdea || !!moveIdea || !!shareIdea} />
+      <InstallBanner th={th} hidden={showGuide || showAI || showUser || !!editIdea || !!remindIdea || !!moveIdea || !!shareIdea || !!commentsCtx} />
     </div>
   );
 }
@@ -585,6 +683,7 @@ function Guide({ onClose, th }) {
     { icon: "bell", title: "תזכורות", text: "פעמון על כל כרטיס: בעוד שעה / הערב / מחר או זמן מדויק. ההתראה מגיעה גם כשהאפליקציה סגורה, ולחיצה עליה פותחת את הרעיון עצמו." },
     { icon: "share", title: "מכל אפליקציה", text: "ראית משהו בוואטסאפ או בדפדפן? שתף → IdeaFlow והוא יחכה בתיבת התפיסה. ולחיצה ארוכה על אייקון האפליקציה — קיצור \"רעיון חדש\"." },
     { icon: "export", title: "ייצוא לקלוד", text: "בתפריט של כל פרויקט (וב-Inbox): \"ייצוא לקלוד\" מעתיק את כל הרעיונות הפתוחים כטקסט מוכן להדבקה בצ'אט." },
+    { icon: "chat", title: "שיתוף פרויקט", text: "בתפריט פרויקט → שיתוף → הוסף כתובות Gmail. המוזמנים רואים את הרעיונות, מגיבים ומוסיפים משלהם — ואתה מקבל התראה על כל תגובה." },
     { icon: "search", title: "חיפוש ותגיות", text: "חיפוש בכל הפרויקטים, כולל כותרות ותגיות. כל תגית היא כפתור — לחיצה מציגה את כל הרעיונות הדומים." },
     { icon: "delete", title: "פח אשפה", text: "מחיקה היא הפיכה: הרעיון עובר לפח (אייקון הפח במסך הפרויקטים) ונשאר שם 30 יום לפני שנמחק לצמיתות." },
   ];
