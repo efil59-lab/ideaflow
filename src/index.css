@@ -31,6 +31,17 @@ input:focus, textarea:focus, [contenteditable]:focus { outline: none; }
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.35; transform: scale(0.8); }
 }
+/* Mark-as-done: hold the checked + struck-through state, then slide away. */
+@keyframes completeOut {
+  0%   { opacity: 1; transform: none; }
+  45%  { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateX(-10px) scale(0.97); }
+}
+@keyframes checkPop {
+  0%   { transform: scale(0); }
+  60%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

@@ -15,13 +15,22 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
   const [bigImg, setBigImg] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
+  const [completing, setCompleting] = useState(false);
 
   const done = idea.status === "done";
+  const showDone = done || completing; // reflect the checked state during the exit animation
   const isLong = (idea.text || "").length > 130;
   const aiProj = idea.aiProject ? projects.find(p => p.id === idea.aiProject) : null;
   const cardBg = (idea.colorIdx != null && th.pastels[idea.colorIdx]) || th.surface;
 
-  const onCheck = () => onUpdate({ status: done ? (idea.projectId ? "active" : "inbox") : "done" });
+  // Marking done: show the ✓ + strike-through first, then let the card slide out
+  // before the status flips (which is what removes it from the list). Undo is instant.
+  const onCheck = () => {
+    if (done) { onUpdate({ status: idea.projectId ? "active" : "inbox" }); return; }
+    if (completing) return;
+    setCompleting(true);
+    setTimeout(() => { onUpdate({ status: "done" }); setCompleting(false); }, 700);
+  };
 
   const onCopy = () => {
     navigator.clipboard?.writeText(idea.text).catch(() => {});
@@ -47,8 +56,9 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
         </div>, document.body)}
 
       <div style={{ background: cardBg, borderRadius: 14, marginBottom: 10,
-        border: `1px solid ${th.border}`, opacity: done ? 0.55 : 1,
-        direction: "rtl", animation: "fadeUp .18s ease-out" }}>
+        border: `1px solid ${th.border}`, opacity: (done && !completing) ? 0.55 : 1,
+        direction: "rtl",
+        animation: completing ? "completeOut .7s ease-in forwards" : "fadeUp .18s ease-out" }}>
 
         <div style={{ display: "flex", alignItems: "flex-start", padding: sortMode ? "12px 13px" : "12px 13px 6px" }}>
           {sortMode ? (
@@ -61,12 +71,15 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
           ) : (
           <div onClick={shared ? undefined : onCheck} style={{
             flexShrink: 0, width: 21, height: 21, borderRadius: 7, marginLeft: 11, marginTop: 2,
-            border: done ? "none" : `1.5px solid ${th.borderStrong}`,
-            background: done ? th.green : "transparent",
+            border: showDone ? "none" : `1.5px solid ${th.borderStrong}`,
+            background: showDone ? th.green : "transparent",
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: shared ? "default" : "pointer", transition: "all .15s",
             opacity: shared ? 0.55 : 1 }}>
-            {done && <Icon name="check" size={13} color="#fff" />}
+            {showDone && <span style={{ display: "inline-flex",
+              animation: completing ? "checkPop .3s ease-out" : "none" }}>
+              <Icon name="check" size={13} color="#fff" />
+            </span>}
           </div>
           )}
 
@@ -74,7 +87,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
             {idea.title && (
               <p onClick={sortMode ? undefined : (shared ? () => setExpanded(p => !p) : onEdit)}
                 style={{ margin: "0 0 3px", fontSize: 14.5, fontWeight: 600, color: th.text,
-                  textDecoration: done ? "line-through" : "none", lineHeight: 1.4,
+                  textDecoration: showDone ? "line-through" : "none", lineHeight: 1.4,
                   cursor: sortMode ? "default" : "pointer" }}>
                 {idea.pinned && <span style={{ display: "inline-flex", verticalAlign: "middle", marginLeft: 4 }}>
                   <Icon name="pin" size={12} color={th.accent} /></span>}
@@ -84,8 +97,8 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
             <div onClick={sortMode ? undefined : (shared ? () => setExpanded(p => !p) : onEdit)}
               style={{ fontSize: idea.title ? 13.5 : 14.5, lineHeight: 1.55,
                 color: idea.title ? th.secondary : th.text,
-                fontWeight: idea.title ? 400 : (done ? 400 : 450),
-                textDecoration: done ? "line-through" : "none",
+                fontWeight: idea.title ? 400 : (showDone ? 400 : 450),
+                textDecoration: showDone ? "line-through" : "none",
                 cursor: sortMode ? "default" : "pointer",
                 whiteSpace: idea.html ? "normal" : "pre-wrap", wordBreak: "break-word",
                 overflow: "hidden", display: "-webkit-box",
