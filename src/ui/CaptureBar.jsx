@@ -31,22 +31,46 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
   const [autoFocus, setAutoFocus] = useState(false);
   useEffect(() => {
     let requested = false;
-    try {
-      if (localStorage.getItem("if_focus_capture") === "1") {
-        localStorage.removeItem("if_focus_capture");
-        requested = true;
-      }
-    } catch { /* ignore */ }
+    try { requested = localStorage.getItem("if_focus_capture") === "1"; } catch { /* ignore */ }
     if (!requested) return;
     setAutoFocus(true);
-    const timers = [0, 120, 300, 600, 1000].map(ms => setTimeout(() => {
+
+    // Consume the flag only once we've done our job (or the window lapses) — not
+    // on mount — so a dev StrictMode double-mount or a quick tab bounce still
+    // re-focuses instead of silently dropping the request.
+    const done = () => {
+      try { localStorage.removeItem("if_focus_capture"); } catch { /* ignore */ }
+      document.removeEventListener("pointerdown", onFirstTap, true);
+      timers.forEach(clearTimeout);
+      clearTimeout(stop);
+    };
+    const focusEnd = () => {
       const el = taRef.current;
       if (!el) return;
       el.focus();
-      // Put the caret at the end of any restored draft.
       try { const n = el.value.length; el.setSelectionRange(n, n); } catch { /* ignore */ }
-    }, ms));
-    return () => timers.forEach(clearTimeout);
+      if (document.activeElement === el) done(); // keyboard up — stop retrying
+    };
+    // Android won't raise the soft keyboard for a scripted focus once the launch
+    // activation lapses. The user's first tap on any neutral area (not a button
+    // or field) is a real gesture, so focusing inside it does raise it. One-shot,
+    // and it never hijacks a deliberate control tap.
+    const onFirstTap = e => {
+      if (taRef.current && document.activeElement === taRef.current) { done(); return; }
+      if (e.target.closest("button, input, textarea, select, a")) return;
+      focusEnd();
+      done();
+    };
+    const timers = [0, 120, 300, 600, 1000].map(ms => setTimeout(focusEnd, ms));
+    document.addEventListener("pointerdown", onFirstTap, true);
+    const stop = setTimeout(done, 8000);
+
+    // Keep the flag on transient unmount; only detach our own listeners/timers.
+    return () => {
+      document.removeEventListener("pointerdown", onFirstTap, true);
+      timers.forEach(clearTimeout);
+      clearTimeout(stop);
+    };
   }, []);
 
   const addMedia = async (file, kind) => {

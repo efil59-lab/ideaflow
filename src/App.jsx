@@ -61,13 +61,30 @@ export default function App() {
   const [dark, setDark] = useState(() => localStorage.getItem("if_dark") === "1");
   const th = getTheme(dark);
 
+  // A shortcut / share launch wants the keyboard up immediately. Android only
+  // raises it for a focus() that lands while the launch tap's activation is
+  // still live — so on that path we skip the splash and mount the capture box
+  // on the very first paint, before the activation window lapses.
+  const shortcutLaunch = useState(() => {
+    try {
+      const p = new URLSearchParams(location.search);
+      return p.has("capture") || !!(p.get("title") || p.get("text") || p.get("url"));
+    } catch { return false; }
+  })[0];
+  // Read once up front — the intake below strips the query string.
+  const isUipreview = useState(() => {
+    try { return import.meta.env.DEV && new URLSearchParams(location.search).has("uipreview"); }
+    catch { return false; }
+  })[0];
+
   // Hold the splash for a minimum beat so the light-up animation is actually
   // seen — cached auth resolves in milliseconds and used to skip right past it.
-  const [bootDone, setBootDone] = useState(false);
+  const [bootDone, setBootDone] = useState(shortcutLaunch);
   useEffect(() => {
+    if (shortcutLaunch) return;
     const t = setTimeout(() => setBootDone(true), 1500);
     return () => clearTimeout(t);
-  }, []);
+  }, [shortcutLaunch]);
 
   // Intake from Android intents (runs once, before any screen mounts):
   // - share_target: /?title=..&text=..&url=..  → becomes the capture draft
@@ -96,7 +113,9 @@ export default function App() {
   // Statically stripped from production builds.
   if (!bootDone) return <Splash th={th} />;
 
-  if (import.meta.env.DEV && new URLSearchParams(location.search).has("uipreview")) {
+  // The inline import.meta.env.DEV keeps the minifier proving this branch (and
+  // its demo user literal) dead in production, so it's fully stripped.
+  if (import.meta.env.DEV && isUipreview) {
     return <Shell user={{ uid: "demo", displayName: "תצוגה מקדימה", email: "demo@local", photoURL: null }}
       dark={dark} setDark={setDark} th={th} />;
   }
