@@ -27,6 +27,10 @@ input:focus, textarea:focus, [contenteditable]:focus { outline: none; }
   0%   { opacity: 0.5; transform: scale(0.6); }
   100% { opacity: 0;   transform: scale(1.9); }
 }
+@keyframes blink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(0.8); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

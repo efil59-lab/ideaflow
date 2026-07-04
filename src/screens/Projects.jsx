@@ -18,7 +18,7 @@ const projSort = (a, b) =>
   || (a.createdAt || 0) - (b.createdAt || 0);
 
 export default function Projects({ uid, ideas, projects, th, actions, projActions, onCapture,
-  openProjectId, setOpenProjectId,
+  openProjectId, setOpenProjectId, commentSeen = {},
   myShares = {}, sharedWithMe = [], shareActions, onSharedCapture }) {
   const open = projects.find(p => p.id === openProjectId);
   if (openProjectId === "__trash__") {
@@ -38,8 +38,8 @@ export default function Projects({ uid, ideas, projects, th, actions, projAction
         actions={actions} projActions={projActions} onCapture={onCapture}
         share={myShares[open.id]} shareActions={shareActions}
         onBack={() => setOpenProjectId(null)} />
-    : <ProjectsIndex projects={projects} ideas={ideas} th={th} projActions={projActions}
-        myShares={myShares} sharedWithMe={sharedWithMe}
+    : <ProjectsIndex uid={uid} projects={projects} ideas={ideas} th={th} projActions={projActions}
+        myShares={myShares} sharedWithMe={sharedWithMe} commentSeen={commentSeen}
         onOpen={setOpenProjectId} />;
 }
 
@@ -150,11 +150,16 @@ function TrashView({ ideas, th, actions, onBack }) {
   );
 }
 
-function ProjectsIndex({ projects, ideas, th, projActions, onOpen, myShares = {}, sharedWithMe = [] }) {
+function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares = {}, sharedWithMe = [], commentSeen = {} }) {
   const [name, setName] = useState("");
   const [sortMode, setSortMode] = useState(false);
   const sorted = [...projects].sort(projSort);
   const trashCount = ideas.filter(i => i.status === "trash").length;
+
+  // Unread = a comment from someone else, newer than this project's last-read mark.
+  const hasUnread = p => ideas.some(i =>
+    i.projectId === p.id &&
+    (i.comments || []).some(c => c.authorUid !== uid && (c.at || 0) > (commentSeen[p.id] || 0)));
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -222,7 +227,7 @@ function ProjectsIndex({ projects, ideas, th, projActions, onOpen, myShares = {}
       ) : (
         sorted.map(p => (
           <ProjectRow key={p.id} p={p} th={th} counts={counts(p)}
-            isShared={!!myShares[p.id]}
+            isShared={!!myShares[p.id]} unread={hasUnread(p)}
             onOpen={() => onOpen(p.id)}
             onPin={() => projActions.update(p.id, { pinned: !p.pinned })} />
         ))
@@ -258,7 +263,7 @@ function ProjectsIndex({ projects, ideas, th, projActions, onOpen, myShares = {}
   );
 }
 
-function ProjectRow({ p, th, counts, onOpen, onPin, isShared = false }) {
+function ProjectRow({ p, th, counts, onOpen, onPin, isShared = false, unread = false }) {
   return (
     <div onClick={onOpen}
       style={{ display: "flex", alignItems: "center", gap: 11, background: th.surface,
@@ -269,6 +274,12 @@ function ProjectRow({ p, th, counts, onOpen, onPin, isShared = false }) {
         <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: th.text,
           display: "flex", alignItems: "center", gap: 6 }}>
           {p.name}
+          {unread && (
+            <span title="תגובה חדשה שלא נקראה"
+              style={{ width: 9, height: 9, borderRadius: "50%", background: th.red,
+                flexShrink: 0, animation: "blink 1.1s ease-in-out infinite",
+                boxShadow: `0 0 0 3px ${th.red}22` }} />
+          )}
           {isShared && <Icon name="share" size={12} color={th.accent} />}
         </p>
         <p style={{ margin: "2px 0 0", fontSize: 12, color: th.muted }}>

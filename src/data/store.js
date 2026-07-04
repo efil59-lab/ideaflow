@@ -31,7 +31,8 @@ function demoData() {
       { ...base, id: "d1", text: "מדור 'איפה הם היום' — לעקוב אחרי שחקני הסדרות הקלאסיות", title: "מדור איפה הם היום", tags: ["תוכן"], aiProject: "p1", createdAt: now - 3600e3 },
       { ...base, id: "d2", text: "לקנות נורות חכמות לסלון ולבדוק תאימות ל-Google Home", title: "נורות חכמות לסלון", tags: ["קניות"], pinned: true, colorIdx: 0, remindAt: now + 86400e3, createdAt: now - 7200e3 },
       { ...base, id: "d3", text: "רעיון לפתיח: מחרוזת פתיחים של שנות השמונים ברצף אחד", title: "מחרוזת פתיחים", tags: [], colorIdx: 2, createdAt: now - 10800e3 },
-      { ...base, id: "d4", text: "מדור 'מאחורי הקלעים' עם סיפורים מההפקות", title: "מאחורי הקלעים", tags: ["תוכן"], status: "active", projectId: "p1", createdAt: now - 14400e3 },
+      { ...base, id: "d4", text: "מדור 'מאחורי הקלעים' עם סיפורים מההפקות", title: "מאחורי הקלעים", tags: ["תוכן"], status: "active", projectId: "p1", createdAt: now - 14400e3,
+        comments: [{ id: "c1", text: "רעיון מעולה! אפשר להתחיל מ'זהו זה'", authorUid: "guest", authorName: "דנה", at: now - 600e3 }] },
     ],
   };
 }
@@ -111,7 +112,7 @@ export async function addIdea(uid, data) {
     text: "", html: "", title: "", tags: [],
     status: "inbox", projectId: null, aiProject: null,
     pinned: false, colorIdx: null, order: null,
-    images: [], audios: [], remindAt: null, repeat: null, comments: [],
+    images: [], audios: [], remindAt: null, repeat: null, repeatAnchor: null, comments: [],
     createdAt: Date.now(), updatedAt: Date.now(),
     ...data,
   };
@@ -126,7 +127,7 @@ export async function addIdea(uid, data) {
 export async function updateIdea(uid, id, patch, base = null) {
   if (import.meta.env.DEV && uid === "demo") return;
   await updateDoc(doc(ideasCol(uid), id), { ...patch, updatedAt: Date.now() });
-  if ("remindAt" in patch || "status" in patch || "repeat" in patch) {
+  if ("remindAt" in patch || "status" in patch || "repeat" in patch || "repeatAnchor" in patch) {
     syncReminder(uid, id, base ? { ...base, ...patch } : patch);
   }
 }
@@ -164,8 +165,10 @@ async function syncReminder(uid, id, idea) {
   const rref = doc(db, "reminders", `${uid}_${id}`);
   try {
     if (idea.remindAt && idea.remindAt > Date.now() && idea.status !== "done") {
+      // `anchor` is the immutable recurrence origin; snoozing moves `at` (the
+      // next fire) but never the anchor, so the repeating rhythm can't drift.
       await setDoc(rref, { uid, ideaId: id, at: idea.remindAt, repeat: idea.repeat || null,
-        text: (idea.text || "").slice(0, 180) });
+        anchor: idea.repeatAnchor || idea.remindAt, text: (idea.text || "").slice(0, 180) });
     } else {
       await deleteDoc(rref);
     }
@@ -324,6 +327,25 @@ export async function addSharedIdea(ownerUid, data, createdBy) {
   };
   await setDoc(doc(collection(db, "users", ownerUid, "ideas"), id), idea);
   return { id, ...idea };
+}
+
+// Live view of the user's own doc (holds commentSeen map, seenVersion, etc.).
+export function useUserDoc(uid) {
+  const [data, setData] = useState({});
+  useEffect(() => {
+    if (!uid || (import.meta.env.DEV && uid === "demo")) return;
+    return onSnapshot(doc(db, "users", uid), s => setData(s.data() || {}), () => {});
+  }, [uid]);
+  return data;
+}
+
+// Mark every comment in a project as read for this user (nested-map merge).
+export async function markCommentsSeen(uid, projectId, at = Date.now()) {
+  if (import.meta.env.DEV && uid === "demo") return;
+  if (!projectId) return;
+  try {
+    await setDoc(doc(db, "users", uid), { commentSeen: { [projectId]: at } }, { merge: true });
+  } catch { /* offline — retries on next open */ }
 }
 
 // Queue a push notification (consumed by the server cron within a minute).

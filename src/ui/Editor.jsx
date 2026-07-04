@@ -68,6 +68,7 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
       text: plain, html, images, audios,
       remindAt: remindAt || null,
       repeat: remindAt ? (repeat || null) : null,
+      repeatAnchor: remindAt && repeat ? remindAt : null,
       projectId,
       status: initial?.status === "done" ? "done" : (projectId ? "active" : (initial?.status || "inbox")),
     });

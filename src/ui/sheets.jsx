@@ -62,7 +62,9 @@ export function MoveSheet({ idea, projects, onMove, onClose, onNewProject, th })
 // One-tap reminder: presets save immediately; custom time via the picker.
 // `repeat` is picked first and rides along with whichever time gets saved.
 export function ReminderSheet({ idea, onSave, onClose, th }) {
-  const [custom, setCustom] = useState(idea.remindAt || null);
+  // For a repeating reminder show its anchor (the original recurring time),
+  // not a snoozed next-fire — snooze must not appear to reschedule the series.
+  const [custom, setCustom] = useState(idea.repeatAnchor || idea.remindAt || null);
   const [repeat, setRepeat] = useState(idea.repeat || "");
   const now = Date.now();
 

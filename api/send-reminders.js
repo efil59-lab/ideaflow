@@ -106,8 +106,10 @@ export default async function handler(req, res) {
         }));
 
         // Repeating reminders reschedule instead of dying; the idea doc is
-        // updated too so the card chip shows the next occurrence.
-        const next = r.repeat ? nextOccurrence(r.at, r.repeat, now) : null;
+        // updated too so the card chip shows the next occurrence. Always compute
+        // from the immutable anchor (the original time), so a snooze that moved
+        // `at` never drifts the recurring rhythm.
+        const next = r.repeat ? nextOccurrence(r.anchor || r.at, r.repeat, now) : null;
         if (next) {
           await r.ref.update({ at: next });
           try {

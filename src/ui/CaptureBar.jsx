@@ -25,13 +25,28 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
   const micRef = useRef();
 
   // App shortcut / share intent asked to jump straight into typing.
+  // Android only raises the soft keyboard for a focus() call that happens while
+  // the launch tap's user-activation is still live (~5s), and only once the box
+  // is actually painted — so we retry focus over the first second.
+  const [autoFocus, setAutoFocus] = useState(false);
   useEffect(() => {
+    let requested = false;
     try {
       if (localStorage.getItem("if_focus_capture") === "1") {
         localStorage.removeItem("if_focus_capture");
-        taRef.current?.focus();
+        requested = true;
       }
     } catch { /* ignore */ }
+    if (!requested) return;
+    setAutoFocus(true);
+    const timers = [0, 120, 300, 600, 1000].map(ms => setTimeout(() => {
+      const el = taRef.current;
+      if (!el) return;
+      el.focus();
+      // Put the caret at the end of any restored draft.
+      try { const n = el.value.length; el.setSelectionRange(n, n); } catch { /* ignore */ }
+    }, ms));
+    return () => timers.forEach(clearTimeout);
   }, []);
 
   const addMedia = async (file, kind) => {
@@ -72,6 +87,7 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
   return (
     <div style={{ background: th.surface, border: `1px solid ${th.border}`, borderRadius: 16, padding: "12px 13px" }}>
       <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)}
+        autoFocus={autoFocus}
         onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save(); }}
         placeholder={placeholder} rows={text.length > 80 ? 3 : 2}
         style={{ width: "100%", border: "none", resize: "none", background: "transparent",

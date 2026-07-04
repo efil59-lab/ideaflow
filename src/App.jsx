@@ -9,6 +9,7 @@ import {
   markVersionSeen, whatsNewNotSeenYet,
   useMyShares, useSharedWithMe, saveShare, removeShare, shareIdOf,
   addComment, addSharedIdea, queueNotification,
+  useUserDoc, markCommentsSeen,
 } from "./data/store";
 import { migrateIfNeeded } from "./data/migrate";
 import { enrichIdea } from "./data/ai";
@@ -277,6 +278,16 @@ function Shell({ user, dark, setDark, th }) {
   const myName = user.displayName || myEmail;
   const myShares = useMyShares(migrating ? null : uid);
   const sharedWithMe = useSharedWithMe(migrating ? null : myEmail);
+  // Per-project unread-comment tracking: commentSeen[projectId] = last-read ms.
+  const userDoc = useUserDoc(migrating ? null : uid);
+  const commentSeen = userDoc.commentSeen || {};
+  // Opening a project clears its unread-comment dot.
+  useEffect(() => {
+    if (typeof openProjectId === "string" && openProjectId !== "__trash__"
+        && !openProjectId.startsWith("share:")) {
+      markCommentsSeen(uid, openProjectId).catch(() => {});
+    }
+  }, [openProjectId, uid]);
   // Comments context: { idea, ownerUid, share? } — share present when viewing a guest project
   const [commentsCtx, setCommentsCtx] = useState(null);
 
@@ -619,6 +630,7 @@ function Shell({ user, dark, setDark, th }) {
             projActions={projActions} onCapture={capture}
             myShares={myShares} sharedWithMe={sharedWithMe}
             shareActions={shareActions} onSharedCapture={sharedCapture}
+            commentSeen={commentSeen}
             openProjectId={openProjectId} setOpenProjectId={setOpenProjectId} />
         )}
         {tab === "search" && (
@@ -681,7 +693,10 @@ function Shell({ user, dark, setDark, th }) {
       {remindIdea && (
         <ReminderSheet idea={remindIdea} th={th}
           onSave={async (ts, repeat) => {
-            await updateIdea(uid, remindIdea.id, { remindAt: ts, repeat: ts ? repeat : null }, remindIdea);
+            await updateIdea(uid, remindIdea.id, {
+              remindAt: ts, repeat: ts ? repeat : null,
+              repeatAnchor: ts && repeat ? ts : null,
+            }, remindIdea);
             if (ts) enablePush(uid);
             setRemindIdea(null);
             toast$(!ts ? "התזכורת הוסרה" : repeat ? "תזכורת חוזרת נקבעה" : "תזכורת נקבעה");
@@ -789,7 +804,7 @@ function Guide({ onClose, th }) {
     { icon: "bell", title: "תזכורות", text: "פעמון על כל כרטיס: בעוד שעה / הערב / מחר או זמן מדויק — כולל חזרה קבועה (כל שעה, יום, שבוע, חודש או שנה). ההתראה מגיעה גם כשהאפליקציה סגורה; לחיצה פותחת את הרעיון, וכפתור \"לך לישון\" דוחה אותה למועד שתבחר." },
     { icon: "share", title: "מכל אפליקציה", text: "ראית משהו בוואטסאפ או בדפדפן? שתף → IdeaFlow והוא יחכה בתיבת התפיסה. ולחיצה ארוכה על אייקון האפליקציה — קיצור \"רעיון חדש\"." },
     { icon: "export", title: "ייצוא לקלוד", text: "בתפריט של כל פרויקט (וב-Inbox): \"ייצוא לקלוד\" מעתיק את כל הרעיונות הפתוחים כטקסט מוכן להדבקה בצ'אט." },
-    { icon: "chat", title: "שיתוף פרויקט", text: "בתפריט פרויקט → שיתוף → הוסף כתובות Gmail. המוזמנים רואים את הרעיונות, מגיבים ומוסיפים משלהם — ואתה מקבל התראה על כל תגובה." },
+    { icon: "chat", title: "שיתוף פרויקט", text: "בתפריט פרויקט → שיתוף → הוסף כתובות Gmail. המוזמנים רואים את הרעיונות, מגיבים ומוסיפים משלהם — ואתה מקבל התראה על כל תגובה, ונקודה אדומה מהבהבת ליד הפרויקט מסמנת תגובה שלא נקראה." },
     { icon: "search", title: "חיפוש ותגיות", text: "חיפוש בכל הפרויקטים, כולל כותרות ותגיות. כל תגית היא כפתור — לחיצה מציגה את כל הרעיונות הדומים." },
     { icon: "delete", title: "פח אשפה", text: "מחיקה היא הפיכה: הרעיון עובר לפח (אייקון הפח במסך הפרויקטים) ונשאר שם 30 יום לפני שנמחק לצמיתות." },
   ];
