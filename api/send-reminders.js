@@ -88,6 +88,8 @@ export default async function handler(req, res) {
           title: r.repeat ? "🔁 תזכורת חוזרת — IdeaFlow" : "💡 תזכורת — IdeaFlow",
           body: (r.text || "").slice(0, 180) || "תזכורת",
           ideaId: r.ideaId,
+          uid, // enables the SW's background-snooze action buttons
+          kind: "reminder",
           url: `/?idea=${encodeURIComponent(r.ideaId)}`,
         });
 

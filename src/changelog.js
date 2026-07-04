@@ -3,8 +3,9 @@
 //   2. describe the changes in CHANGELOG below (this exact list is what users
 //      see, once, in the what's-new dialog on their next visit)
 //   3. update the Guide in App.jsx if the change adds/alters a feature
-export const APP_VERSION = "5.3";
+export const APP_VERSION = "5.4";
 
 export const CHANGELOG = [
-  { icon: "edit", title: "מסך \"רעיון חדש\" מהיר", text: "לחיצה ארוכה על אייקון האפליקציה → \"רעיון\" פותחת מסך כתיבה נקי ומיידי. נגיעה אחת בכל מקום מעלה את המקלדת, ובלחיצה על שמור הרעיון נכנס ישר לאינבוקס — אפשר גם להוסיף עוד ברצף." },
+  { icon: "bell", title: "נודניק ישר מההתראה", text: "על התראת תזכורת יש עכשיו שני כפתורים — \"15 דק׳\" ו-\"שעה\". לחיצה דוחה את התזכורת ברקע, בלי לפתוח את האפליקציה בכלל. תפיסה על ההתראה עצמה עדיין פותחת את הרעיון." },
+  { icon: "delete", title: "ריקון הפח בבת אחת", text: "בפח האשפה נוסף כפתור \"רוקן הכל\" עם אזהרה — מוחק את כל הרעיונות שבפח בפעולה אחת." },
 ];

@@ -8,8 +8,9 @@ self.addEventListener("push", event => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch {}
   const title = data.title || "💡 תזכורת — IdeaFlow";
-  // Real reminders (not digests / share events) get a snooze action button.
-  const snoozable = data.ideaId && data.ideaId !== "digest" && data.ideaId !== "share";
+  // Only real reminders (kind:"reminder", with a uid to snooze against) get the
+  // background snooze buttons — not digests, comments, or share events.
+  const snoozable = data.kind === "reminder" && data.ideaId && data.uid;
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",
@@ -19,22 +20,51 @@ self.addEventListener("push", event => {
       lang: "he",
       tag: data.ideaId ? `idea-${data.ideaId}` : undefined,
       requireInteraction: true,
-      actions: snoozable ? [{ action: "snooze", title: "😴 לך לישון" }] : [],
-      data: { url: data.url || "/", ideaId: data.ideaId || null }
+      actions: snoozable
+        ? [{ action: "snooze15", title: "15 דק׳" }, { action: "snooze60", title: "שעה" }]
+        : [],
+      data: { url: data.url || "/", ideaId: data.ideaId || null, uid: data.uid || null }
     })
   );
 });
 
-// Click on notification opens / focuses the app AND navigates to the idea:
-// - app already open  → focus + postMessage (the app opens the idea's editor)
-// - app closed        → openWindow with /?idea=<id> (the app reads it on boot)
+// A snooze button → reschedule in the background via the server; the app never
+// opens. We swap the reminder for a brief confirmation on the same tag.
+const SNOOZE_MIN = { snooze15: 15, snooze60: 60 };
+
+function snoozeInBackground(d, min) {
+  return fetch(`/api/snooze?uid=${encodeURIComponent(d.uid)}&ideaId=${encodeURIComponent(d.ideaId)}&min=${min}`,
+    { method: "POST" })
+    .then(r => r.ok)
+    .catch(() => false)
+    .then(ok => self.registration.showNotification(
+      ok ? "😴 התזכורת נדחתה" : "לא הצלחתי לדחות",
+      {
+        body: ok
+          ? (min === 60 ? "תופיע שוב בעוד שעה" : `תופיע שוב בעוד ${min} דקות`)
+          : "פתח את האפליקציה ונסה שוב",
+        icon: "/icons/icon-192.png",
+        badge: "/icons/badge-96.png",
+        dir: "rtl", lang: "he",
+        tag: `idea-${d.ideaId}`,
+        data: { url: `/?idea=${encodeURIComponent(d.ideaId)}`, ideaId: d.ideaId }
+      }));
+}
+
+// Click behaviour:
+// - snooze button → background reschedule, no window opens
+// - notification body → open / focus the app on the idea itself
 self.addEventListener("notificationclick", event => {
   event.notification.close();
   const d = event.notification.data || {};
-  // "לך לישון" action → open the app on the snooze dialog instead of the editor.
-  const url = event.action === "snooze" && d.ideaId
-    ? `/?snooze=${encodeURIComponent(d.ideaId)}`
-    : d.url || "/";
+
+  const min = SNOOZE_MIN[event.action];
+  if (min && d.uid && d.ideaId) {
+    event.waitUntil(snoozeInBackground(d, min));
+    return; // deliberately no openWindow — the app stays closed
+  }
+
+  const url = d.url || "/";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async clients => {
       for (const c of clients) {
