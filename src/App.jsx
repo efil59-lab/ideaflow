@@ -31,6 +31,28 @@ window.addEventListener("beforeinstallprompt", e => {
   window.dispatchEvent(new Event("if-installable"));
 });
 
+// Self-update: Android resumes PWAs from memory without reloading, so phones
+// can run stale builds for days. Compare the served bundle hash against the
+// running one whenever the app becomes visible; reload if a new deploy landed.
+let lastUpdateCheck = 0;
+async function reloadIfNewVersion() {
+  if (Date.now() - lastUpdateCheck < 10 * 60e3) return;
+  lastUpdateCheck = Date.now();
+  try {
+    // Don't yank the page out from under active typing
+    const el = document.activeElement;
+    if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+    const html = await (await fetch("/", { cache: "no-store" })).text();
+    const served = html.match(/assets\/index-([\w-]+)\.js/)?.[1];
+    const running = [...document.scripts].map(s => s.src).find(s => s.includes("/assets/index-"));
+    if (served && running && !running.includes(served)) location.reload();
+  } catch { /* offline — try again later */ }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") reloadIfNewVersion();
+});
+setTimeout(reloadIfNewVersion, 8000);
+
 export default function App() {
   const [user, setUser] = useState(undefined);
   const [dark, setDark] = useState(() => localStorage.getItem("if_dark") === "1");
