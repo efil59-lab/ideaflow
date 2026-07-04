@@ -660,11 +660,11 @@ function Shell({ user, dark, setDark, th }) {
       )}
       {remindIdea && (
         <ReminderSheet idea={remindIdea} th={th}
-          onSave={async ts => {
-            await updateIdea(uid, remindIdea.id, { remindAt: ts }, remindIdea);
+          onSave={async (ts, repeat) => {
+            await updateIdea(uid, remindIdea.id, { remindAt: ts, repeat: ts ? repeat : null }, remindIdea);
             if (ts) enablePush(uid);
             setRemindIdea(null);
-            toast$(ts ? "תזכורת נקבעה" : "התזכורת הוסרה");
+            toast$(!ts ? "התזכורת הוסרה" : repeat ? "תזכורת חוזרת נקבעה" : "תזכורת נקבעה");
           }}
           onClose={() => setRemindIdea(null)} />
       )}

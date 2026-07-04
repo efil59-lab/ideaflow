@@ -88,7 +88,7 @@ export async function addIdea(uid, data) {
     text: "", html: "", title: "", tags: [],
     status: "inbox", projectId: null, aiProject: null,
     pinned: false, colorIdx: null, order: null,
-    images: [], audios: [], remindAt: null, comments: [],
+    images: [], audios: [], remindAt: null, repeat: null, comments: [],
     createdAt: Date.now(), updatedAt: Date.now(),
     ...data,
   };
@@ -103,7 +103,7 @@ export async function addIdea(uid, data) {
 export async function updateIdea(uid, id, patch, base = null) {
   if (import.meta.env.DEV && uid === "demo") return;
   await updateDoc(doc(ideasCol(uid), id), { ...patch, updatedAt: Date.now() });
-  if ("remindAt" in patch || "status" in patch) {
+  if ("remindAt" in patch || "status" in patch || "repeat" in patch) {
     syncReminder(uid, id, base ? { ...base, ...patch } : patch);
   }
 }
@@ -141,7 +141,8 @@ async function syncReminder(uid, id, idea) {
   const rref = doc(db, "reminders", `${uid}_${id}`);
   try {
     if (idea.remindAt && idea.remindAt > Date.now() && idea.status !== "done") {
-      await setDoc(rref, { uid, ideaId: id, at: idea.remindAt, text: (idea.text || "").slice(0, 180) });
+      await setDoc(rref, { uid, ideaId: id, at: idea.remindAt, repeat: idea.repeat || null,
+        text: (idea.text || "").slice(0, 180) });
     } else {
       await deleteDoc(rref);
     }

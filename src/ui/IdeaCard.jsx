@@ -124,6 +124,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
                   <Chip th={th} color={th.accentText} bg={th.accentSoft}>
                     <Icon name="bell" size={11} color={th.accentText} />
                     {new Date(idea.remindAt).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {idea.repeat ? " ↻" : ""}
                   </Chip>
                 )}
                 {idea.comments?.length > 0 && (

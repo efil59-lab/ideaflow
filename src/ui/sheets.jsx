@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Modal, ModalHeader } from "./base";
 import { Icon } from "./Icons";
-import { FONT, fmtDatetimeLocal } from "../theme";
+import { FONT, fmtDatetimeLocal, REPEAT_OPTIONS } from "../theme";
 
 export function ShareModal({ idea, onClose, th }) {
   const go = m => {
@@ -60,8 +60,10 @@ export function MoveSheet({ idea, projects, onMove, onClose, onNewProject, th })
 }
 
 // One-tap reminder: presets save immediately; custom time via the picker.
+// `repeat` is picked first and rides along with whichever time gets saved.
 export function ReminderSheet({ idea, onSave, onClose, th }) {
   const [custom, setCustom] = useState(idea.remindAt || null);
+  const [repeat, setRepeat] = useState(idea.repeat || "");
   const now = Date.now();
 
   const tonight = new Date(); tonight.setHours(20, 0, 0, 0);
@@ -79,9 +81,18 @@ export function ReminderSheet({ idea, onSave, onClose, th }) {
         overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
         {(idea.title || idea.text || "").slice(0, 90)}
       </p>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+        <Icon name="bell" size={15} color={th.muted} />
+        <select value={repeat} onChange={e => setRepeat(e.target.value)}
+          style={{ flex: 1, border: `1px solid ${th.border}`, borderRadius: 10,
+            padding: "9px 10px", fontSize: 13.5, background: th.inputBg,
+            color: th.text, fontFamily: FONT, direction: "rtl" }}>
+          {REPEAT_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+        </select>
+      </div>
       <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 12 }}>
         {presets.map(([label, ts]) => (
-          <button key={label} onClick={() => onSave(ts)}
+          <button key={label} onClick={() => onSave(ts, repeat || null)}
             style={{ flex: 1, minWidth: 90, background: th.accentSoft, color: th.accentText,
               border: "none", borderRadius: 11, padding: "11px 8px", cursor: "pointer",
               fontSize: 13, fontWeight: 600, fontFamily: FONT, whiteSpace: "nowrap" }}>
@@ -97,7 +108,7 @@ export function ReminderSheet({ idea, onSave, onClose, th }) {
           style={{ flex: 1, border: `1px solid ${th.border}`, borderRadius: 10,
             padding: "9px 12px", fontSize: 14, background: th.inputBg,
             color: th.text, fontFamily: FONT }} />
-        <button onClick={() => custom && custom > now && onSave(custom)}
+        <button onClick={() => custom && custom > now && onSave(custom, repeat || null)}
           style={{ background: th.accent, color: "#fff", border: "none", borderRadius: 10,
             padding: "0 18px", cursor: "pointer", fontSize: 13.5, fontWeight: 600, fontFamily: FONT,
             opacity: custom && custom > now ? 1 : 0.45 }}>
@@ -105,7 +116,7 @@ export function ReminderSheet({ idea, onSave, onClose, th }) {
         </button>
       </div>
       {idea.remindAt && (
-        <button onClick={() => onSave(null)}
+        <button onClick={() => onSave(null, null)}
           style={{ width: "100%", marginTop: 10, background: "transparent", color: th.red,
             border: `1px solid ${th.border}`, borderRadius: 11, padding: "10px 0",
             cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: FONT }}>

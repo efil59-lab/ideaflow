@@ -8,6 +8,42 @@
 import admin from "firebase-admin";
 import webpush from "web-push";
 
+// All repeat arithmetic ("same wall-clock time tomorrow") must happen in the
+// user's timezone, incl. DST — Node respects TZ for local Date methods.
+process.env.TZ = "Asia/Jerusalem";
+
+// Next occurrence of a repeating reminder, strictly after `now`.
+// monthly = same date each month (clamped to month length);
+// monthly-weekday = same nth-weekday (e.g. first Saturday).
+function nextOccurrence(at, repeat, now) {
+  const orig = new Date(at);
+  const origDay = orig.getDate();
+  const weekday = orig.getDay();
+  const nth = Math.ceil(origDay / 7);
+  const d = new Date(at);
+  const step = () => {
+    if (repeat === "hourly") d.setTime(d.getTime() + 3600e3);
+    else if (repeat === "daily") d.setDate(d.getDate() + 1);
+    else if (repeat === "weekly") d.setDate(d.getDate() + 7);
+    else if (repeat === "monthly") {
+      d.setDate(1); d.setMonth(d.getMonth() + 1);
+      const dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      d.setDate(Math.min(origDay, dim));
+    } else if (repeat === "monthly-weekday") {
+      d.setDate(1); d.setMonth(d.getMonth() + 1);
+      let day = 1 + ((weekday - d.getDay() + 7) % 7) + (nth - 1) * 7;
+      const dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      if (day > dim) day -= 7; // no 5th such weekday this month — use the last
+      d.setDate(day);
+    } else if (repeat === "yearly") d.setFullYear(d.getFullYear() + 1);
+    else return false;
+    return true;
+  };
+  let guard = 0;
+  do { if (!step() || ++guard > 500) return null; } while (d.getTime() <= now);
+  return d.getTime();
+}
+
 function init() {
   if (!admin.apps.length) {
     admin.initializeApp({
@@ -49,7 +85,7 @@ export default async function handler(req, res) {
 
       for (const r of reminders) {
         const payload = JSON.stringify({
-          title: "💡 תזכורת — IdeaFlow",
+          title: r.repeat ? "🔁 תזכורת חוזרת — IdeaFlow" : "💡 תזכורת — IdeaFlow",
           body: (r.text || "").slice(0, 180) || "תזכורת",
           ideaId: r.ideaId,
           url: `/?idea=${encodeURIComponent(r.ideaId)}`,
@@ -69,7 +105,19 @@ export default async function handler(req, res) {
           }
         }));
 
-        await r.ref.delete();
+        // Repeating reminders reschedule instead of dying; the idea doc is
+        // updated too so the card chip shows the next occurrence.
+        const next = r.repeat ? nextOccurrence(r.at, r.repeat, now) : null;
+        if (next) {
+          await r.ref.update({ at: next });
+          try {
+            await db.doc(`users/${uid}/ideas/${r.ideaId}`).update({ remindAt: next, updatedAt: now });
+          } catch {
+            await r.ref.delete(); // idea was deleted — stop repeating
+          }
+        } else {
+          await r.ref.delete();
+        }
         fired++;
       }
     }

@@ -37,3 +37,15 @@ export function fmtDatetimeLocal(ts) {
   const pad = n => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+// Recurring-reminder options. The value is stored on idea.repeat and mirrored
+// into /reminders for the server cron, which reschedules instead of deleting.
+export const REPEAT_OPTIONS = [
+  ["", "ללא חזרה"],
+  ["hourly", "חזור כל שעה"],
+  ["daily", "חזור כל יום"],
+  ["weekly", "חזור כל שבוע"],
+  ["monthly", "חזור כל חודש — באותו תאריך"],
+  ["monthly-weekday", "חזור כל חודש — באותו יום בשבוע"],
+  ["yearly", "חזור כל שנה"],
+];

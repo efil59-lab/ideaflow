@@ -4,7 +4,7 @@ import { Modal, ModalHeader } from "./base";
 import { Icon } from "./Icons";
 import RichEditor, { htmlToText, isHtml } from "./RichEditor";
 import { uploadFile } from "../data/media";
-import { FONT, fmtDatetimeLocal } from "../theme";
+import { FONT, fmtDatetimeLocal, REPEAT_OPTIONS } from "../theme";
 
 export default function Editor({ uid, initial, projects, onSave, onAutosave, onClose, title, th }) {
   const initialHtml = initial?.html
@@ -17,6 +17,7 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
   const [images, setImages] = useState(initial?.images || []);
   const [audios, setAudios] = useState(initial?.audios || []);
   const [remindAt, setRemindAt] = useState(initial?.remindAt || null);
+  const [repeat, setRepeat] = useState(initial?.repeat || "");
   const [projectId, setProjectId] = useState(initial?.projectId ?? null);
   const [showRemind, setShowRemind] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -66,6 +67,7 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
     onSave({
       text: plain, html, images, audios,
       remindAt: remindAt || null,
+      repeat: remindAt ? (repeat || null) : null,
       projectId,
       status: initial?.status === "done" ? "done" : (projectId ? "active" : (initial?.status || "inbox")),
     });
@@ -108,11 +110,11 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
           <span style={{ flex: 1, fontSize: 13, fontWeight: 500, textAlign: "right",
             color: remindAt ? th.accentText : th.secondary, fontFamily: FONT }}>
             {remindAt
-              ? `תזכורת: ${new Date(remindAt).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`
+              ? `תזכורת: ${new Date(remindAt).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}${repeat ? " ↻" : ""}`
               : "הגדר תזכורת"}
           </span>
           {remindAt && (
-            <span onClick={e => { e.stopPropagation(); setRemindAt(null); setShowRemind(false); }}
+            <span onClick={e => { e.stopPropagation(); setRemindAt(null); setRepeat(""); setShowRemind(false); }}
               style={{ fontSize: 11, color: th.accentText, background: th.surface,
                 borderRadius: 20, padding: "2px 9px", fontWeight: 600, fontFamily: FONT }}>הסר</span>
           )}
@@ -126,6 +128,12 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
               style={{ width: "100%", border: `1px solid ${th.border}`, borderRadius: 9,
                 padding: "9px 12px", fontSize: 14, background: th.inputBg,
                 color: th.text, fontFamily: FONT }} />
+            <select value={repeat} onChange={e => setRepeat(e.target.value)}
+              style={{ width: "100%", marginTop: 7, border: `1px solid ${th.border}`, borderRadius: 9,
+                padding: "9px 10px", fontSize: 13.5, background: th.inputBg,
+                color: th.text, fontFamily: FONT, direction: "rtl" }}>
+              {REPEAT_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+            </select>
           </div>
         )}
       </div>
