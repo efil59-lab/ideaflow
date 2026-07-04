@@ -6,6 +6,7 @@ import { getTheme, FONT } from "./theme";
 import {
   useIdeas, useProjects, addIdea, updateIdea, deleteIdea, reorderIdeas,
   addProject, updateProject, deleteProject, reorderProjects, guideNotSeenYet,
+  markVersionSeen, whatsNewNotSeenYet,
   useMyShares, useSharedWithMe, saveShare, removeShare, shareIdOf,
   addComment, addSharedIdea, queueNotification,
 } from "./data/store";
@@ -13,6 +14,7 @@ import { migrateIfNeeded } from "./data/migrate";
 import { enrichIdea } from "./data/ai";
 import { exportIdeas } from "./data/export";
 import { enablePush } from "./push";
+import { APP_VERSION, CHANGELOG } from "./changelog";
 import { Icon, IconBtn } from "./ui/Icons";
 import { Modal, Toast } from "./ui/base";
 import { ShareModal, MoveSheet, ReminderSheet, SnoozeSheet, CommentsSheet } from "./ui/sheets";
@@ -264,6 +266,7 @@ function Shell({ user, dark, setDark, th }) {
   const [showAI, setShowAI] = useState(false);
   const [showUser, setShowUser] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [toast, setToast] = useState(null);
 
   const ideas = useIdeas(migrating ? null : uid);
@@ -301,10 +304,14 @@ function Shell({ user, dark, setDark, th }) {
 
   // Welcome guide on the user's true first open — flag lives on the user's
   // Firestore doc, so reinstalling the app or switching devices won't skip it.
+  // Returning users get the what's-new dialog instead, once per version bump.
   useEffect(() => {
     if (migrating) return;
     guideNotSeenYet(uid)
-      .then(firstTime => { if (firstTime) setShowGuide(true); })
+      .then(firstTime => {
+        if (firstTime) { setShowGuide(true); return markVersionSeen(uid); }
+        return whatsNewNotSeenYet(uid).then(show => { if (show) setShowWhatsNew(true); });
+      })
       .catch(() => {});
   }, [uid, migrating]);
 
@@ -367,7 +374,7 @@ function Shell({ user, dark, setDark, th }) {
   // at the root, require a double-press to actually exit.
   const uiRef = useRef({});
   useEffect(() => {
-    uiRef.current = { showGuide, showUser, showAI, remindIdea, snoozeIdea, moveIdea, shareIdea, editIdea, commentsCtx, openProjectId, tab };
+    uiRef.current = { showGuide, showWhatsNew, showUser, showAI, remindIdea, snoozeIdea, moveIdea, shareIdea, editIdea, commentsCtx, openProjectId, tab };
   });
   const rearmRef = useRef(null);
   useEffect(() => {
@@ -384,6 +391,7 @@ function Shell({ user, dark, setDark, th }) {
       const s = uiRef.current;
       let handled = true;
       if (s.showGuide) setShowGuide(false);
+      else if (s.showWhatsNew) setShowWhatsNew(false);
       else if (s.showUser) setShowUser(false);
       else if (s.showAI) setShowAI(false);
       else if (s.commentsCtx) setCommentsCtx(null);
@@ -729,10 +737,44 @@ function Shell({ user, dark, setDark, th }) {
         </Modal>
       )}
       {showGuide && <Guide onClose={() => setShowGuide(false)} th={th} />}
+      {showWhatsNew && !showGuide && <WhatsNew onClose={() => setShowWhatsNew(false)} th={th} />}
 
       {/* Install banner waits politely while the guide (or any modal) is open */}
-      <InstallBanner th={th} hidden={showGuide || showAI || showUser || !!editIdea || !!remindIdea || !!moveIdea || !!shareIdea || !!commentsCtx} />
+      <InstallBanner th={th} hidden={showGuide || showWhatsNew || showAI || showUser || !!editIdea || !!remindIdea || !!moveIdea || !!shareIdea || !!commentsCtx} />
     </div>
+  );
+}
+
+// Shown once per user per APP_VERSION bump — the release's CHANGELOG entries.
+function WhatsNew({ onClose, th }) {
+  return (
+    <Modal onClose={onClose} maxWidth={400} th={th}>
+      <div style={{ textAlign: "center", marginBottom: 12 }}>
+        <Icon name="sparkle" size={34} color={th.accent} />
+        <h3 style={{ margin: "8px 0 2px", fontSize: 19, fontWeight: 800, color: th.text }}>מה חדש?</h3>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: th.accentText, background: th.accentSoft,
+          borderRadius: 20, padding: "3px 12px" }}>גרסה {APP_VERSION}</span>
+      </div>
+      {CHANGELOG.map((it, i) => (
+        <div key={it.title} style={{ display: "flex", alignItems: "flex-start", gap: 11,
+          padding: "10px 0", borderBottom: i === CHANGELOG.length - 1 ? "none" : `1px solid ${th.border}` }}>
+          <div style={{ width: 32, height: 32, borderRadius: 10, background: th.accentSoft,
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Icon name={it.icon} size={16} color={th.accentText} />
+          </div>
+          <div style={{ flex: 1, fontSize: 13, color: th.text, lineHeight: 1.6, textAlign: "right" }}>
+            <strong style={{ fontWeight: 600 }}>{it.title}: </strong>
+            <span style={{ color: th.secondary }}>{it.text}</span>
+          </div>
+        </div>
+      ))}
+      <button onClick={onClose}
+        style={{ width: "100%", marginTop: 12, height: 44, background: th.accent, color: "#fff",
+          border: "none", borderRadius: 12, cursor: "pointer",
+          fontSize: 15, fontWeight: 700, fontFamily: FONT }}>
+        מגניב, הבנתי
+      </button>
+    </Modal>
   );
 }
 
@@ -744,7 +786,7 @@ function Guide({ onClose, th }) {
   ];
   const features = [
     { icon: "edit", title: "עריכה", text: "לחץ על הטקסט של כל רעיון. סרגל העיצוב (מודגש, קו תחתון, צבעים) נמצא מתחת לשדה. הכל נשמר אוטומטית תוך כדי כתיבה." },
-    { icon: "bell", title: "תזכורות", text: "פעמון על כל כרטיס: בעוד שעה / הערב / מחר או זמן מדויק. ההתראה מגיעה גם כשהאפליקציה סגורה, ולחיצה עליה פותחת את הרעיון עצמו." },
+    { icon: "bell", title: "תזכורות", text: "פעמון על כל כרטיס: בעוד שעה / הערב / מחר או זמן מדויק — כולל חזרה קבועה (כל שעה, יום, שבוע, חודש או שנה). ההתראה מגיעה גם כשהאפליקציה סגורה; לחיצה פותחת את הרעיון, וכפתור \"לך לישון\" דוחה אותה למועד שתבחר." },
     { icon: "share", title: "מכל אפליקציה", text: "ראית משהו בוואטסאפ או בדפדפן? שתף → IdeaFlow והוא יחכה בתיבת התפיסה. ולחיצה ארוכה על אייקון האפליקציה — קיצור \"רעיון חדש\"." },
     { icon: "export", title: "ייצוא לקלוד", text: "בתפריט של כל פרויקט (וב-Inbox): \"ייצוא לקלוד\" מעתיק את כל הרעיונות הפתוחים כטקסט מוכן להדבקה בצ'אט." },
     { icon: "chat", title: "שיתוף פרויקט", text: "בתפריט פרויקט → שיתוף → הוסף כתובות Gmail. המוזמנים רואים את הרעיונות, מגיבים ומוסיפים משלהם — ואתה מקבל התראה על כל תגובה." },
@@ -786,7 +828,7 @@ function Guide({ onClose, th }) {
       {features.map((it, i) => <Row key={it.title} it={it} last={i === features.length - 1} />)}
 
       <p style={{ fontSize: 11.5, color: th.muted, margin: "12px 2px 0", textAlign: "center" }}>
-        המדריך זמין תמיד בכפתור ? למעלה
+        המדריך זמין תמיד בכפתור ? למעלה · גרסה {APP_VERSION}
       </p>
       <button onClick={onClose}
         style={{ width: "100%", marginTop: 10, height: 44, background: th.accent, color: "#fff",

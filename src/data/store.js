@@ -7,6 +7,7 @@ import {
   collection, doc, getDoc, onSnapshot, setDoc, updateDoc, deleteDoc, query, orderBy, where, writeBatch, arrayUnion,
 } from "firebase/firestore";
 import { ref as storageRef, deleteObject } from "firebase/storage";
+import { APP_VERSION } from "../changelog";
 
 export const newId = () =>
   (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -77,6 +78,28 @@ export async function guideNotSeenYet(uid) {
   const snap = await getDoc(userRef);
   if (snap.exists() && snap.data().guideSeenAt) return false;
   await setDoc(userRef, { guideSeenAt: Date.now() }, { merge: true });
+  return true;
+}
+
+// What's-new dialog: shown once per user per APP_VERSION bump. New users who
+// just got the guide have the version stamped silently (markVersionSeen).
+export async function markVersionSeen(uid) {
+  if (import.meta.env.DEV && uid === "demo") {
+    localStorage.setItem("if_whatsnew_demo", APP_VERSION);
+    return;
+  }
+  await setDoc(doc(db, "users", uid), { seenVersion: APP_VERSION }, { merge: true });
+}
+
+export async function whatsNewNotSeenYet(uid) {
+  if (import.meta.env.DEV && uid === "demo") {
+    if (localStorage.getItem("if_whatsnew_demo") === APP_VERSION) return false;
+    localStorage.setItem("if_whatsnew_demo", APP_VERSION);
+    return true;
+  }
+  const snap = await getDoc(doc(db, "users", uid));
+  if (snap.exists() && snap.data().seenVersion === APP_VERSION) return false;
+  await markVersionSeen(uid);
   return true;
 }
 
