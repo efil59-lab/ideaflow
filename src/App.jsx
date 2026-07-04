@@ -295,17 +295,31 @@ function QuickCapture({ user, th, onDone }) {
   const [savedFlash, setSavedFlash] = useState(false);
   const taRef = useRef();
 
-  // Focus on first paint + a few retries across the activation window.
+  // Best-effort auto-focus on first paint (works only where the platform still
+  // honours it). Android generally refuses to raise the soft keyboard without a
+  // real touch — that's handled by focusFromTap below.
   useEffect(() => {
     try { localStorage.removeItem("if_focus_capture"); } catch { /* ignore */ }
-    const timers = [0, 100, 250, 500, 900].map(ms => setTimeout(() => {
+    const tryFocus = () => {
       const el = taRef.current;
       if (!el) return;
       el.focus();
       try { const n = el.value.length; el.setSelectionRange(n, n); } catch { /* ignore */ }
-    }, ms));
+      try { navigator.virtualKeyboard?.show?.(); } catch { /* unsupported */ }
+    };
+    const timers = [0, 100, 250, 500, 900].map(ms => setTimeout(tryFocus, ms));
     return () => timers.forEach(clearTimeout);
   }, []);
+
+  // The reliable path: focus (→ keyboard) inside the user's first real tap
+  // anywhere on the screen. Skips taps on the buttons and taps once already
+  // editing, so it never fights the caret.
+  const focusFromTap = e => {
+    if (document.activeElement === taRef.current) return;
+    if (e.target.closest("button")) return;
+    taRef.current?.focus();
+    try { navigator.virtualKeyboard?.show?.(); } catch { /* unsupported */ }
+  };
 
   // Mirror to the shared draft so nothing is lost if they back out.
   useEffect(() => {
@@ -338,9 +352,10 @@ function QuickCapture({ user, th, onDone }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: th.bg, direction: "rtl", zIndex: 100,
-      display: "flex", flexDirection: "column",
-      padding: "16px 16px calc(16px + env(safe-area-inset-bottom))" }}>
+    <div onPointerDown={focusFromTap}
+      style={{ position: "fixed", inset: 0, background: th.bg, direction: "rtl", zIndex: 100,
+        display: "flex", flexDirection: "column",
+        padding: "16px 16px calc(16px + env(safe-area-inset-bottom))" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
         <Icon name="bulb" size={22} color={th.accent} />
         <h2 style={{ margin: 0, flex: 1, fontSize: 18, fontWeight: 800, color: th.text, fontFamily: FONT }}>
@@ -354,8 +369,9 @@ function QuickCapture({ user, th, onDone }) {
         </button>
       </div>
       <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)} autoFocus
+        inputMode="text" enterKeyHint="done"
         onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save(); }}
-        placeholder="מה עולה לך בראש?"
+        placeholder="הקש כאן והתחל לכתוב…"
         style={{ flex: 1, width: "100%", boxSizing: "border-box", border: `1px solid ${th.border}`,
           borderRadius: 14, padding: 14, fontSize: 17, fontFamily: FONT, direction: "rtl",
           color: th.text, background: th.surface, lineHeight: 1.6, resize: "none", outline: "none" }} />
