@@ -22,8 +22,7 @@ self.addEventListener("push", event => {
       requireInteraction: true,
       actions: snoozable
         ? [{ action: "snooze15", title: "15 דק׳" },
-           { action: "snooze60", title: "שעה" },
-           { action: "snoozeMore", title: "עוד…" }]
+           { action: "snoozeMore", title: "אחר" }]
         : [],
       data: { url: data.url || "/", ideaId: data.ideaId || null, uid: data.uid || null }
     })
@@ -54,9 +53,9 @@ function snoozeInBackground(d, min) {
 }
 
 // Click behaviour:
-// - 15 min / hour button → background reschedule, no window opens
-// - "עוד…" button        → open the app on the full snooze dialog (?snooze=)
-// - notification body     → open / focus the app on the idea itself
+// - "15 דק׳" button   → background reschedule, no window opens
+// - "אחר" button      → open the app on the full snooze dialog (?snooze=)
+// - notification body → open / focus the app on the idea itself
 self.addEventListener("notificationclick", event => {
   event.notification.close();
   const d = event.notification.data || {};
