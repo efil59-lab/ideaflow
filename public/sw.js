@@ -8,6 +8,8 @@ self.addEventListener("push", event => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch {}
   const title = data.title || "💡 תזכורת — IdeaFlow";
+  // Real reminders (not digests / share events) get a snooze action button.
+  const snoozable = data.ideaId && data.ideaId !== "digest" && data.ideaId !== "share";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",
@@ -17,7 +19,8 @@ self.addEventListener("push", event => {
       lang: "he",
       tag: data.ideaId ? `idea-${data.ideaId}` : undefined,
       requireInteraction: true,
-      data: { url: data.url || "/" }
+      actions: snoozable ? [{ action: "snooze", title: "😴 לך לישון" }] : [],
+      data: { url: data.url || "/", ideaId: data.ideaId || null }
     })
   );
 });
@@ -27,7 +30,11 @@ self.addEventListener("push", event => {
 // - app closed        → openWindow with /?idea=<id> (the app reads it on boot)
 self.addEventListener("notificationclick", event => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "/";
+  const d = event.notification.data || {};
+  // "לך לישון" action → open the app on the snooze dialog instead of the editor.
+  const url = event.action === "snooze" && d.ideaId
+    ? `/?snooze=${encodeURIComponent(d.ideaId)}`
+    : d.url || "/";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async clients => {
       for (const c of clients) {

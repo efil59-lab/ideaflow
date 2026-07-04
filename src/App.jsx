@@ -15,7 +15,7 @@ import { exportIdeas } from "./data/export";
 import { enablePush } from "./push";
 import { Icon, IconBtn } from "./ui/Icons";
 import { Modal, Toast } from "./ui/base";
-import { ShareModal, MoveSheet, ReminderSheet, CommentsSheet } from "./ui/sheets";
+import { ShareModal, MoveSheet, ReminderSheet, SnoozeSheet, CommentsSheet } from "./ui/sheets";
 import Editor from "./ui/Editor";
 import Inbox from "./screens/Inbox";
 import Projects from "./screens/Projects";
@@ -259,6 +259,7 @@ function Shell({ user, dark, setDark, th }) {
   const [shareIdea, setShareIdea] = useState(null);
   const [moveIdea, setMoveIdea] = useState(null);
   const [remindIdea, setRemindIdea] = useState(null);
+  const [snoozeIdea, setSnoozeIdea] = useState(null);
   const [searchQ, setSearchQ] = useState("");
   const [showAI, setShowAI] = useState(false);
   const [showUser, setShowUser] = useState(false);
@@ -323,6 +324,8 @@ function Shell({ user, dark, setDark, th }) {
     () => new URLSearchParams(location.search).get("idea"));
   const [pendingShareId, setPendingShareId] = useState(
     () => new URLSearchParams(location.search).get("share"));
+  const [pendingSnoozeId, setPendingSnoozeId] = useState(
+    () => new URLSearchParams(location.search).get("snooze"));
   useEffect(() => {
     const onMsg = e => {
       if (e.data?.type !== "OPEN_URL") return;
@@ -330,6 +333,7 @@ function Shell({ user, dark, setDark, th }) {
         const params = new URL(e.data.url, location.origin).searchParams;
         if (params.get("idea")) setPendingIdeaId(params.get("idea"));
         if (params.get("share")) setPendingShareId(params.get("share"));
+        if (params.get("snooze")) setPendingSnoozeId(params.get("snooze"));
       } catch { /* malformed url */ }
     };
     navigator.serviceWorker?.addEventListener("message", onMsg);
@@ -351,12 +355,19 @@ function Shell({ user, dark, setDark, th }) {
     try { history.replaceState({ ifApp: true }, "", location.pathname); } catch { /* ignore */ }
     if (idea) setEditIdea(idea);
   }, [pendingIdeaId, ideas]);
+  useEffect(() => {
+    if (!pendingSnoozeId || !ideas) return;
+    const idea = ideas.find(i => i.id === pendingSnoozeId);
+    setPendingSnoozeId(null);
+    try { history.replaceState({ ifApp: true }, "", location.pathname); } catch { /* ignore */ }
+    if (idea) setSnoozeIdea(idea);
+  }, [pendingSnoozeId, ideas]);
 
   // Android back button: close the topmost layer instead of leaving the app;
   // at the root, require a double-press to actually exit.
   const uiRef = useRef({});
   useEffect(() => {
-    uiRef.current = { showGuide, showUser, showAI, remindIdea, moveIdea, shareIdea, editIdea, commentsCtx, openProjectId, tab };
+    uiRef.current = { showGuide, showUser, showAI, remindIdea, snoozeIdea, moveIdea, shareIdea, editIdea, commentsCtx, openProjectId, tab };
   });
   const rearmRef = useRef(null);
   useEffect(() => {
@@ -377,6 +388,7 @@ function Shell({ user, dark, setDark, th }) {
       else if (s.showAI) setShowAI(false);
       else if (s.commentsCtx) setCommentsCtx(null);
       else if (s.remindIdea) setRemindIdea(null);
+      else if (s.snoozeIdea) setSnoozeIdea(null);
       else if (s.moveIdea) setMoveIdea(null);
       else if (s.shareIdea) setShareIdea(null);
       else if (s.editIdea) setEditIdea(null);
@@ -667,6 +679,16 @@ function Shell({ user, dark, setDark, th }) {
             toast$(!ts ? "התזכורת הוסרה" : repeat ? "תזכורת חוזרת נקבעה" : "תזכורת נקבעה");
           }}
           onClose={() => setRemindIdea(null)} />
+      )}
+      {snoozeIdea && (
+        <SnoozeSheet idea={snoozeIdea} th={th}
+          onSave={async ts => {
+            await updateIdea(uid, snoozeIdea.id, { remindAt: ts }, snoozeIdea);
+            enablePush(uid);
+            setSnoozeIdea(null);
+            toast$(`נדחה ל-${new Date(ts).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`);
+          }}
+          onClose={() => setSnoozeIdea(null)} />
       )}
       {moveIdea && (
         <MoveSheet idea={moveIdea} projects={projects} th={th}

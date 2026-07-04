@@ -127,6 +127,79 @@ export function ReminderSheet({ idea, onSave, onClose, th }) {
   );
 }
 
+// Snooze ("לך לישון") — postpone a fired reminder: quick presets, a custom
+// amount+unit row, or an absolute date/time.
+export function SnoozeSheet({ idea, onSave, onClose, th }) {
+  const [amount, setAmount] = useState(3);
+  const [unit, setUnit] = useState(3600e3); // ms per unit — default hours
+  const [custom, setCustom] = useState(null);
+  const now = Date.now();
+
+  const quick = [
+    ["5 דקות", 5 * 60e3], ["15 דקות", 15 * 60e3], ["30 דקות", 30 * 60e3],
+    ["שעה", 3600e3], ["יום", 86400e3], ["שבוע", 7 * 86400e3],
+  ];
+  const units = [[60e3, "דקות"], [3600e3, "שעות"], [86400e3, "ימים"], [7 * 86400e3, "שבועות"]];
+  const btn = { background: th.accentSoft, color: th.accentText, border: "none",
+    borderRadius: 11, padding: "13px 8px", cursor: "pointer",
+    fontSize: 13.5, fontWeight: 600, fontFamily: FONT, whiteSpace: "nowrap" };
+
+  return (
+    <Modal onClose={onClose} maxWidth={380} th={th}>
+      <ModalHeader title="😴 לך לישון — דחיית תזכורת" icon="bell" onClose={onClose} th={th} />
+      <p style={{ margin: "0 0 12px", fontSize: 13, color: th.secondary, lineHeight: 1.5,
+        overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+        {(idea.title || idea.text || "").slice(0, 90)}
+      </p>
+
+      <p style={{ margin: "0 0 7px", fontSize: 12, color: th.muted, fontWeight: 600 }}>מוגדר מראש</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7, marginBottom: 14 }}>
+        {quick.map(([label, ms]) => (
+          <button key={label} onClick={() => onSave(now + ms)} style={btn}>{label}</button>
+        ))}
+      </div>
+
+      <p style={{ margin: "0 0 7px", fontSize: 12, color: th.muted, fontWeight: 600 }}>מותאם אישית</p>
+      <input type="datetime-local"
+        value={fmtDatetimeLocal(custom)}
+        min={fmtDatetimeLocal(now)}
+        onChange={e => {
+          const ts = e.target.value ? new Date(e.target.value).getTime() : null;
+          setCustom(ts);
+          if (ts && ts > now) onSave(ts);
+        }}
+        style={{ width: "100%", border: `1px solid ${th.border}`, borderRadius: 10,
+          padding: "11px 12px", fontSize: 14, background: th.inputBg,
+          color: th.text, fontFamily: FONT, marginBottom: 10 }} />
+      <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+        <input type="number" min={1} max={999} value={amount}
+          onChange={e => setAmount(Math.max(1, parseInt(e.target.value) || 1))}
+          style={{ width: 64, border: `1px solid ${th.border}`, borderRadius: 10,
+            padding: "10px 8px", fontSize: 15, textAlign: "center", background: th.inputBg,
+            color: th.text, fontFamily: FONT }} />
+        <select value={unit} onChange={e => setUnit(Number(e.target.value))}
+          style={{ flex: 1, border: `1px solid ${th.border}`, borderRadius: 10,
+            padding: "10px 10px", fontSize: 14, background: th.inputBg,
+            color: th.text, fontFamily: FONT, direction: "rtl" }}>
+          {units.map(([ms, label]) => <option key={ms} value={ms}>{label}</option>)}
+        </select>
+        <button onClick={() => onSave(now + amount * unit)}
+          style={{ background: th.accent, color: "#fff", border: "none", borderRadius: 10,
+            padding: "10px 20px", cursor: "pointer", fontSize: 14, fontWeight: 600, fontFamily: FONT }}>
+          בצע
+        </button>
+      </div>
+
+      <button onClick={onClose}
+        style={{ width: "100%", marginTop: 12, background: "transparent", color: th.secondary,
+          border: `1px solid ${th.border}`, borderRadius: 11, padding: "10px 0",
+          cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
+        בטל
+      </button>
+    </Modal>
+  );
+}
+
 // Owner manages who a project is shared with (Google account emails).
 export function ProjectShareModal({ project, share, onSave, onClose, th }) {
   const [emails, setEmails] = useState(share?.sharedWith || []);
