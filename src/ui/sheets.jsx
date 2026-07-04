@@ -121,6 +121,7 @@ export function ProjectShareModal({ project, share, onSave, onClose, th }) {
   const [emails, setEmails] = useState(share?.sharedWith || []);
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
   const add = () => {
     const e = input.trim().toLowerCase();
@@ -131,9 +132,17 @@ export function ProjectShareModal({ project, share, onSave, onClose, th }) {
 
   const save = async () => {
     setSaving(true);
-    await onSave(emails);
-    setSaving(false);
-    onClose();
+    setError(null);
+    try {
+      await onSave(emails);
+      setSaving(false);
+      onClose();
+    } catch (e) {
+      setSaving(false);
+      setError(e?.code === "permission-denied"
+        ? "אין הרשאה לשמור שיתוף — צריך לפרסם את כללי האבטחה החדשים בקונסול של Firebase"
+        : `השמירה נכשלה (${e?.code || e?.message || "שגיאה"}) — נסה שוב`);
+    }
   };
 
   return (
@@ -172,6 +181,14 @@ export function ProjectShareModal({ project, share, onSave, onClose, th }) {
       {emails.length === 0 && (
         <p style={{ margin: "4px 0 8px", fontSize: 12, color: th.muted, textAlign: "center" }}>
           {share ? "שמירה בלי כתובות תבטל את השיתוף" : "הוסף כתובת ראשונה כדי לשתף"}
+        </p>
+      )}
+
+      {error && (
+        <p style={{ margin: "8px 0 0", fontSize: 12.5, color: th.red, textAlign: "center",
+          lineHeight: 1.5, background: th.dark ? "#3A1A1E" : "#FDECEC",
+          borderRadius: 10, padding: "9px 12px" }}>
+          {error}
         </p>
       )}
 
