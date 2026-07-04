@@ -21,7 +21,9 @@ self.addEventListener("push", event => {
       tag: data.ideaId ? `idea-${data.ideaId}` : undefined,
       requireInteraction: true,
       actions: snoozable
-        ? [{ action: "snooze15", title: "15 דק׳" }, { action: "snooze60", title: "שעה" }]
+        ? [{ action: "snooze15", title: "15 דק׳" },
+           { action: "snooze60", title: "שעה" },
+           { action: "snoozeMore", title: "עוד…" }]
         : [],
       data: { url: data.url || "/", ideaId: data.ideaId || null, uid: data.uid || null }
     })
@@ -52,8 +54,9 @@ function snoozeInBackground(d, min) {
 }
 
 // Click behaviour:
-// - snooze button → background reschedule, no window opens
-// - notification body → open / focus the app on the idea itself
+// - 15 min / hour button → background reschedule, no window opens
+// - "עוד…" button        → open the app on the full snooze dialog (?snooze=)
+// - notification body     → open / focus the app on the idea itself
 self.addEventListener("notificationclick", event => {
   event.notification.close();
   const d = event.notification.data || {};
@@ -64,7 +67,9 @@ self.addEventListener("notificationclick", event => {
     return; // deliberately no openWindow — the app stays closed
   }
 
-  const url = d.url || "/";
+  const url = (event.action === "snoozeMore" && d.ideaId)
+    ? `/?snooze=${encodeURIComponent(d.ideaId)}`
+    : (d.url || "/");
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async clients => {
       for (const c of clients) {
