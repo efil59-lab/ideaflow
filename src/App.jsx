@@ -86,6 +86,10 @@ export default function App() {
     return () => clearTimeout(t);
   }, [shortcutLaunch]);
 
+  // A shortcut/share launch opens straight into the dedicated quick-capture
+  // screen (mounts on first paint → best chance the keyboard rises).
+  const [captureMode, setCaptureMode] = useState(shortcutLaunch);
+
   // Intake from Android intents (runs once, before any screen mounts):
   // - share_target: /?title=..&text=..&url=..  → becomes the capture draft
   // - app shortcut: /?capture=1                → focus the capture box
@@ -108,6 +112,14 @@ export default function App() {
 
   useEffect(() => onAuthStateChanged(auth, u => setUser(u || null)), []);
   useEffect(() => { localStorage.setItem("if_dark", dark ? "1" : "0"); }, [dark]);
+
+  // Quick-capture screen — rendered before every other gate so the text field
+  // exists on the first paint of the shortcut launch. `user` may still be
+  // resolving; the screen waits for it only at save time.
+  if (captureMode) {
+    const cu = (import.meta.env.DEV && isUipreview) ? { uid: "demo" } : user;
+    return <QuickCapture user={cu} th={th} onDone={() => setCaptureMode(false)} />;
+  }
 
   // Dev-only UI preview (no auth): npm run dev → /?uipreview
   // Statically stripped from production builds.
@@ -266,6 +278,98 @@ function Login({ th }) {
           </>}
         </button>
         {error && <p style={{ margin: "14px 0 0", fontSize: 13, color: th.red }}>{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// Dedicated quick-capture screen for the "רעיון חדש" app shortcut. It mounts on
+// the very first paint — before auth and data load — so an autofocused field
+// exists while the launch tap's activation is still live, giving Android its one
+// chance to raise the soft keyboard. Saves straight to the Inbox.
+function QuickCapture({ user, th, onDone }) {
+  const [text, setText] = useState(() => {
+    try { return localStorage.getItem("if_draft") || ""; } catch { return ""; }
+  });
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+  const taRef = useRef();
+
+  // Focus on first paint + a few retries across the activation window.
+  useEffect(() => {
+    try { localStorage.removeItem("if_focus_capture"); } catch { /* ignore */ }
+    const timers = [0, 100, 250, 500, 900].map(ms => setTimeout(() => {
+      const el = taRef.current;
+      if (!el) return;
+      el.focus();
+      try { const n = el.value.length; el.setSelectionRange(n, n); } catch { /* ignore */ }
+    }, ms));
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  // Mirror to the shared draft so nothing is lost if they back out.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try { text.trim() ? localStorage.setItem("if_draft", text) : localStorage.removeItem("if_draft"); }
+      catch { /* ignore */ }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [text]);
+
+  const canSave = !!text.trim() && !!user && !saving;
+  const save = async () => {
+    if (!canSave) return;
+    const t = text.trim();
+    setSaving(true);
+    try {
+      const idea = await addIdea(user.uid, { text: t, status: "inbox" });
+      try { localStorage.removeItem("if_draft"); } catch { /* ignore */ }
+      if (idea?.text) {
+        enrichIdea(idea.text, [])
+          .then(en => updateIdea(user.uid, idea.id, { title: en.title, tags: en.tags }).catch(() => {}))
+          .catch(() => {});
+      }
+      setText("");
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1500);
+      taRef.current?.focus();
+    } catch { /* offline still queues the write; ignore */ }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: th.bg, direction: "rtl", zIndex: 100,
+      display: "flex", flexDirection: "column",
+      padding: "16px 16px calc(16px + env(safe-area-inset-bottom))" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <Icon name="bulb" size={22} color={th.accent} />
+        <h2 style={{ margin: 0, flex: 1, fontSize: 18, fontWeight: 800, color: th.text, fontFamily: FONT }}>
+          רעיון חדש
+        </h2>
+        <button onClick={onDone}
+          style={{ display: "inline-flex", alignItems: "center", gap: 5, background: th.surface,
+            color: th.secondary, border: `1px solid ${th.border}`, borderRadius: 18,
+            padding: "7px 14px", cursor: "pointer", fontSize: 13.5, fontWeight: 600, fontFamily: FONT }}>
+          לאינבוקס
+        </button>
+      </div>
+      <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)} autoFocus
+        onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save(); }}
+        placeholder="מה עולה לך בראש?"
+        style={{ flex: 1, width: "100%", boxSizing: "border-box", border: `1px solid ${th.border}`,
+          borderRadius: 14, padding: 14, fontSize: 17, fontFamily: FONT, direction: "rtl",
+          color: th.text, background: th.surface, lineHeight: 1.6, resize: "none", outline: "none" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+        <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, fontFamily: FONT,
+          color: savedFlash ? th.green : th.muted }}>
+          {savedFlash ? "נשמר ✓ — אפשר להוסיף עוד" : user ? "יישמר לאינבוקס" : "מתחבר…"}
+        </span>
+        <button onClick={save} disabled={!canSave}
+          style={{ background: th.accent, color: "#fff", border: "none", borderRadius: 12,
+            padding: "12px 30px", cursor: canSave ? "pointer" : "default",
+            fontSize: 15.5, fontWeight: 700, fontFamily: FONT, opacity: canSave ? 1 : 0.45 }}>
+          שמור
+        </button>
       </div>
     </div>
   );
