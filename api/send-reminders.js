@@ -123,9 +123,11 @@ export default async function handler(req, res) {
     }
 
     // ── Share notifications (comments / new shared ideas) ────────────────────
-    // Queued by clients in /notifications, delivered here and deleted.
-    let notified = 0;
+    // Queued by clients in /notifications. Delivered here; unmatched ones are
+    // kept for a retry window (a guest's device may register moments later).
+    let notified = 0, notifUnmatched = 0;
     const nSnap = await db.collection("notifications").limit(100).get();
+    const notifQueued = nSnap.size;
     for (const nd of nSnap.docs) {
       const n = nd.data() || {};
       let subs = [];
@@ -134,6 +136,14 @@ export default async function handler(req, res) {
       } else if (n.toEmail) {
         subs = (await db.collection("pushSubs").where("email", "==", n.toEmail).get()).docs;
       }
+
+      if (!subs.length) {
+        notifUnmatched++;
+        // No registered device (yet) — retry for up to 6 hours, then give up.
+        if ((n.createdAt || 0) < now - 6 * 3600e3) await nd.ref.delete();
+        continue;
+      }
+
       const payload = JSON.stringify({
         title: n.title || "IdeaFlow",
         body: (n.body || "").slice(0, 180),
@@ -153,7 +163,21 @@ export default async function handler(req, res) {
       await nd.ref.delete();
     }
 
-    return res.status(200).json({ ok: true, now, fired, sent, pruned, digests, notified });
+    // Diagnostics: ?diag=1 adds a masked summary of registered devices,
+    // so "why didn't X get a push" is answerable without guessing.
+    let diag;
+    if (req.query?.diag === "1") {
+      const all = await db.collection("pushSubs").get();
+      const mask = s => (s || "").replace(/^(.{2}).*(@.*)$/, "$1***$2") || "(אין)";
+      diag = {
+        devices: all.docs.map(d => {
+          const s = d.data();
+          return { uid: (s.uid || "").slice(0, 6) + "…", email: mask(s.email), hasEmail: !!s.email };
+        }),
+      };
+    }
+
+    return res.status(200).json({ ok: true, now, fired, sent, pruned, digests, notified, notifQueued, notifUnmatched, diag });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
