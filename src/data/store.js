@@ -30,6 +30,7 @@ function demoData() {
       { ...base, id: "d1", text: "מדור 'איפה הם היום' — לעקוב אחרי שחקני הסדרות הקלאסיות", title: "מדור איפה הם היום", tags: ["תוכן"], aiProject: "p1", createdAt: now - 3600e3 },
       { ...base, id: "d2", text: "לקנות נורות חכמות לסלון ולבדוק תאימות ל-Google Home", title: "נורות חכמות לסלון", tags: ["קניות"], pinned: true, colorIdx: 0, remindAt: now + 86400e3, createdAt: now - 7200e3 },
       { ...base, id: "d3", text: "רעיון לפתיח: מחרוזת פתיחים של שנות השמונים ברצף אחד", title: "מחרוזת פתיחים", tags: [], colorIdx: 2, createdAt: now - 10800e3 },
+      { ...base, id: "d4", text: "מדור 'מאחורי הקלעים' עם סיפורים מההפקות", title: "מאחורי הקלעים", tags: ["תוכן"], status: "active", projectId: "p1", createdAt: now - 14400e3 },
     ],
   };
 }
@@ -206,11 +207,40 @@ export async function removeShare(uid, pid) {
   await deleteDoc(doc(db, "shares", shareIdOf(uid, pid)));
 }
 
+// Dev-only fake shares for /?uipreview — stripped from production builds.
+function demoShares() {
+  const now = Date.now();
+  return {
+    mine: {
+      p1: { id: "demo_p1", ownerUid: "demo", projectId: "p1", projectName: "טלוויזיה",
+        projectColor: "#2E5BE6", ownerName: "תצוגה", sharedWith: ["friend@gmail.com"] },
+    },
+    withMe: [
+      { id: "demoowner_px", ownerUid: "demo-owner", projectId: "px", projectName: "רעיונות לטיול",
+        projectColor: "#0E9488", ownerName: "דנה", ownerEmail: "dana@gmail.com", sharedWith: ["demo@local"] },
+    ],
+    ideas: [
+      { id: "s1", text: "לבדוק צימרים בגליל לסופ\"ש הארוך", title: "צימרים בגליל", tags: ["טיול"],
+        status: "active", projectId: "px", pinned: false, colorIdx: null, order: null,
+        images: [], audios: [], remindAt: null, createdAt: now - 3600e3, updatedAt: 0,
+        comments: [{ id: "c1", text: "יש מקום מהמם ליד צפת!", authorName: "דנה", at: now - 1800e3 }] },
+      { id: "s2", text: "מסלול נחל עמוד — לצאת מוקדם", title: "נחל עמוד", tags: [],
+        status: "active", projectId: "px", pinned: false, colorIdx: 2, order: null,
+        images: [], audios: [], remindAt: null, createdAt: now - 7200e3, updatedAt: 0,
+        createdBy: { uid: "demo", name: "תצוגה" }, comments: [] },
+      { id: "s3", text: "להזמין שולחן למסעדה בראש פינה", title: "מסעדה בראש פינה", tags: [],
+        status: "done", projectId: "px", pinned: false, colorIdx: null, order: null,
+        images: [], audios: [], remindAt: null, createdAt: now - 9600e3, updatedAt: 0, comments: [] },
+    ],
+  };
+}
+
 // Owner side: my shares, keyed by projectId (drives badges + the share modal)
 export function useMyShares(uid) {
   const [shares, setShares] = useState({});
   useEffect(() => {
-    if (!uid || (import.meta.env.DEV && uid === "demo")) return;
+    if (!uid) return;
+    if (import.meta.env.DEV && uid === "demo") { setShares(demoShares().mine); return; }
     const q = query(collection(db, "shares"), where("ownerUid", "==", uid));
     return onSnapshot(q, snap => {
       const m = {};
@@ -226,6 +256,7 @@ export function useSharedWithMe(email) {
   const [list, setList] = useState([]);
   useEffect(() => {
     if (!email) return;
+    if (import.meta.env.DEV && email === "demo@local") { setList(demoShares().withMe); return; }
     const q = query(collection(db, "shares"), where("sharedWith", "array-contains", email.toLowerCase()));
     return onSnapshot(q, snap => setList(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
       () => setList([]));
@@ -238,6 +269,7 @@ export function useSharedIdeas(ownerUid, projectId) {
   const [ideas, setIdeas] = useState(null);
   useEffect(() => {
     if (!ownerUid || !projectId) return;
+    if (import.meta.env.DEV && ownerUid === "demo-owner") { setIdeas(demoShares().ideas); return; }
     const q = query(ideasCol(ownerUid), where("projectId", "==", projectId));
     return onSnapshot(q, snap => setIdeas(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
       err => { console.warn("shared ideas:", err); setIdeas([]); });

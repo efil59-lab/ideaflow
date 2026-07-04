@@ -6,7 +6,7 @@ import { getTheme, FONT } from "./theme";
 import {
   useIdeas, useProjects, addIdea, updateIdea, deleteIdea, reorderIdeas,
   addProject, updateProject, deleteProject, reorderProjects, guideNotSeenYet,
-  useMyShares, useSharedWithMe, saveShare, removeShare,
+  useMyShares, useSharedWithMe, saveShare, removeShare, shareIdOf,
   addComment, addSharedIdea, queueNotification,
 } from "./data/store";
 import { migrateIfNeeded } from "./data/migrate";
@@ -392,6 +392,15 @@ function Shell({ user, dark, setDark, th }) {
   const capture = async (data) => {
     const idea = await addIdea(uid, data);
     toast$("נשמר");
+    // Owner captured straight into a shared project → let the guests know
+    const share = data.projectId ? myShares[data.projectId] : null;
+    if (share) {
+      notifyShare(share, uid, {
+        title: "💡 רעיון חדש בפרויקט משותף",
+        body: `${myName} הוסיף ל"${share.projectName}": ${(data.text || "").slice(0, 80)}`,
+        ideaId: idea.id,
+      });
+    }
     if (idea.text) {
       enrichIdea(idea.text, projects.map(p => p.name)).then(en => {
         const match = en.project ? projects.find(p => p.name === en.project) : null;
@@ -476,7 +485,18 @@ function Shell({ user, dark, setDark, th }) {
   const shareActions = {
     save: async (project, emails) => {
       if (emails.length) {
+        const prev = myShares[project.id]?.sharedWith || [];
         await saveShare(uid, project, emails, { name: myName, email: myEmail });
+        // Newly invited people get a push: "X shared a project with you"
+        for (const email of emails) {
+          if (prev.includes(email) || email === myEmail) continue;
+          queueNotification(uid, { toEmail: email }, {
+            title: "📁 פרויקט שותף איתך — IdeaFlow",
+            body: `${myName} שיתף איתך את "${project.name}"`,
+            ideaId: "share-invite",
+            url: `/?share=${shareIdOf(uid, project.id)}`,
+          });
+        }
         toast$("השיתוף נשמר");
       } else {
         await removeShare(uid, project.id);

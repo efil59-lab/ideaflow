@@ -44,9 +44,12 @@ export default function Projects({ uid, ideas, projects, th, actions, projAction
 }
 
 // Guest view of a project shared with me: live ideas, comment, add — no editing.
+// Defaults to open ideas; the eye toggle reveals the done archive, like the owner has.
 function SharedProjectView({ uid, share, th, actions, onCapture, onBack }) {
+  const [showDone, setShowDone] = useState(false);
   const ideas = useSharedIdeas(share.ownerUid, share.projectId);
-  const list = (ideas || []).filter(i => i.status !== "trash");
+  const list = (ideas || []).filter(i =>
+    i.status !== "trash" && (showDone ? i.status === "done" : i.status !== "done"));
 
   return (
     <>
@@ -63,6 +66,8 @@ function SharedProjectView({ uid, share, th, actions, onCapture, onBack }) {
         </button>
         <span style={{ width: 12, height: 12, borderRadius: "50%", background: share.projectColor }} />
         <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: th.text, flex: 1 }}>{share.projectName}</h2>
+        <IconBtn name={showDone ? "eyeoff" : "eye"} onClick={() => setShowDone(p => !p)}
+          color={showDone ? th.accent : th.muted} size={17} pad="7px" title="הצג בוצעו" />
       </div>
       <p style={{ margin: "0 0 12px", fontSize: 12, color: th.muted,
         display: "flex", alignItems: "center", gap: 5 }}>
@@ -79,7 +84,7 @@ function SharedProjectView({ uid, share, th, actions, onCapture, onBack }) {
         ? <p style={{ textAlign: "center", color: th.muted, fontSize: 13, padding: "20px 0" }}>טוען...</p>
         : <IdeaList ideas={list} projects={[]} th={th} shared
             actions={{ comments: idea => actions.shareComments(share, idea), tag: null, openProject: null }}
-            emptyText="אין רעיונות בפרויקט עדיין — הוסף את הראשון" />}
+            emptyText={showDone ? "אין רעיונות שבוצעו" : "אין רעיונות בפרויקט עדיין — הוסף את הראשון"} />}
     </>
   );
 }
