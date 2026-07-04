@@ -448,7 +448,14 @@ function Shell({ user, dark, setDark, th }) {
   }, [uid]);
 
   useEffect(() => {
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+    if ("serviceWorker" in navigator) {
+      // Force an update check every open — notification buttons come from the SW,
+      // which otherwise can lag a deploy by up to a day. skipWaiting (in sw.js)
+      // then activates the new version immediately for future pushes.
+      navigator.serviceWorker.register("/sw.js")
+        .then(reg => reg.update().catch(() => {}))
+        .catch(() => {});
+    }
     if ("Notification" in window && Notification.permission === "granted") enablePush(uid);
   }, [uid]);
 
