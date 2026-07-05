@@ -14,7 +14,7 @@ export function htmlToText(h) {
   return (tmp.textContent || tmp.innerText || "").trim();
 }
 
-export default function RichEditor({ html, onChange, onImage, th, placeholder, minHeight = 110 }) {
+export default function RichEditor({ html, onChange, th, placeholder, minHeight = 110 }) {
   const ref = useRef(null);
   const [showColors, setShowColors] = useState(false);
   const [showHilite, setShowHilite] = useState(false);
@@ -157,21 +157,6 @@ export default function RichEditor({ html, onChange, onImage, th, placeholder, m
     else if (k === "y") { e.preventDefault(); redo(); }
   };
 
-  // A pasted screenshot/image becomes an attachment (handled by the parent
-  // editor); text paste falls through to the default contentEditable behaviour.
-  const onPaste = e => {
-    if (!onImage) return;
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (const it of items) {
-      if (it.type?.startsWith("image/")) {
-        const file = it.getAsFile();
-        if (file) { e.preventDefault(); onImage(file); }
-        return;
-      }
-    }
-  };
-
   // Range-API styling — works on iOS Safari where execCommand color ops fail.
   const applyStyle = (styleProp, value) => {
     const sel = ensureSel();
@@ -207,7 +192,7 @@ export default function RichEditor({ html, onChange, onImage, th, placeholder, m
       {/* Editable area first — the format toolbar sits BELOW it so Android's
           floating selection menu (which appears above the text) never covers it. */}
       <div ref={ref} contentEditable suppressContentEditableWarning
-        onInput={() => { emit(); record(false); }} onKeyDown={onKeyDown} onPaste={onPaste}
+        onInput={() => { emit(); record(false); }} onKeyDown={onKeyDown}
         onKeyUp={saveSel} onMouseUp={saveSel} onTouchEnd={saveSel}
         data-ph={placeholder}
         style={{ minHeight, maxHeight: 260, overflowY: "auto", padding: "12px 14px",

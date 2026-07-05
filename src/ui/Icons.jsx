@@ -45,7 +45,6 @@ const ICONS = {
   file:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
   undo:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>,
   redo:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>,
-  paste:  (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>,
 };
 
 export function Icon({ name, size = 20, color = "#6E7787" }) {

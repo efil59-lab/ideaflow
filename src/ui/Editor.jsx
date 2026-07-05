@@ -70,34 +70,6 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
     setBusy(false);
   };
 
-  // Explicit "paste" button — reads an image off the clipboard where the browser
-  // allows it (Ctrl+V while typing works everywhere via RichEditor's onPaste).
-  // Many mobile browsers don't support clipboard.read() for images, so degrade
-  // with a message pointing at the gallery, which always works.
-  const pasteImage = async () => {
-    if (!navigator.clipboard?.read) {
-      setMediaErr("בנייד ההדבקה מוגבלת — הוסף צילום מסך דרך כפתור \"גלריה\".");
-      return;
-    }
-    try {
-      const items = await navigator.clipboard.read();
-      for (const item of items) {
-        const type = item.types.find(t => t.startsWith("image/"));
-        if (type) {
-          const blob = await item.getType(type);
-          const ext = type.split("/")[1] || "png";
-          await addMedia(new File([blob], `screenshot.${ext}`, { type }), "image");
-          return;
-        }
-      }
-      setMediaErr("אין תמונה בלוח — העתק תמונה קודם, או הוסף דרך כפתור \"גלריה\".");
-    } catch (e) {
-      setMediaErr(e?.name === "NotAllowedError"
-        ? "אין הרשאה ללוח — אשר את הבקשה בדפדפן, או הוסף דרך כפתור \"גלריה\"."
-        : "לא ניתן לקרוא מהלוח בדפדפן הזה — הוסף צילום מסך דרך כפתור \"גלריה\".");
-    }
-  };
-
   const handleSave = () => {
     const plain = htmlToText(html);
     if (!plain && !images.length && !audios.length && !files.length) return;
@@ -111,14 +83,14 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
     });
   };
 
-  const mediaBtn = { flex: 1, background: th.surface2, color: th.secondary, border: `1px solid ${th.border}`,
-    borderRadius: 11, padding: "10px 0", cursor: "pointer", fontSize: 12.5, fontWeight: 600,
-    fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, minWidth: 66 };
+  const mediaBtn = { flex: 1, minWidth: 0, background: th.surface2, color: th.secondary, border: `1px solid ${th.border}`,
+    borderRadius: 11, padding: "10px 0", cursor: "pointer", fontSize: 12, fontWeight: 600,
+    fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, whiteSpace: "nowrap" };
 
   return (
     <Modal onClose={onClose} th={th}>
       <ModalHeader title={title} icon="edit" onClose={onClose} th={th} />
-      <RichEditor html={html} onChange={setHtml} onImage={f => addMedia(f, "image")} th={th} placeholder="מה עולה לך בראש?" />
+      <RichEditor html={html} onChange={setHtml} th={th} placeholder="מה עולה לך בראש?" />
       {autoSaved && (
         <p style={{ margin: "6px 2px 0", fontSize: 11.5, color: th.green,
           display: "flex", alignItems: "center", gap: 4 }}>
@@ -239,24 +211,21 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
       <input ref={docRef} type="file" style={{ display: "none" }}
         onChange={e => { addMedia(e.target.files[0], "file"); e.target.value = ""; }} />
 
-      <div style={{ display: "flex", gap: 7, marginTop: 12, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "nowrap" }}>
         <button style={mediaBtn} onClick={() => { fileRef.current.removeAttribute("capture"); fileRef.current.click(); }}>
-          <Icon name="photo" size={15} color={th.secondary} /> גלריה
+          <Icon name="photo" size={14} color={th.secondary} /> גלריה
         </button>
         <button style={mediaBtn} onClick={() => { fileRef.current.setAttribute("capture", "environment"); fileRef.current.click(); }}>
-          <Icon name="camera" size={15} color={th.secondary} /> צלם
+          <Icon name="camera" size={14} color={th.secondary} /> צלם
         </button>
         <button style={mediaBtn} onClick={() => audioCapRef.current.click()}>
-          <Icon name="mic" size={15} color={th.secondary} /> הקלט
+          <Icon name="mic" size={14} color={th.secondary} /> הקלט
         </button>
         <button style={mediaBtn} onClick={() => audioRef.current.click()}>
-          <Icon name="music" size={15} color={th.secondary} /> אודיו
+          <Icon name="music" size={14} color={th.secondary} /> אודיו
         </button>
         <button style={mediaBtn} onClick={() => docRef.current.click()}>
-          <Icon name="clip" size={15} color={th.secondary} /> קובץ
-        </button>
-        <button style={mediaBtn} onClick={pasteImage} title="הדבק צילום מסך">
-          <Icon name="paste" size={15} color={th.secondary} /> הדבק
+          <Icon name="clip" size={14} color={th.secondary} /> קובץ
         </button>
       </div>
       {mediaErr && (
