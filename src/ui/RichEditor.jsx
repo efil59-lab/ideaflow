@@ -20,9 +20,99 @@ export default function RichEditor({ html, onChange, th, placeholder, minHeight 
   const [showHilite, setShowHilite] = useState(false);
   const savedRange = useRef(null);
 
+  // ── Undo / redo — a custom snapshot stack, not the browser's native one.
+  // Native undo breaks the moment our Range-API color/highlight surgery runs,
+  // so we keep our own [{html, caret}] history: every change flows through
+  // record(), and undo/redo restore a snapshot (+ caret) exactly.
+  const history = useRef([]);   // [{ html, caret }] — caret is a char offset
+  const hIndex = useRef(-1);
+  const pushTimer = useRef(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
   useEffect(() => {
     if (ref.current && !ref.current.innerHTML) ref.current.innerHTML = html || "";
+    history.current = [{ html: ref.current?.innerHTML || "", caret: 0 }];
+    hIndex.current = 0;
+    return () => clearTimeout(pushTimer.current);
   }, []);
+
+  // Caret as a plain character offset from the start of the editable — survives
+  // an innerHTML swap (a DOM Range wouldn't). Both getters count text chars only.
+  const getCaret = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || !ref.current) return null;
+    const range = sel.getRangeAt(0);
+    if (!ref.current.contains(range.endContainer)) return null;
+    const pre = range.cloneRange();
+    pre.selectNodeContents(ref.current);
+    pre.setEnd(range.endContainer, range.endOffset);
+    return pre.toString().length;
+  };
+  const setCaret = offset => {
+    if (!ref.current) return;
+    const range = document.createRange();
+    let remaining = offset, done = false;
+    const walk = node => {
+      if (done) return;
+      if (node.nodeType === 3) {
+        const len = node.textContent.length;
+        if (remaining <= len) { range.setStart(node, remaining); range.collapse(true); done = true; }
+        else remaining -= len;
+      } else for (const child of node.childNodes) { walk(child); if (done) break; }
+    };
+    walk(ref.current);
+    if (!done) { range.selectNodeContents(ref.current); range.collapse(false); }
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  };
+
+  const updateButtons = () => {
+    setCanUndo(hIndex.current > 0);
+    setCanRedo(hIndex.current < history.current.length - 1);
+  };
+
+  // Capture the current state. Typing debounces (a burst → one undo step, so a
+  // pause is the natural boundary); formatting ops pass immediate=true.
+  const record = (immediate = false) => {
+    const snap = () => {
+      const cur = ref.current?.innerHTML ?? "";
+      if (history.current[hIndex.current]?.html === cur) return; // no change
+      history.current = history.current.slice(0, hIndex.current + 1); // drop redo branch
+      history.current.push({ html: cur, caret: getCaret() ?? cur.length });
+      if (history.current.length > 120) history.current.shift();     // cap memory
+      hIndex.current = history.current.length - 1;
+      updateButtons();
+    };
+    clearTimeout(pushTimer.current);
+    if (immediate) snap();
+    else pushTimer.current = setTimeout(snap, 400);
+  };
+
+  const applySnapshot = () => {
+    const s = history.current[hIndex.current];
+    if (!s || !ref.current) return;
+    ref.current.innerHTML = s.html;
+    onChange(s.html);
+    ref.current.focus();
+    setCaret(s.caret);
+    updateButtons();
+  };
+  const undo = () => {
+    clearTimeout(pushTimer.current);
+    // Fold any un-snapshotted typing into history first, so redo can reach it.
+    if (history.current[hIndex.current]?.html !== (ref.current?.innerHTML ?? "")) record(true);
+    if (hIndex.current <= 0) return;
+    hIndex.current -= 1;
+    applySnapshot();
+  };
+  const redo = () => {
+    clearTimeout(pushTimer.current);
+    if (hIndex.current >= history.current.length - 1) return;
+    hIndex.current += 1;
+    applySnapshot();
+  };
 
   const saveSel = () => {
     const sel = window.getSelection();
@@ -56,6 +146,15 @@ export default function RichEditor({ html, onChange, th, placeholder, minHeight 
     document.execCommand(cmd, false, val);
     saveSel();
     emit();
+    record(true);
+  };
+
+  const onKeyDown = e => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (!mod) return;
+    const k = e.key.toLowerCase();
+    if (k === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+    else if (k === "y") { e.preventDefault(); redo(); }
   };
 
   // Range-API styling — works on iOS Safari where execCommand color ops fail.
@@ -78,6 +177,7 @@ export default function RichEditor({ html, onChange, th, placeholder, minHeight 
       document.execCommand(styleProp === "backgroundColor" ? "hiliteColor" : "foreColor", false, value);
     }
     emit();
+    record(true);
   };
 
   const btn = (active = false) => ({
@@ -92,7 +192,8 @@ export default function RichEditor({ html, onChange, th, placeholder, minHeight 
       {/* Editable area first — the format toolbar sits BELOW it so Android's
           floating selection menu (which appears above the text) never covers it. */}
       <div ref={ref} contentEditable suppressContentEditableWarning
-        onInput={emit} onKeyUp={saveSel} onMouseUp={saveSel} onTouchEnd={saveSel}
+        onInput={() => { emit(); record(false); }} onKeyDown={onKeyDown}
+        onKeyUp={saveSel} onMouseUp={saveSel} onTouchEnd={saveSel}
         data-ph={placeholder}
         style={{ minHeight, maxHeight: 260, overflowY: "auto", padding: "12px 14px",
           fontSize: 15.5, fontFamily: "'Rubik',sans-serif", direction: "rtl", textAlign: "right",
@@ -100,6 +201,17 @@ export default function RichEditor({ html, onChange, th, placeholder, minHeight 
 
       <div style={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap",
         padding: "5px 8px", background: th.surface2, borderTop: `1px solid ${th.border}`, position: "relative" }}>
+        <button type="button" title="חזרה" disabled={!canUndo}
+          onPointerDown={e => { e.preventDefault(); if (canUndo) undo(); }}
+          style={{ ...btn(), opacity: canUndo ? 1 : 0.3, cursor: canUndo ? "pointer" : "default" }}>
+          <Icon name="undo" size={16} color={th.text} />
+        </button>
+        <button type="button" title="קדימה" disabled={!canRedo}
+          onPointerDown={e => { e.preventDefault(); if (canRedo) redo(); }}
+          style={{ ...btn(), opacity: canRedo ? 1 : 0.3, cursor: canRedo ? "pointer" : "default" }}>
+          <Icon name="redo" size={16} color={th.text} />
+        </button>
+        <div style={{ width: 1, height: 16, background: th.border, margin: "0 3px" }} />
         <button type="button" onPointerDown={e => { e.preventDefault(); exec("bold"); }} style={btn()}>B</button>
         <button type="button" onPointerDown={e => { e.preventDefault(); exec("underline"); }} style={{ ...btn(), textDecoration: "underline" }}>U</button>
         <button type="button" onPointerDown={e => { e.preventDefault(); exec("italic"); }} style={{ ...btn(), fontStyle: "italic" }}>I</button>
