@@ -1,5 +1,5 @@
 // IdeaFlow Service Worker — Web Push reminders
-const SW_VERSION = "5.11-snooze";
+const SW_VERSION = "5.11-diag";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
@@ -71,20 +71,28 @@ self.addEventListener("notificationclick", event => {
   event.notification.close();
   const d = event.notification.data || {};
 
+  // TEMP DIAGNOSTIC: surface exactly which action the OS delivered, so we can see
+  // whether tapping "15 דק׳" on mobile really sends action "snooze15". Shown on a
+  // separate tag so it doesn't clobber the snooze confirmation. Remove once solved.
+  const diag = self.registration.showNotification("🔧 נלחץ: [" + (event.action || "גוף") + "]", {
+    body: "uid=" + (d.uid ? "כן" : "לא") + " · idea=" + (d.ideaId ? "כן" : "לא"),
+    icon: "/icons/icon-192.png", badge: "/icons/badge-96.png", dir: "rtl", lang: "he", tag: "diag",
+  });
+
   // A background-snooze button ("15 דק׳") must NEVER open the app — return no
   // matter what. If the data is complete we reschedule in the background; if it
   // isn't (e.g. an old lingering notification from a previous version), we still
   // don't open a window — the whole point of this button is to stay closed.
   const min = SNOOZE_MIN[event.action];
   if (min) {
-    if (d.uid && d.ideaId) event.waitUntil(snoozeInBackground(d, min));
+    event.waitUntil(Promise.all([diag, d.uid && d.ideaId ? snoozeInBackground(d, min) : null]));
     return;
   }
 
   const url = (event.action === "snoozeMore" && d.ideaId)
     ? `/?snooze=${encodeURIComponent(d.ideaId)}`
     : (d.url || "/");
-  event.waitUntil(
+  event.waitUntil(Promise.all([diag,
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async clients => {
       for (const c of clients) {
         if ("focus" in c) {
@@ -95,5 +103,5 @@ self.addEventListener("notificationclick", event => {
       }
       if (self.clients.openWindow) return self.clients.openWindow(url);
     })
-  );
+  ]));
 });
