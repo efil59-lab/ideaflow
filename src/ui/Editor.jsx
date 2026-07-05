@@ -72,7 +72,13 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
 
   // Explicit "paste" button — reads an image off the clipboard where the browser
   // allows it (Ctrl+V while typing works everywhere via RichEditor's onPaste).
+  // Many mobile browsers don't support clipboard.read() for images, so degrade
+  // with a message pointing at the gallery, which always works.
   const pasteImage = async () => {
+    if (!navigator.clipboard?.read) {
+      setMediaErr("בנייד ההדבקה מוגבלת — הוסף צילום מסך דרך כפתור \"גלריה\".");
+      return;
+    }
     try {
       const items = await navigator.clipboard.read();
       for (const item of items) {
@@ -84,8 +90,12 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
           return;
         }
       }
-      setMediaErr("אין תמונה בלוח — צלם מסך או העתק תמונה קודם");
-    } catch { setMediaErr("אין גישה ללוח — נסה Ctrl+V בתוך הטקסט"); }
+      setMediaErr("אין תמונה בלוח — העתק תמונה קודם, או הוסף דרך כפתור \"גלריה\".");
+    } catch (e) {
+      setMediaErr(e?.name === "NotAllowedError"
+        ? "אין הרשאה ללוח — אשר את הבקשה בדפדפן, או הוסף דרך כפתור \"גלריה\"."
+        : "לא ניתן לקרוא מהלוח בדפדפן הזה — הוסף צילום מסך דרך כפתור \"גלריה\".");
+    }
   };
 
   const handleSave = () => {
