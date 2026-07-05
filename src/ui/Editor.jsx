@@ -70,6 +70,24 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
     setBusy(false);
   };
 
+  // Explicit "paste" button — reads an image off the clipboard where the browser
+  // allows it (Ctrl+V while typing works everywhere via RichEditor's onPaste).
+  const pasteImage = async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const type = item.types.find(t => t.startsWith("image/"));
+        if (type) {
+          const blob = await item.getType(type);
+          const ext = type.split("/")[1] || "png";
+          await addMedia(new File([blob], `screenshot.${ext}`, { type }), "image");
+          return;
+        }
+      }
+      setMediaErr("אין תמונה בלוח — צלם מסך או העתק תמונה קודם");
+    } catch { setMediaErr("אין גישה ללוח — נסה Ctrl+V בתוך הטקסט"); }
+  };
+
   const handleSave = () => {
     const plain = htmlToText(html);
     if (!plain && !images.length && !audios.length && !files.length) return;
@@ -90,7 +108,7 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
   return (
     <Modal onClose={onClose} th={th}>
       <ModalHeader title={title} icon="edit" onClose={onClose} th={th} />
-      <RichEditor html={html} onChange={setHtml} th={th} placeholder="מה עולה לך בראש?" />
+      <RichEditor html={html} onChange={setHtml} onImage={f => addMedia(f, "image")} th={th} placeholder="מה עולה לך בראש?" />
       {autoSaved && (
         <p style={{ margin: "6px 2px 0", fontSize: 11.5, color: th.green,
           display: "flex", alignItems: "center", gap: 4 }}>
@@ -226,6 +244,9 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
         </button>
         <button style={mediaBtn} onClick={() => docRef.current.click()}>
           <Icon name="clip" size={15} color={th.secondary} /> קובץ
+        </button>
+        <button style={mediaBtn} onClick={pasteImage} title="הדבק צילום מסך">
+          <Icon name="paste" size={15} color={th.secondary} /> הדבק
         </button>
       </div>
       {mediaErr && (

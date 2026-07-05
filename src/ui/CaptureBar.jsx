@@ -75,6 +75,19 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
     };
   }, []);
 
+  // Paste a screenshot (or any copied image) straight into the note.
+  const onPaste = e => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const it of items) {
+      if (it.type?.startsWith("image/")) {
+        const file = it.getAsFile();
+        if (file) { e.preventDefault(); addMedia(file, "image"); }
+        return;
+      }
+    }
+  };
+
   const addMedia = async (file, kind) => {
     if (!file) return;
     if (file.size > MAX_FILE_BYTES) {
@@ -120,7 +133,7 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
   return (
     <div style={{ background: th.surface, border: `1px solid ${th.border}`, borderRadius: 16, padding: "12px 13px" }}>
       <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)}
-        autoFocus={autoFocus}
+        autoFocus={autoFocus} onPaste={onPaste}
         onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save(); }}
         placeholder={placeholder} rows={text.length > 80 ? 3 : 2}
         style={{ width: "100%", border: "none", resize: "none", background: "transparent",
