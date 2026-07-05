@@ -182,9 +182,9 @@ export default function RichEditor({ html, onChange, th, placeholder, minHeight 
 
   const btn = (active = false) => ({
     background: active ? th.accentSoft : "transparent",
-    border: "none", cursor: "pointer", borderRadius: 7, padding: "6px 9px",
+    border: "none", cursor: "pointer", borderRadius: 7, padding: "6px 6px",
     display: "flex", alignItems: "center", justifyContent: "center",
-    fontSize: 14, fontWeight: 700, color: th.text, minWidth: 30, fontFamily: "Georgia,serif",
+    fontSize: 14, fontWeight: 700, color: th.text, minWidth: 26, fontFamily: "Georgia,serif",
   });
 
   return (
@@ -199,8 +199,8 @@ export default function RichEditor({ html, onChange, th, placeholder, minHeight 
           fontSize: 15.5, fontFamily: "'Rubik',sans-serif", direction: "rtl", textAlign: "right",
           lineHeight: 1.65, color: th.text, outline: "none" }} />
 
-      <div style={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap",
-        padding: "5px 8px", background: th.surface2, borderTop: `1px solid ${th.border}`, position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
+        padding: "5px 6px", background: th.surface2, borderTop: `1px solid ${th.border}`, position: "relative" }}>
         <button type="button" title="חזרה" disabled={!canUndo}
           onPointerDown={e => { e.preventDefault(); if (canUndo) undo(); }}
           style={{ ...btn(), opacity: canUndo ? 1 : 0.3, cursor: canUndo ? "pointer" : "default" }}>
@@ -211,15 +211,15 @@ export default function RichEditor({ html, onChange, th, placeholder, minHeight 
           style={{ ...btn(), opacity: canRedo ? 1 : 0.3, cursor: canRedo ? "pointer" : "default" }}>
           <Icon name="redo" size={16} color={th.text} />
         </button>
-        <div style={{ width: 1, height: 16, background: th.border, margin: "0 3px" }} />
+        <div style={{ width: 1, height: 16, background: th.border, margin: "0 2px" }} />
         <button type="button" onPointerDown={e => { e.preventDefault(); exec("bold"); }} style={btn()}>B</button>
         <button type="button" onPointerDown={e => { e.preventDefault(); exec("underline"); }} style={{ ...btn(), textDecoration: "underline" }}>U</button>
         <button type="button" onPointerDown={e => { e.preventDefault(); exec("italic"); }} style={{ ...btn(), fontStyle: "italic" }}>I</button>
-        <div style={{ width: 1, height: 16, background: th.border, margin: "0 3px" }} />
+        <div style={{ width: 1, height: 16, background: th.border, margin: "0 2px" }} />
         <button type="button" onPointerDown={e => { e.preventDefault(); exec("insertUnorderedList"); }} style={btn()}>
           <Icon name="more" size={15} color={th.text} />
         </button>
-        <div style={{ width: 1, height: 16, background: th.border, margin: "0 3px" }} />
+        <div style={{ width: 1, height: 16, background: th.border, margin: "0 2px" }} />
         <button type="button" onPointerDown={e => { e.preventDefault(); setShowColors(s => !s); setShowHilite(false); }}
           style={btn(showColors)}>
           <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center" }}>
