@@ -131,6 +131,12 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
         </button>
         {showRemind && (
           <div style={{ padding: "10px 13px", background: th.surface2, borderTop: `1px solid ${th.border}` }}>
+            {/* Native datetime-local renders blank when empty, so a label makes
+                clear what the field is and that tapping it opens the picker. */}
+            <label style={{ display: "block", fontSize: 12, color: th.muted,
+              margin: "0 2px 5px", fontFamily: FONT, direction: "rtl" }}>
+              {remindAt ? "מועד התזכורת:" : "בחר תאריך ושעה (לחיצה פותחת בורר):"}
+            </label>
             <input type="datetime-local"
               value={fmtDatetimeLocal(remindAt)}
               min={fmtDatetimeLocal(Date.now())}
@@ -138,8 +144,10 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
               style={{ width: "100%", border: `1px solid ${th.border}`, borderRadius: 9,
                 padding: "9px 12px", fontSize: 14, background: th.inputBg,
                 color: th.text, fontFamily: FONT }} />
+            <label style={{ display: "block", fontSize: 12, color: th.muted,
+              margin: "9px 2px 5px", fontFamily: FONT, direction: "rtl" }}>חזרה:</label>
             <select value={repeat} onChange={e => setRepeat(e.target.value)}
-              style={{ width: "100%", marginTop: 7, border: `1px solid ${th.border}`, borderRadius: 9,
+              style={{ width: "100%", border: `1px solid ${th.border}`, borderRadius: 9,
                 padding: "9px 10px", fontSize: 13.5, background: th.inputBg,
                 color: th.text, fontFamily: FONT, direction: "rtl" }}>
               {REPEAT_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
