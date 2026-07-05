@@ -1,5 +1,5 @@
 // IdeaFlow Service Worker — Web Push reminders
-const SW_VERSION = "5.12-bg2";
+const SW_VERSION = "5.12-1btn";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
@@ -31,14 +31,11 @@ self.addEventListener("push", event => {
       lang: "he",
       tag: data.ideaId ? `idea-${data.ideaId}` : undefined,
       requireInteraction: true,
-      // BOTH buttons snooze in the background — neither opens the app. This makes
-      // the app-open bug impossible regardless of which button the OS actually
-      // fires (some devices mis-map / reverse RTL action order). Custom-time
-      // snooze still lives in the app, reachable by tapping the notification body.
-      actions: snoozable
-        ? [{ action: "snooze15", title: "15 דק׳" },
-           { action: "snooze60", title: "שעה" }]
-        : [],
+      // A SINGLE snooze button — with two, some devices cross-wire each button's
+      // title and action (RTL action-order bug), so "15 דק׳" fired the hour. One
+      // button has nothing to swap: it reschedules 15 min in the background on
+      // every device. Other durations live in-app (tap the notification body).
+      actions: snoozable ? [{ action: "snooze15", title: "😴 דחה 15 דק׳" }] : [],
       data: { url: data.url || "/", ideaId: data.ideaId || null, uid: data.uid || null }
     })
   );
