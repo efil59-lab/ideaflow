@@ -1,10 +1,48 @@
 // Release ritual — on every substantive change, ALWAYS:
 //   1. bump APP_VERSION
-//   2. describe the changes in CHANGELOG below (this exact list is what users
-//      see, once, in the what's-new dialog on their next visit)
-//   3. update the Guide in App.jsx if the change adds/alters a feature
-export const APP_VERSION = "5.10";
+//   2. PREPEND a dated release entry to CHANGELOG below (newest first). This is
+//      the accumulating in-app log ("יומן עדכונים") AND the source of the
+//      what's-new dialog, which shows the top entry once per version bump.
+//   3. update the Guide in App.jsx — substantial, user-facing topics only.
+export const APP_VERSION = "5.11";
 
+// Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
+// icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
-  { icon: "notes", title: "רעיון ללא סימון ביצוע", text: "לא כל רעיון הוא משימה. בתפריט הכרטיס (⋯) → אייקון הפתק הופך רעיון ל\"הערה\" — ריבוע הסימון נעלם והוא לא ניתן לסימון כבוצע. לחיצה נוספת מחזירה למשימה רגילה." },
+  { v: "5.11", date: "5 ביולי 2026", items: [
+    { icon: "time", title: "יומן עדכונים", text: "מסך חדש שמרכז את כל העדכונים של האפליקציה לפי גרסאות — נגיש מתפריט המשתמש (התמונה למעלה) ומתחתית המדריך." },
+  ] },
+  { v: "5.10", date: "5 ביולי 2026", items: [
+    { icon: "notes", title: "רעיון ללא סימון ביצוע", text: "אפשר לסמן רעיון כ\"הערה\" (בתפריט ⋯ של הכרטיס) — ריבוע הביצוע נעלם. מתאים למידע, קישורים או תזכורות-רקע. לחיצה נוספת מחזירה למשימה." },
+  ] },
+  { v: "5.9", date: "5 ביולי 2026", items: [
+    { icon: "clip", title: "צירוף קבצים", text: "אפשר לצרף כל קובץ לרעיון — PDF, מסמך, גיליון ועוד — מכפתור המהדק בתיבת התפיסה או \"קובץ\" בעורך. הקובץ מופיע על הכרטיס ונפתח או יורד בלחיצה. עד 10MB." },
+  ] },
+  { v: "5.8", date: "5 ביולי 2026", items: [
+    { icon: "refresh", title: "זיכרון מסך חכם", text: "רענון של הדף שומר אותך במסך שבו היית (פרויקט, חיפוש), ופתיחה טרייה של האפליקציה נפתחת תמיד ב-Inbox." },
+  ] },
+  { v: "5.7", date: "5 ביולי 2026", items: [
+    { icon: "undo", title: "חזרה וקדימה בעריכה", text: "כפתורי ↶ / ↷ בעורך הרעיון — לתיקון טעות או שחזור מילה שנמחקה, בנגיעה אחת בנייד וגם עם Ctrl+Z." },
+  ] },
+  { v: "5.6", date: "5 ביולי 2026", items: [
+    { icon: "photo", title: "תמונות, אודיו וקבצים", text: "צירוף מדיה לכל רעיון עם הודעות ברורות אם ההעלאה נכשלת או שהקובץ חורג מ-10MB." },
+  ] },
+  { v: "5.5", date: "4 ביולי 2026", items: [
+    { icon: "bell", title: "דחיית תזכורת מההתראה", text: "על התראת תזכורת: כפתור \"15 דק׳\" דוחה מיד ברקע, וכפתור \"אחר\" פותח בחירת זמן מלאה — בלי לפתוח את האפליקציה." },
+  ] },
+  { v: "5.4", date: "4 ביולי 2026", items: [
+    { icon: "delete", title: "ריקון פח האשפה", text: "אפשר לרוקן את כל פח האשפה בבת אחת, עם אישור מעוצב." },
+  ] },
+  { v: "5.3", date: "4 ביולי 2026", items: [
+    { icon: "inbox", title: "מסך תפיסה מהיר", text: "קיצור \"רעיון חדש\" (לחיצה ארוכה על האפליקציה) פותח מסך כתיבה נקי ומיידי עם מקלדת, ושומר ישר ל-Inbox." },
+  ] },
+  { v: "5.2", date: "4 ביולי 2026", items: [
+    { icon: "chat", title: "התראות תגובות ותיקונים", text: "נקודה אדומה ליד פרויקט עם תגובה שלא נקראה, מיקוד אוטומטי בתיבת התפיסה, ותיקוני יציבות בתזכורות חוזרות." },
+  ] },
+  { v: "5.1", date: "4 ביולי 2026", items: [
+    { icon: "refresh", title: "תזכורות חוזרות ודחייה", text: "תזכורת שחוזרת כל שעה / יום / שבוע / חודש / שנה, ואפשרות לדחות תזכורת לזמן אחר. נוסף גם חלון \"מה חדש\"." },
+  ] },
+  { v: "5.0", date: "1 ביולי 2026", items: [
+    { icon: "sparkle", title: "IdeaFlow 5 — בנייה מחדש", text: "גרסה חדשה מהיסוד: תפיסה-קודם עם כותרות ותגיות אוטומטיות (AI), עיצוב חדש, צבעי כרטיסים, סידור בגרירה, פח אשפה, שיתוף פרויקטים, חיפוש, ייצוא לקלוד, והתקנה כאפליקציה." },
+  ] },
 ];

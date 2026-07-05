@@ -427,6 +427,7 @@ function Shell({ user, dark, setDark, th }) {
   const [showUser, setShowUser] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [showLog, setShowLog] = useState(false);
   const [toast, setToast] = useState(null);
 
   const ideas = useIdeas(migrating ? null : uid);
@@ -562,7 +563,7 @@ function Shell({ user, dark, setDark, th }) {
   // at the root, require a double-press to actually exit.
   const uiRef = useRef({});
   useEffect(() => {
-    uiRef.current = { showGuide, showWhatsNew, showUser, showAI, remindIdea, snoozeIdea, moveIdea, shareIdea, editIdea, commentsCtx, openProjectId, tab };
+    uiRef.current = { showGuide, showWhatsNew, showLog, showUser, showAI, remindIdea, snoozeIdea, moveIdea, shareIdea, editIdea, commentsCtx, openProjectId, tab };
   });
   const rearmRef = useRef(null);
   useEffect(() => {
@@ -580,6 +581,7 @@ function Shell({ user, dark, setDark, th }) {
       let handled = true;
       if (s.showGuide) setShowGuide(false);
       else if (s.showWhatsNew) setShowWhatsNew(false);
+      else if (s.showLog) setShowLog(false);
       else if (s.showUser) setShowUser(false);
       else if (s.showAI) setShowAI(false);
       else if (s.commentsCtx) setCommentsCtx(null);
@@ -919,6 +921,13 @@ function Shell({ user, dark, setDark, th }) {
             {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 54, height: 54, borderRadius: "50%", marginBottom: 10 }} />}
             <div style={{ fontSize: 15, fontWeight: 600, color: th.text }}>{user.displayName}</div>
             <div style={{ fontSize: 13, color: th.muted, marginBottom: 18 }}>{user.email}</div>
+            <button onClick={() => { setShowUser(false); setShowLog(true); }}
+              style={{ width: "100%", height: 42, marginBottom: 8, background: th.surface2, color: th.text,
+                border: `1px solid ${th.border}`, borderRadius: 11, cursor: "pointer",
+                fontSize: 14, fontWeight: 500, fontFamily: FONT,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+              <Icon name="time" size={16} color={th.secondary} /> יומן עדכונים
+            </button>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => setShowUser(false)}
                 style={{ flex: 1, height: 42, background: th.surface2, color: th.text,
@@ -932,17 +941,36 @@ function Shell({ user, dark, setDark, th }) {
           </div>
         </Modal>
       )}
-      {showGuide && <Guide onClose={() => setShowGuide(false)} th={th} />}
+      {showGuide && <Guide onClose={() => setShowGuide(false)} onLog={() => { setShowGuide(false); setShowLog(true); }} th={th} />}
       {showWhatsNew && !showGuide && <WhatsNew onClose={() => setShowWhatsNew(false)} th={th} />}
+      {showLog && <UpdatesLog onClose={() => setShowLog(false)} th={th} />}
 
       {/* Install banner waits politely while the guide (or any modal) is open */}
-      <InstallBanner th={th} hidden={showGuide || showWhatsNew || showAI || showUser || !!editIdea || !!remindIdea || !!moveIdea || !!shareIdea || !!commentsCtx} />
+      <InstallBanner th={th} hidden={showGuide || showWhatsNew || showLog || showAI || showUser || !!editIdea || !!remindIdea || !!moveIdea || !!shareIdea || !!commentsCtx} />
     </div>
   );
 }
 
-// Shown once per user per APP_VERSION bump — the release's CHANGELOG entries.
+// One log row — icon tile + title + text. Shared by what's-new and the log.
+function LogRow({ it, th, last }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 11,
+      padding: "10px 0", borderBottom: last ? "none" : `1px solid ${th.border}` }}>
+      <div style={{ width: 32, height: 32, borderRadius: 10, background: th.accentSoft,
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Icon name={it.icon} size={16} color={th.accentText} />
+      </div>
+      <div style={{ flex: 1, fontSize: 13, color: th.text, lineHeight: 1.6, textAlign: "right" }}>
+        <strong style={{ fontWeight: 600 }}>{it.title}: </strong>
+        <span style={{ color: th.secondary }}>{it.text}</span>
+      </div>
+    </div>
+  );
+}
+
+// Shown once per user per APP_VERSION bump — the latest release's entries.
 function WhatsNew({ onClose, th }) {
+  const items = CHANGELOG[0]?.items || [];
   return (
     <Modal onClose={onClose} maxWidth={400} th={th}>
       <div style={{ textAlign: "center", marginBottom: 12 }}>
@@ -951,19 +979,7 @@ function WhatsNew({ onClose, th }) {
         <span style={{ fontSize: 11.5, fontWeight: 600, color: th.accentText, background: th.accentSoft,
           borderRadius: 20, padding: "3px 12px" }}>גרסה {APP_VERSION}</span>
       </div>
-      {CHANGELOG.map((it, i) => (
-        <div key={it.title} style={{ display: "flex", alignItems: "flex-start", gap: 11,
-          padding: "10px 0", borderBottom: i === CHANGELOG.length - 1 ? "none" : `1px solid ${th.border}` }}>
-          <div style={{ width: 32, height: 32, borderRadius: 10, background: th.accentSoft,
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Icon name={it.icon} size={16} color={th.accentText} />
-          </div>
-          <div style={{ flex: 1, fontSize: 13, color: th.text, lineHeight: 1.6, textAlign: "right" }}>
-            <strong style={{ fontWeight: 600 }}>{it.title}: </strong>
-            <span style={{ color: th.secondary }}>{it.text}</span>
-          </div>
-        </div>
-      ))}
+      {items.map((it, i) => <LogRow key={it.title} it={it} th={th} last={i === items.length - 1} />)}
       <button onClick={onClose}
         style={{ width: "100%", marginTop: 12, height: 44, background: th.accent, color: "#fff",
           border: "none", borderRadius: 12, cursor: "pointer",
@@ -974,7 +990,37 @@ function WhatsNew({ onClose, th }) {
   );
 }
 
-function Guide({ onClose, th }) {
+// Full accumulating history — every release, newest first.
+function UpdatesLog({ onClose, th }) {
+  return (
+    <Modal onClose={onClose} maxWidth={430} th={th}>
+      <div style={{ textAlign: "center", marginBottom: 14 }}>
+        <Icon name="time" size={30} color={th.accent} />
+        <h3 style={{ margin: "8px 0 2px", fontSize: 19, fontWeight: 800, color: th.text }}>יומן עדכונים</h3>
+        <p style={{ margin: 0, fontSize: 12.5, color: th.muted }}>כל מה שהשתנה ב-IdeaFlow</p>
+      </div>
+      {CHANGELOG.map(rel => (
+        <div key={rel.v} style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "4px 0 2px" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: th.accentText, background: th.accentSoft,
+              borderRadius: 20, padding: "3px 11px", flexShrink: 0 }}>גרסה {rel.v}</span>
+            <span style={{ fontSize: 11.5, color: th.muted, flexShrink: 0 }}>{rel.date}</span>
+            <div style={{ flex: 1, height: 1, background: th.border }} />
+          </div>
+          {rel.items.map((it, i) => <LogRow key={it.title} it={it} th={th} last={i === rel.items.length - 1} />)}
+        </div>
+      ))}
+      <button onClick={onClose}
+        style={{ width: "100%", marginTop: 8, height: 44, background: th.accent, color: "#fff",
+          border: "none", borderRadius: 12, cursor: "pointer",
+          fontSize: 15, fontWeight: 700, fontFamily: FONT }}>
+        סגור
+      </button>
+    </Modal>
+  );
+}
+
+function Guide({ onClose, onLog, th }) {
   const steps = [
     { icon: "inbox", title: "שלב 1 — זרוק ל-Inbox", text: "עלה לך רעיון? כתוב אותו, צלם או הקלט — וזהו. בלי לבחור תיקייה, בלי החלטות. הוא נשמר לבד 9 שניות אחרי שהפסקת להקליד (או בלחיצה על שמור), עובד גם בלי אינטרנט, וגם טיוטה שלא סיימת מחכה לך בפעם הבאה." },
     { icon: "sparkle", title: "שלב 2 — ה-AI מסדר איתך", text: "כמה שניות אחרי השמירה הרעיון מקבל כותרת ותגיות אוטומטיות, ואם הוא מתאים לאחד הפרויקטים שלך — תופיע הצעה \"להעביר אל...?\" שמסתדרת בלחיצה אחת. מיון ידני: אייקון התיקייה על הכרטיס." },
@@ -1028,6 +1074,8 @@ function Guide({ onClose, th }) {
 
       <p style={{ fontSize: 11.5, color: th.muted, margin: "12px 2px 0", textAlign: "center" }}>
         המדריך זמין תמיד בכפתור ? למעלה · גרסה {APP_VERSION}
+        {onLog && <> · <span onClick={onLog}
+          style={{ color: th.accentText, fontWeight: 600, cursor: "pointer" }}>יומן עדכונים</span></>}
       </p>
       <button onClick={onClose}
         style={{ width: "100%", marginTop: 10, height: 44, background: th.accent, color: "#fff",
