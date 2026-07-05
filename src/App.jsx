@@ -37,6 +37,9 @@ window.addEventListener("beforeinstallprompt", e => {
 // Self-update: Android resumes PWAs from memory without reloading, so phones
 // can run stale builds for days. Compare the served bundle hash against the
 // running one whenever the app becomes visible; reload if a new deploy landed.
+// Must match SW_VERSION in public/sw.js — used to detect a stale worker.
+const EXPECTED_SW_VERSION = "5.11-snooze";
+
 let lastUpdateCheck = 0;
 async function reloadIfNewVersion() {
   if (Date.now() - lastUpdateCheck < 10 * 60e3) return;
@@ -481,13 +484,35 @@ function Shell({ user, dark, setDark, th }) {
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      // Force an update check every open — notification buttons + click handling
-      // come from the SW, which otherwise can lag a deploy. updateViaCache:"none"
-      // makes the browser re-fetch sw.js from the network (not its HTTP cache) so
-      // a stale worker can't keep opening the app on the "15 דק׳" snooze button.
-      // skipWaiting (in sw.js) then activates the new version immediately.
+      // Notification buttons + click handling come from the SW, so a stale worker
+      // keeps opening the app on the "15 דק׳" snooze button. Force convergence:
+      // when a newly-activated worker takes control, reload once so the page and
+      // its handlers match it (skip active typing; skip the very first install).
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (window.__ifSwReloaded) return;
+          const el = document.activeElement;
+          if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+          window.__ifSwReloaded = true;
+          location.reload();
+        });
+      }
+      // updateViaCache:"none" re-fetches sw.js from the network, not the HTTP
+      // cache. Then verify the controlling worker's version; a stale one won't
+      // answer with the current one, so we force another update to swap it in.
       navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
-        .then(reg => reg.update().catch(() => {}))
+        .then(async reg => {
+          await reg.update().catch(() => {});
+          const ctrl = navigator.serviceWorker.controller;
+          if (!ctrl) return;
+          const version = await new Promise(res => {
+            const ch = new MessageChannel();
+            ch.port1.onmessage = e => res(e.data && e.data.version);
+            try { ctrl.postMessage({ type: "sw-version" }, [ch.port2]); } catch { res(null); }
+            setTimeout(() => res(null), 2500);
+          });
+          if (version !== EXPECTED_SW_VERSION) reg.update().catch(() => {});
+        })
         .catch(() => {});
     }
     if ("Notification" in window && Notification.permission === "granted") enablePush(uid);

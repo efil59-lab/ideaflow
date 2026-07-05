@@ -3,6 +3,16 @@ const SW_VERSION = "5.11-snooze";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
+// Version handshake — the app asks the controlling worker who it is, so a stale
+// worker (which won't answer with the current version) can be detected and
+// replaced instead of silently keeping the old notification-click behaviour.
+self.addEventListener("message", event => {
+  if (event.data && event.data.type === "sw-version") {
+    const port = event.ports && event.ports[0];
+    if (port) port.postMessage({ version: SW_VERSION });
+  }
+});
+
 // A push arrives from the server (api/send-reminders.js) when a reminder is due.
 // This fires even when the app is closed.
 self.addEventListener("push", event => {
