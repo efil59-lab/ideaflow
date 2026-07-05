@@ -83,9 +83,9 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
     });
   };
 
-  const mediaBtn = { flex: 1, minWidth: 0, background: th.surface2, color: th.secondary, border: `1px solid ${th.border}`,
-    borderRadius: 11, padding: "10px 0", cursor: "pointer", fontSize: 12, fontWeight: 600,
-    fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, whiteSpace: "nowrap" };
+  const mediaBtn = { flex: 1, minWidth: 0, background: th.surface2, border: `1px solid ${th.border}`,
+    borderRadius: 11, padding: "11px 0", cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "center" };
 
   return (
     <Modal onClose={onClose} th={th}>
@@ -98,63 +98,57 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
         </p>
       )}
 
-      {/* Project select */}
-      <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
-        <span style={{ fontSize: 12.5, color: th.muted, fontWeight: 500, flexShrink: 0 }}>שמור אל:</span>
+      {/* Destination + reminder — one compact row */}
+      <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "stretch", direction: "rtl" }}>
         <select value={projectId ?? ""} onChange={e => setProjectId(e.target.value || null)}
-          style={{ flex: 1, border: `1px solid ${th.border}`, borderRadius: 10,
-            padding: "9px 10px", fontSize: 14, background: th.inputBg, color: th.text,
+          style={{ flex: 1, minWidth: 0, border: `1px solid ${th.border}`, borderRadius: 10,
+            padding: "9px 10px", fontSize: 13.5, background: th.inputBg, color: th.text,
             fontFamily: FONT, direction: "rtl" }}>
           <option value="">Inbox — ללא פרויקט</option>
           {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        <button onClick={() => setShowRemind(p => !p)} title="תזכורת"
+          style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6,
+            background: remindAt ? th.accentSoft : th.surface2,
+            border: `1px solid ${remindAt ? th.accentText : th.border}`, borderRadius: 10,
+            padding: "0 12px", cursor: "pointer", fontFamily: FONT, fontSize: 13, fontWeight: 500,
+            color: remindAt ? th.accentText : th.secondary }}>
+          <Icon name={remindAt ? "bell" : "belloff"} size={15} color={remindAt ? th.accentText : th.muted} />
+          {remindAt
+            ? new Date(remindAt).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + (repeat ? " ↻" : "")
+            : "תזכורת"}
+        </button>
       </div>
 
-      {/* Reminder */}
-      <div style={{ marginTop: 10, borderRadius: 11, border: `1px solid ${th.border}`, overflow: "hidden" }}>
-        <button onClick={() => setShowRemind(p => !p)}
-          style={{ width: "100%", background: remindAt ? th.accentSoft : th.surface2,
-            border: "none", cursor: "pointer", padding: "10px 13px",
-            display: "flex", alignItems: "center", gap: 8, direction: "rtl" }}>
-          <Icon name={remindAt ? "bell" : "belloff"} size={16} color={remindAt ? th.accentText : th.muted} />
-          <span style={{ flex: 1, fontSize: 13, fontWeight: 500, textAlign: "right",
-            color: remindAt ? th.accentText : th.secondary, fontFamily: FONT }}>
-            {remindAt
-              ? `תזכורת: ${new Date(remindAt).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}${repeat ? " ↻" : ""}`
-              : "הגדר תזכורת"}
-          </span>
-          {remindAt && (
-            <span onClick={e => { e.stopPropagation(); setRemindAt(null); setRepeat(""); setShowRemind(false); }}
-              style={{ fontSize: 11, color: th.accentText, background: th.surface,
-                borderRadius: 20, padding: "2px 9px", fontWeight: 600, fontFamily: FONT }}>הסר</span>
-          )}
-        </button>
-        {showRemind && (
-          <div style={{ padding: "10px 13px", background: th.surface2, borderTop: `1px solid ${th.border}` }}>
-            {/* Native datetime-local renders blank when empty, so a label makes
-                clear what the field is and that tapping it opens the picker. */}
-            <label style={{ display: "block", fontSize: 12, color: th.muted,
-              margin: "0 2px 5px", fontFamily: FONT, direction: "rtl" }}>
-              {remindAt ? "מועד התזכורת:" : "בחר תאריך ושעה (לחיצה פותחת בורר):"}
-            </label>
+      {/* Reminder detail — opens under the row: date + repeat side by side */}
+      {showRemind && (
+        <div style={{ marginTop: 8, padding: "10px 12px", background: th.surface2,
+          border: `1px solid ${th.border}`, borderRadius: 11 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 4, direction: "rtl" }}>
+            <span style={{ flex: 1.4, fontSize: 11, color: th.muted, fontFamily: FONT }}>תאריך ושעה</span>
+            <span style={{ flex: 1, fontSize: 11, color: th.muted, fontFamily: FONT }}>חזרה</span>
+          </div>
+          <div style={{ display: "flex", gap: 8, direction: "rtl" }}>
             <input type="datetime-local"
               value={fmtDatetimeLocal(remindAt)}
               min={fmtDatetimeLocal(Date.now())}
               onChange={e => setRemindAt(e.target.value ? new Date(e.target.value).getTime() : null)}
-              style={{ width: "100%", border: `1px solid ${th.border}`, borderRadius: 9,
-                padding: "9px 12px", fontSize: 14, background: th.inputBg,
-                color: th.text, fontFamily: FONT }} />
-            <label style={{ display: "block", fontSize: 12, color: th.muted,
-              margin: "9px 2px 5px", fontFamily: FONT, direction: "rtl" }}>חזרה:</label>
+              style={{ flex: 1.4, minWidth: 0, border: `1px solid ${th.border}`, borderRadius: 9,
+                padding: "9px 10px", fontSize: 13.5, background: th.inputBg, color: th.text, fontFamily: FONT }} />
             <select value={repeat} onChange={e => setRepeat(e.target.value)}
-              style={{ width: "100%", border: `1px solid ${th.border}`, borderRadius: 9,
-                padding: "9px 10px", fontSize: 13.5, background: th.inputBg,
-                color: th.text, fontFamily: FONT, direction: "rtl" }}>
+              style={{ flex: 1, minWidth: 0, border: `1px solid ${th.border}`, borderRadius: 9,
+                padding: "9px 8px", fontSize: 13, background: th.inputBg, color: th.text,
+                fontFamily: FONT, direction: "rtl" }}>
               {REPEAT_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
             </select>
           </div>
-        )}
-      </div>
+          {remindAt && (
+            <span onClick={() => { setRemindAt(null); setRepeat(""); }}
+              style={{ display: "inline-block", marginTop: 8, fontSize: 12, color: th.red,
+                cursor: "pointer", fontFamily: FONT }}>הסר תזכורת</span>
+          )}
+        </div>
+      )}
 
       {/* Media previews */}
       {audios.length > 0 && (
@@ -219,21 +213,21 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
       <input ref={docRef} type="file" style={{ display: "none" }}
         onChange={e => { addMedia(e.target.files[0], "file"); e.target.value = ""; }} />
 
-      <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "nowrap" }}>
-        <button style={mediaBtn} onClick={() => { fileRef.current.removeAttribute("capture"); fileRef.current.click(); }}>
-          <Icon name="photo" size={14} color={th.secondary} /> גלריה
+      <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+        <button style={mediaBtn} title="גלריה" onClick={() => { fileRef.current.removeAttribute("capture"); fileRef.current.click(); }}>
+          <Icon name="photo" size={19} color={th.secondary} />
         </button>
-        <button style={mediaBtn} onClick={() => { fileRef.current.setAttribute("capture", "environment"); fileRef.current.click(); }}>
-          <Icon name="camera" size={14} color={th.secondary} /> צלם
+        <button style={mediaBtn} title="צלם" onClick={() => { fileRef.current.setAttribute("capture", "environment"); fileRef.current.click(); }}>
+          <Icon name="camera" size={19} color={th.secondary} />
         </button>
-        <button style={mediaBtn} onClick={() => audioCapRef.current.click()}>
-          <Icon name="mic" size={14} color={th.secondary} /> הקלט
+        <button style={mediaBtn} title="הקלט" onClick={() => audioCapRef.current.click()}>
+          <Icon name="mic" size={19} color={th.secondary} />
         </button>
-        <button style={mediaBtn} onClick={() => audioRef.current.click()}>
-          <Icon name="music" size={14} color={th.secondary} /> אודיו
+        <button style={mediaBtn} title="אודיו" onClick={() => audioRef.current.click()}>
+          <Icon name="music" size={19} color={th.secondary} />
         </button>
-        <button style={mediaBtn} onClick={() => docRef.current.click()}>
-          <Icon name="clip" size={14} color={th.secondary} /> קובץ
+        <button style={mediaBtn} title="קובץ" onClick={() => docRef.current.click()}>
+          <Icon name="clip" size={19} color={th.secondary} />
         </button>
       </div>
       {mediaErr && (
@@ -244,8 +238,8 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
       )}
 
       <button onClick={handleSave} disabled={busy}
-        style={{ width: "100%", marginTop: 12, background: th.accent, color: "#fff",
-          border: "none", borderRadius: 12, padding: "13px 0", cursor: "pointer",
+        style={{ width: "100%", marginTop: 10, background: th.accent, color: "#fff",
+          border: "none", borderRadius: 12, padding: "12px 0", cursor: "pointer",
           fontSize: 15, fontWeight: 700, fontFamily: FONT, opacity: busy ? 0.6 : 1,
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
         <Icon name="save" size={17} color="#fff" /> {busy ? "מעלה..." : "שמור"}
