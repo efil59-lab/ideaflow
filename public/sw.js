@@ -1,5 +1,5 @@
 // IdeaFlow Service Worker — Web Push reminders
-const SW_VERSION = "5.12-autoclose";
+const SW_VERSION = "5.12-silentok";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
@@ -43,36 +43,28 @@ self.addEventListener("push", event => {
 });
 
 // A snooze button → reschedule in the background via the server; the app never
-// opens. We swap the reminder for a brief confirmation on the same tag.
+// opens. The tapped reminder is already closed (event.notification.close), so a
+// success needs no notification at all — only a failure is surfaced.
 const SNOOZE_MIN = { snooze15: 15, snooze60: 60 };
 
 async function snoozeInBackground(d, min) {
-  const tag = `idea-${d.ideaId}`;
   let ok = false;
   try {
     ok = (await fetch(`/api/snooze?uid=${encodeURIComponent(d.uid)}&ideaId=${encodeURIComponent(d.ideaId)}&min=${min}`,
       { method: "POST" })).ok;
   } catch { ok = false; }
 
-  await self.registration.showNotification(
-    ok ? "😴 התזכורת נדחתה" : "לא הצלחתי לדחות",
-    {
-      body: ok
-        ? (min === 60 ? "תופיע שוב בעוד שעה" : `תופיע שוב בעוד ${min} דקות`)
-        : "פתח את האפליקציה ונסה שוב",
+  // Success = silent (no confirmation toast cluttering the tray). Only tell the
+  // user when the snooze failed, so they know to open the app and retry.
+  if (!ok) {
+    await self.registration.showNotification("לא הצלחתי לדחות", {
+      body: "פתח את האפליקציה ונסה שוב",
       icon: "/icons/icon-notif.png",
       badge: "/icons/badge-96.png",
       dir: "rtl", lang: "he",
-      tag,
+      tag: `idea-${d.ideaId}`,
       data: { url: `/?idea=${encodeURIComponent(d.ideaId)}`, ideaId: d.ideaId },
     });
-
-  // The success confirmation is a transient "done" toast — auto-dismiss it after
-  // a few seconds so it doesn't linger in the tray. (A failure stays, so the
-  // user notices they need to retry.) waitUntil keeps the SW alive meanwhile.
-  if (ok) {
-    await new Promise(res => setTimeout(res, 4000));
-    for (const n of await self.registration.getNotifications({ tag })) n.close();
   }
 }
 

@@ -38,7 +38,7 @@ window.addEventListener("beforeinstallprompt", e => {
 // can run stale builds for days. Compare the served bundle hash against the
 // running one whenever the app becomes visible; reload if a new deploy landed.
 // Must match SW_VERSION in public/sw.js — used to detect a stale worker.
-const EXPECTED_SW_VERSION = "5.12-autoclose";
+const EXPECTED_SW_VERSION = "5.12-silentok";
 
 let lastUpdateCheck = 0;
 async function reloadIfNewVersion() {
