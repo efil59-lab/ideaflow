@@ -1,5 +1,5 @@
 // IdeaFlow Service Worker — Web Push reminders
-const SW_VERSION = "5.12-blueicon";
+const SW_VERSION = "5.12-autoclose";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
@@ -46,23 +46,34 @@ self.addEventListener("push", event => {
 // opens. We swap the reminder for a brief confirmation on the same tag.
 const SNOOZE_MIN = { snooze15: 15, snooze60: 60 };
 
-function snoozeInBackground(d, min) {
-  return fetch(`/api/snooze?uid=${encodeURIComponent(d.uid)}&ideaId=${encodeURIComponent(d.ideaId)}&min=${min}`,
-    { method: "POST" })
-    .then(r => r.ok)
-    .catch(() => false)
-    .then(ok => self.registration.showNotification(
-      ok ? "😴 התזכורת נדחתה" : "לא הצלחתי לדחות",
-      {
-        body: ok
-          ? (min === 60 ? "תופיע שוב בעוד שעה" : `תופיע שוב בעוד ${min} דקות`)
-          : "פתח את האפליקציה ונסה שוב",
-        icon: "/icons/icon-notif.png",
-        badge: "/icons/badge-96.png",
-        dir: "rtl", lang: "he",
-        tag: `idea-${d.ideaId}`,
-        data: { url: `/?idea=${encodeURIComponent(d.ideaId)}`, ideaId: d.ideaId }
-      }));
+async function snoozeInBackground(d, min) {
+  const tag = `idea-${d.ideaId}`;
+  let ok = false;
+  try {
+    ok = (await fetch(`/api/snooze?uid=${encodeURIComponent(d.uid)}&ideaId=${encodeURIComponent(d.ideaId)}&min=${min}`,
+      { method: "POST" })).ok;
+  } catch { ok = false; }
+
+  await self.registration.showNotification(
+    ok ? "😴 התזכורת נדחתה" : "לא הצלחתי לדחות",
+    {
+      body: ok
+        ? (min === 60 ? "תופיע שוב בעוד שעה" : `תופיע שוב בעוד ${min} דקות`)
+        : "פתח את האפליקציה ונסה שוב",
+      icon: "/icons/icon-notif.png",
+      badge: "/icons/badge-96.png",
+      dir: "rtl", lang: "he",
+      tag,
+      data: { url: `/?idea=${encodeURIComponent(d.ideaId)}`, ideaId: d.ideaId },
+    });
+
+  // The success confirmation is a transient "done" toast — auto-dismiss it after
+  // a few seconds so it doesn't linger in the tray. (A failure stays, so the
+  // user notices they need to retry.) waitUntil keeps the SW alive meanwhile.
+  if (ok) {
+    await new Promise(res => setTimeout(res, 4000));
+    for (const n of await self.registration.getNotifications({ tag })) n.close();
+  }
 }
 
 // Click behaviour:
