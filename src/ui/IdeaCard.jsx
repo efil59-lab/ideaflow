@@ -3,6 +3,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon, IconBtn } from "./Icons";
 import { Chip, Confirm } from "./base";
+import { fmtSize } from "../data/media";
 import { FONT, fmt } from "../theme";
 
 export default function IdeaCard({ idea, project, projects, showProject, th,
@@ -191,6 +192,24 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
                 <Icon name="music" size={13} color={th.secondary} />
                 <audio src={a.url || a.src} controls style={{ flex: 1, height: 28 }} />
               </div>
+            ))}
+          </div>
+        )}
+        {!sortMode && idea.files?.length > 0 && (
+          <div style={{ padding: "0 13px 8px", display: "flex", flexDirection: "column", gap: 5 }}>
+            {idea.files.map((f, i) => (
+              <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" download={f.name}
+                onClick={e => e.stopPropagation()}
+                style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none",
+                  background: th.surface2, borderRadius: 9, padding: "8px 10px", border: `1px solid ${th.border}` }}>
+                <Icon name="clip" size={14} color={th.secondary} />
+                <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: th.text,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {f.name}
+                  {f.size ? <span style={{ color: th.muted, fontSize: 11 }}>{"  "}· {fmtSize(f.size)}</span> : null}
+                </span>
+                <Icon name="download" size={14} color={th.muted} />
+              </a>
             ))}
           </div>
         )}

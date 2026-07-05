@@ -18,5 +18,13 @@ async function uploadBlob(uid, blob, name) {
   const r = ref(storage, path);
   await uploadBytes(r, blob);
   const url = await getDownloadURL(r);
-  return { url, path, name: safe };
+  return { url, path, name: safe, size: blob.size || 0, type: blob.type || "" };
+}
+
+// Human-readable file size — "340 KB", "2.1 MB".
+export function fmtSize(bytes) {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }

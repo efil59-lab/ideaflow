@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { Modal, ModalHeader } from "./base";
 import { Icon } from "./Icons";
 import RichEditor, { htmlToText, isHtml } from "./RichEditor";
-import { uploadFile } from "../data/media";
+import { uploadFile, fmtSize } from "../data/media";
 import { FONT, fmtDatetimeLocal, REPEAT_OPTIONS } from "../theme";
 
 export default function Editor({ uid, initial, projects, onSave, onAutosave, onClose, title, th }) {
@@ -16,6 +16,7 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
   const [html, setHtml] = useState(initialHtml);
   const [images, setImages] = useState(initial?.images || []);
   const [audios, setAudios] = useState(initial?.audios || []);
+  const [files, setFiles] = useState(initial?.files || []);
   const [remindAt, setRemindAt] = useState(initial?.remindAt || null);
   const [repeat, setRepeat] = useState(initial?.repeat || "");
   const [projectId, setProjectId] = useState(initial?.projectId ?? null);
@@ -25,6 +26,7 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
   const fileRef = useRef();
   const audioRef = useRef();
   const audioCapRef = useRef();
+  const docRef = useRef();
 
   // Autosave text 1.5s after the last keystroke (existing ideas only).
   // Media/project/reminder still commit via the save button.
@@ -56,16 +58,17 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
     try {
       const up = await uploadFile(uid, file);
       if (kind === "image") setImages(p => [...p, up.url]);
-      else setAudios(p => [...p, { url: up.url, name: up.name }]);
+      else if (kind === "audio") setAudios(p => [...p, { url: up.url, name: up.name }]);
+      else setFiles(p => [...p, { url: up.url, name: file.name || up.name, size: up.size }]);
     } catch (e) { console.warn("upload failed", e); }
     setBusy(false);
   };
 
   const handleSave = () => {
     const plain = htmlToText(html);
-    if (!plain && !images.length && !audios.length) return;
+    if (!plain && !images.length && !audios.length && !files.length) return;
     onSave({
-      text: plain, html, images, audios,
+      text: plain, html, images, audios, files,
       remindAt: remindAt || null,
       repeat: remindAt ? (repeat || null) : null,
       repeatAnchor: remindAt && repeat ? remindAt : null,
@@ -156,6 +159,27 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
           ))}
         </div>
       )}
+      {files.length > 0 && (
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+          {files.map((f, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8,
+              background: th.surface2, borderRadius: 10, padding: "8px 10px", border: `1px solid ${th.border}` }}>
+              <Icon name="file" size={15} color={th.secondary} />
+              <a href={f.url} target="_blank" rel="noopener noreferrer" download={f.name}
+                style={{ flex: 1, minWidth: 0, fontSize: 13, color: th.text, textDecoration: "none",
+                  fontFamily: FONT, direction: "rtl", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {f.name}
+                {f.size ? <span style={{ color: th.muted, fontSize: 11.5 }}>{"  "}· {fmtSize(f.size)}</span> : null}
+              </a>
+              <button onClick={() => setFiles(p => p.filter((_, j) => j !== i))}
+                style={{ background: th.red, border: "none", borderRadius: "50%", width: 20, height: 20,
+                  cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name="close" size={11} color="#fff" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       {images.length > 0 && (
         <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
           {images.map((src, i) => (
@@ -178,6 +202,8 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
         onChange={e => { addMedia(e.target.files[0], "audio"); e.target.value = ""; }} />
       <input ref={audioCapRef} type="file" accept="audio/*" capture="microphone" style={{ display: "none" }}
         onChange={e => { addMedia(e.target.files[0], "audio"); e.target.value = ""; }} />
+      <input ref={docRef} type="file" style={{ display: "none" }}
+        onChange={e => { addMedia(e.target.files[0], "file"); e.target.value = ""; }} />
 
       <div style={{ display: "flex", gap: 7, marginTop: 12, flexWrap: "wrap" }}>
         <button style={mediaBtn} onClick={() => { fileRef.current.removeAttribute("capture"); fileRef.current.click(); }}>
@@ -191,6 +217,9 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
         </button>
         <button style={mediaBtn} onClick={() => audioRef.current.click()}>
           <Icon name="music" size={15} color={th.secondary} /> אודיו
+        </button>
+        <button style={mediaBtn} onClick={() => docRef.current.click()}>
+          <Icon name="clip" size={15} color={th.secondary} /> קובץ
         </button>
       </div>
 

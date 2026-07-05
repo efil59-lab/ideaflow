@@ -18,11 +18,12 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
     }, 350);
     return () => clearTimeout(t);
   }, [text, draftKey]);
-  const [pending, setPending] = useState([]); // [{kind:'image'|'audio', url, name}]
+  const [pending, setPending] = useState([]); // [{kind:'image'|'audio'|'file', url, name, size}]
   const [busy, setBusy] = useState(false);
   const taRef = useRef();
   const imgRef = useRef();
   const micRef = useRef();
+  const docRef = useRef();
 
   // App shortcut / share intent asked to jump straight into typing.
   // Android only raises the soft keyboard for a focus() call that happens while
@@ -78,7 +79,7 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
     setBusy(true);
     try {
       const up = await uploadFile(uid, file);
-      setPending(p => [...p, { kind, url: up.url, name: up.name }]);
+      setPending(p => [...p, { kind, url: up.url, name: kind === "file" ? (file.name || up.name) : up.name, size: up.size }]);
     } catch (e) { console.warn("upload failed", e); }
     setBusy(false);
   };
@@ -100,6 +101,7 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
       text: t,
       images: pending.filter(m => m.kind === "image").map(m => m.url),
       audios: pending.filter(m => m.kind === "audio").map(m => ({ url: m.url, name: m.name })),
+      files: pending.filter(m => m.kind === "file").map(m => ({ url: m.url, name: m.name, size: m.size })),
     });
     setText("");
     setPending([]);
@@ -124,9 +126,12 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
               {m.kind === "image"
                 ? <img src={m.url} alt="" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
                 : <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12,
-                    background: th.surface2, border: `1px solid ${th.border}`, borderRadius: 8,
+                    maxWidth: 160, background: th.surface2, border: `1px solid ${th.border}`, borderRadius: 8,
                     padding: "5px 9px", color: th.secondary }}>
-                    <Icon name="music" size={13} color={th.secondary} />הקלטה
+                    <Icon name={m.kind === "audio" ? "music" : "clip"} size={13} color={th.secondary} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {m.kind === "audio" ? "הקלטה" : m.name}
+                    </span>
                   </span>}
               <button onClick={() => setPending(p => p.filter((_, j) => j !== i))}
                 style={{ position: "absolute", top: -6, left: -6, width: 17, height: 17,
@@ -148,6 +153,10 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
           style={{ background: "transparent", border: "none", cursor: "pointer", padding: 7, borderRadius: 9 }}>
           <Icon name="camera" size={18} color={th.accent} />
         </button>
+        <button onClick={() => docRef.current.click()} title="צירוף קובץ"
+          style={{ background: "transparent", border: "none", cursor: "pointer", padding: 7, borderRadius: 9 }}>
+          <Icon name="clip" size={18} color={th.accent} />
+        </button>
         {busy && <span style={{ fontSize: 11.5, color: th.muted }}>מעלה...</span>}
         {!busy && (text.trim() || pending.length > 0) && (
           <span style={{ fontSize: 11, color: th.muted }}>יישמר לבד בעוד רגע</span>
@@ -165,6 +174,8 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
         onChange={e => { addMedia(e.target.files[0], "image"); e.target.value = ""; }} />
       <input ref={micRef} type="file" accept="audio/*" capture="microphone" style={{ display: "none" }}
         onChange={e => { addMedia(e.target.files[0], "audio"); e.target.value = ""; }} />
+      <input ref={docRef} type="file" style={{ display: "none" }}
+        onChange={e => { addMedia(e.target.files[0], "file"); e.target.value = ""; }} />
     </div>
   );
 }

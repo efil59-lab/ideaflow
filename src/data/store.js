@@ -21,7 +21,7 @@ const projectsCol = uid => collection(db, "users", uid, "projects");
 function demoData() {
   const now = Date.now();
   const base = { status: "inbox", projectId: null, aiProject: null, pinned: false,
-    colorIdx: null, order: null, images: [], audios: [], remindAt: null, updatedAt: 0 };
+    colorIdx: null, order: null, images: [], audios: [], files: [], remindAt: null, updatedAt: 0 };
   return {
     projects: [
       { id: "p1", name: "טלוויזיה", color: "#2E5BE6", notes: "", pinned: false, createdAt: 1 },
@@ -113,7 +113,7 @@ export async function addIdea(uid, data) {
     text: "", html: "", title: "", tags: [],
     status: "inbox", projectId: null, aiProject: null,
     pinned: false, colorIdx: null, order: null,
-    images: [], audios: [], remindAt: null, repeat: null, repeatAnchor: null, comments: [],
+    images: [], audios: [], files: [], remindAt: null, repeat: null, repeatAnchor: null, comments: [],
     createdAt: Date.now(), updatedAt: Date.now(),
     ...data,
   };
@@ -151,6 +151,7 @@ export async function deleteIdea(uid, idea) {
     const urls = [
       ...(idea.images || []),
       ...(idea.audios || []).map(a => a && (a.url || a.src)),
+      ...(idea.files || []).map(f => f && f.url),
     ].filter(u => typeof u === "string" && u.includes("firebasestorage"));
     for (const u of urls) {
       try { deleteObject(storageRef(storage, u)).catch(() => {}); } catch { /* bad url — skip */ }
@@ -321,7 +322,7 @@ export async function addSharedIdea(ownerUid, data, createdBy) {
     text: "", html: "", title: "", tags: [],
     status: "active", projectId: null, aiProject: null,
     pinned: false, colorIdx: null, order: null,
-    images: [], audios: [], remindAt: null, comments: [],
+    images: [], audios: [], files: [], remindAt: null, comments: [],
     createdBy,
     createdAt: Date.now(), updatedAt: Date.now(),
     ...data,
