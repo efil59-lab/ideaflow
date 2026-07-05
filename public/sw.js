@@ -1,5 +1,5 @@
 // IdeaFlow Service Worker — Web Push reminders
-const SW_VERSION = "5.12-snoozetap";
+const SW_VERSION = "5.12-blueicon";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
@@ -26,7 +26,7 @@ self.addEventListener("push", event => {
     self.registration.showNotification(title, {
       // For reminders, hint that tapping the body opens the full snooze picker.
       body: (data.body || "") + (snoozable ? "\n💤 הקש להודעה לדחייה לזמן אחר" : ""),
-      icon: "/icons/icon-192.png",
+      icon: "/icons/icon-notif.png",
       badge: "/icons/badge-96.png",
       dir: "rtl",
       lang: "he",
@@ -57,7 +57,7 @@ function snoozeInBackground(d, min) {
         body: ok
           ? (min === 60 ? "תופיע שוב בעוד שעה" : `תופיע שוב בעוד ${min} דקות`)
           : "פתח את האפליקציה ונסה שוב",
-        icon: "/icons/icon-192.png",
+        icon: "/icons/icon-notif.png",
         badge: "/icons/badge-96.png",
         dir: "rtl", lang: "he",
         tag: `idea-${d.ideaId}`,
