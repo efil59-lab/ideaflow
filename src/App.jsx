@@ -395,12 +395,23 @@ function Shell({ user, dark, setDark, th }) {
   const uid = user.uid;
   const [migrating, setMigrating] = useState(true);
   const [migMsg, setMigMsg] = useState("");
-  // Where you were last — restored on refresh so a reload doesn't kick you back
-  // to the Inbox. (Deep links via ?idea/?share still override after mount.)
+  // Where you were last — restored ONLY on a genuine reload (refresh / SW
+  // update), so a mid-session refresh keeps your place. A fresh app launch
+  // (tapping the icon) is a "navigate" and always opens on the Inbox.
+  // (Deep links via ?idea/?share still override after mount.)
+  const restoreNav = (() => {
+    try {
+      const nav = performance.getEntriesByType("navigation")[0];
+      const type = nav?.type ?? (performance.navigation?.type === 1 ? "reload" : "navigate");
+      return type === "reload";
+    } catch { return false; }
+  })();
   const [tab, setTab] = useState(() => {
+    if (!restoreNav) return "inbox";
     try { return localStorage.getItem("if_nav_tab") || "inbox"; } catch { return "inbox"; }
   });
   const [openProjectId, setOpenProjectId] = useState(() => {
+    if (!restoreNav) return null;
     try { return localStorage.getItem("if_nav_project") || null; } catch { return null; }
   });
   const [editIdea, setEditIdea] = useState(null);
@@ -409,6 +420,7 @@ function Shell({ user, dark, setDark, th }) {
   const [remindIdea, setRemindIdea] = useState(null);
   const [snoozeIdea, setSnoozeIdea] = useState(null);
   const [searchQ, setSearchQ] = useState(() => {
+    if (!restoreNav) return "";
     try { return localStorage.getItem("if_nav_q") || ""; } catch { return ""; }
   });
   const [showAI, setShowAI] = useState(false);
