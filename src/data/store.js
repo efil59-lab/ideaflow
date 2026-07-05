@@ -112,7 +112,7 @@ export async function addIdea(uid, data) {
   const idea = {
     text: "", html: "", title: "", tags: [],
     status: "inbox", projectId: null, aiProject: null,
-    pinned: false, colorIdx: null, order: null,
+    pinned: false, colorIdx: null, order: null, noCheck: false,
     images: [], audios: [], files: [], remindAt: null, repeat: null, repeatAnchor: null, comments: [],
     createdAt: Date.now(), updatedAt: Date.now(),
     ...data,
@@ -321,7 +321,7 @@ export async function addSharedIdea(ownerUid, data, createdBy) {
   const idea = {
     text: "", html: "", title: "", tags: [],
     status: "active", projectId: null, aiProject: null,
-    pinned: false, colorIdx: null, order: null,
+    pinned: false, colorIdx: null, order: null, noCheck: false,
     images: [], audios: [], files: [], remindAt: null, comments: [],
     createdBy,
     createdAt: Date.now(), updatedAt: Date.now(),

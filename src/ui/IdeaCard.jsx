@@ -33,6 +33,16 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
     setTimeout(() => { onUpdate({ status: "done" }); setCompleting(false); }, 700);
   };
 
+  // A "note" idea has no done-checkbox. Turning one on un-dones the idea so it
+  // isn't stuck marked-complete with no way to reopen it.
+  const toggleNoCheck = () => {
+    setMore(false);
+    if (idea.noCheck) { onUpdate({ noCheck: false }); return; }
+    const patch = { noCheck: true };
+    if (idea.status === "done") patch.status = idea.projectId ? "active" : "inbox";
+    onUpdate(patch);
+  };
+
   const onCopy = () => {
     navigator.clipboard?.writeText(idea.text).catch(() => {});
     setCopied(true);
@@ -68,6 +78,12 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 cursor: "grab", color: th.muted, fontSize: 17, touchAction: "none", userSelect: "none" }}>
               ⠿
+            </div>
+          ) : idea.noCheck ? (
+            <div title="רעיון ללא סימון ביצוע" style={{
+              flexShrink: 0, width: 21, height: 21, marginLeft: 11, marginTop: 2,
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="notes" size={15} color={th.muted} />
             </div>
           ) : (
           <div onClick={shared ? undefined : onCheck} style={{
@@ -231,7 +247,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
         {/* Action row */}
         {!sortMode && !shared && (
         <div style={{ borderTop: `1px solid ${th.border}`, padding: "3px 8px",
-          display: "flex", alignItems: "center", minHeight: 38 }}>
+          display: "flex", alignItems: "center", flexWrap: "wrap", minHeight: 38 }}>
           {!more ? (
             <>
               <IconBtn name={copied ? "check" : "copy"} onClick={onCopy}
@@ -258,6 +274,9 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
               <IconBtn name="delete" onClick={() => { setMore(false); setConfirmDel(true); }}
                 color={th.red} size={18} pad="6px 8px" title="העבר לפח האשפה" />
               <IconBtn name="share" onClick={onShare} color={th.muted} size={18} pad="6px 8px" />
+              <IconBtn name="notes" onClick={toggleNoCheck}
+                color={idea.noCheck ? th.accent : th.muted} size={18} pad="6px 8px"
+                title={idea.noCheck ? "החזר סימון ביצוע" : "רעיון ללא סימון ביצוע"} />
               <div style={{ display: "flex", gap: 5, marginRight: 6, alignItems: "center" }}>
                 <div onClick={() => onUpdate({ colorIdx: null })} title="ללא צבע"
                   style={{ width: 17, height: 17, borderRadius: "50%", background: th.surface,
