@@ -1,7 +1,7 @@
 // The hero of the app: type → save. Three seconds from thought to stored idea.
 import { useState, useRef, useEffect } from "react";
 import { Icon } from "./Icons";
-import { uploadFile } from "../data/media";
+import { uploadFile, fmtSize, MAX_FILE_BYTES } from "../data/media";
 import { FONT } from "../theme";
 
 export default function CaptureBar({ uid, onCapture, th, placeholder = "מה עולה לך בראש?", draftKey = "if_draft" }) {
@@ -20,6 +20,7 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
   }, [text, draftKey]);
   const [pending, setPending] = useState([]); // [{kind:'image'|'audio'|'file', url, name, size}]
   const [busy, setBusy] = useState(false);
+  const [mediaErr, setMediaErr] = useState("");
   const taRef = useRef();
   const imgRef = useRef();
   const micRef = useRef();
@@ -76,11 +77,16 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
 
   const addMedia = async (file, kind) => {
     if (!file) return;
+    if (file.size > MAX_FILE_BYTES) {
+      setMediaErr(`הקובץ גדול מדי (${fmtSize(file.size)}) — עד ${fmtSize(MAX_FILE_BYTES)}`);
+      return;
+    }
+    setMediaErr("");
     setBusy(true);
     try {
       const up = await uploadFile(uid, file);
       setPending(p => [...p, { kind, url: up.url, name: kind === "file" ? (file.name || up.name) : up.name, size: up.size }]);
-    } catch (e) { console.warn("upload failed", e); }
+    } catch (e) { console.warn("upload failed", e); setMediaErr("ההעלאה נכשלה — בדוק את החיבור ונסה שוב"); }
     setBusy(false);
   };
 
@@ -105,6 +111,7 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
     });
     setText("");
     setPending([]);
+    setMediaErr("");
     try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
     taRef.current?.focus();
   };
@@ -169,6 +176,12 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
           שמור
         </button>
       </div>
+      {mediaErr && (
+        <p style={{ margin: "8px 2px 0", fontSize: 11.5, color: th.red,
+          display: "flex", alignItems: "center", gap: 5, direction: "rtl" }}>
+          <Icon name="close" size={11} color={th.red} /> {mediaErr}
+        </p>
+      )}
 
       <input ref={imgRef} type="file" accept="image/*" style={{ display: "none" }}
         onChange={e => { addMedia(e.target.files[0], "image"); e.target.value = ""; }} />

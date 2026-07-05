@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { Modal, ModalHeader } from "./base";
 import { Icon } from "./Icons";
 import RichEditor, { htmlToText, isHtml } from "./RichEditor";
-import { uploadFile, fmtSize } from "../data/media";
+import { uploadFile, fmtSize, MAX_FILE_BYTES } from "../data/media";
 import { FONT, fmtDatetimeLocal, REPEAT_OPTIONS } from "../theme";
 
 export default function Editor({ uid, initial, projects, onSave, onAutosave, onClose, title, th }) {
@@ -22,6 +22,7 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
   const [projectId, setProjectId] = useState(initial?.projectId ?? null);
   const [showRemind, setShowRemind] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [mediaErr, setMediaErr] = useState("");
   const [autoSaved, setAutoSaved] = useState(false);
   const fileRef = useRef();
   const audioRef = useRef();
@@ -54,13 +55,18 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
 
   const addMedia = async (file, kind) => {
     if (!file) return;
+    if (file.size > MAX_FILE_BYTES) {
+      setMediaErr(`הקובץ גדול מדי (${fmtSize(file.size)}) — עד ${fmtSize(MAX_FILE_BYTES)}`);
+      return;
+    }
+    setMediaErr("");
     setBusy(true);
     try {
       const up = await uploadFile(uid, file);
       if (kind === "image") setImages(p => [...p, up.url]);
       else if (kind === "audio") setAudios(p => [...p, { url: up.url, name: up.name }]);
       else setFiles(p => [...p, { url: up.url, name: file.name || up.name, size: up.size }]);
-    } catch (e) { console.warn("upload failed", e); }
+    } catch (e) { console.warn("upload failed", e); setMediaErr("ההעלאה נכשלה — בדוק את החיבור ונסה שוב"); }
     setBusy(false);
   };
 
@@ -222,6 +228,12 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
           <Icon name="clip" size={15} color={th.secondary} /> קובץ
         </button>
       </div>
+      {mediaErr && (
+        <p style={{ margin: "8px 2px 0", fontSize: 12, color: th.red,
+          display: "flex", alignItems: "center", gap: 5, textAlign: "right" }}>
+          <Icon name="close" size={12} color={th.red} /> {mediaErr}
+        </p>
+      )}
 
       <button onClick={handleSave} disabled={busy}
         style={{ width: "100%", marginTop: 12, background: th.accent, color: "#fff",

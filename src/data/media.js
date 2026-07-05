@@ -3,6 +3,10 @@ import { storage } from "../firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { newId } from "./store";
 
+// Mirror of the cap in storage.rules — a bigger file is rejected server-side,
+// so catch it here first with a friendly message instead of a silent failure.
+export const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
 export async function uploadDataUrl(uid, dataUrl, name = "file") {
   const blob = await (await fetch(dataUrl)).blob();
   return uploadBlob(uid, blob, name);
