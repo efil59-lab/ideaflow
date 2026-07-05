@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.11";
+export const APP_VERSION = "5.12";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.12", date: "5 ביולי 2026", items: [
+    { icon: "bell", title: "דחיית תזכורת אמינה", text: "על התראת תזכורת: שני כפתורים — \"15 דק׳\" ו\"שעה\" — ששניהם דוחים ברקע בלי לפתוח את האפליקציה. לדחייה לזמן מותאם: לחיצה על גוף ההתראה פותחת את הרעיון." },
+  ] },
   { v: "5.11", date: "5 ביולי 2026", items: [
     { icon: "time", title: "יומן עדכונים", text: "מסך חדש שמרכז את כל העדכונים של האפליקציה לפי גרסאות — נגיש מתפריט המשתמש (התמונה למעלה) ומתחתית המדריך." },
   ] },

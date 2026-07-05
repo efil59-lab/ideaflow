@@ -1,5 +1,5 @@
 // IdeaFlow Service Worker — Web Push reminders
-const SW_VERSION = "5.11-diag";
+const SW_VERSION = "5.12-bg2";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
@@ -31,9 +31,13 @@ self.addEventListener("push", event => {
       lang: "he",
       tag: data.ideaId ? `idea-${data.ideaId}` : undefined,
       requireInteraction: true,
+      // BOTH buttons snooze in the background — neither opens the app. This makes
+      // the app-open bug impossible regardless of which button the OS actually
+      // fires (some devices mis-map / reverse RTL action order). Custom-time
+      // snooze still lives in the app, reachable by tapping the notification body.
       actions: snoozable
         ? [{ action: "snooze15", title: "15 דק׳" },
-           { action: "snoozeMore", title: "אחר" }]
+           { action: "snooze60", title: "שעה" }]
         : [],
       data: { url: data.url || "/", ideaId: data.ideaId || null, uid: data.uid || null }
     })
@@ -64,35 +68,23 @@ function snoozeInBackground(d, min) {
 }
 
 // Click behaviour:
-// - "15 דק׳" button   → background reschedule, no window opens
-// - "אחר" button      → open the app on the full snooze dialog (?snooze=)
-// - notification body → open / focus the app on the idea itself
+// - snooze button ("15 דק׳" / "שעה") → background reschedule, no window opens
+// - notification body                 → open / focus the app on the idea itself
 self.addEventListener("notificationclick", event => {
   event.notification.close();
   const d = event.notification.data || {};
 
-  // TEMP DIAGNOSTIC: surface exactly which action the OS delivered, so we can see
-  // whether tapping "15 דק׳" on mobile really sends action "snooze15". Shown on a
-  // separate tag so it doesn't clobber the snooze confirmation. Remove once solved.
-  const diag = self.registration.showNotification("🔧 נלחץ: [" + (event.action || "גוף") + "]", {
-    body: "uid=" + (d.uid ? "כן" : "לא") + " · idea=" + (d.ideaId ? "כן" : "לא"),
-    icon: "/icons/icon-192.png", badge: "/icons/badge-96.png", dir: "rtl", lang: "he", tag: "diag",
-  });
-
-  // A background-snooze button ("15 דק׳") must NEVER open the app — return no
-  // matter what. If the data is complete we reschedule in the background; if it
-  // isn't (e.g. an old lingering notification from a previous version), we still
-  // don't open a window — the whole point of this button is to stay closed.
+  // Any snooze button reschedules in the background and NEVER opens the app —
+  // no matter which one the OS actually fires, or if the data is incomplete.
   const min = SNOOZE_MIN[event.action];
   if (min) {
-    event.waitUntil(Promise.all([diag, d.uid && d.ideaId ? snoozeInBackground(d, min) : null]));
+    if (d.uid && d.ideaId) event.waitUntil(snoozeInBackground(d, min));
     return;
   }
 
-  const url = (event.action === "snoozeMore" && d.ideaId)
-    ? `/?snooze=${encodeURIComponent(d.ideaId)}`
-    : (d.url || "/");
-  event.waitUntil(Promise.all([diag,
+  // Body tap → open / focus the app on the idea.
+  const url = d.url || "/";
+  event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async clients => {
       for (const c of clients) {
         if ("focus" in c) {
@@ -103,5 +95,5 @@ self.addEventListener("notificationclick", event => {
       }
       if (self.clients.openWindow) return self.clients.openWindow(url);
     })
-  ]));
+  );
 });
