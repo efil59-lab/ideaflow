@@ -1,4 +1,5 @@
 // IdeaFlow Service Worker — Web Push reminders
+const SW_VERSION = "5.11-snooze";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
@@ -60,10 +61,14 @@ self.addEventListener("notificationclick", event => {
   event.notification.close();
   const d = event.notification.data || {};
 
+  // A background-snooze button ("15 דק׳") must NEVER open the app — return no
+  // matter what. If the data is complete we reschedule in the background; if it
+  // isn't (e.g. an old lingering notification from a previous version), we still
+  // don't open a window — the whole point of this button is to stay closed.
   const min = SNOOZE_MIN[event.action];
-  if (min && d.uid && d.ideaId) {
-    event.waitUntil(snoozeInBackground(d, min));
-    return; // deliberately no openWindow — the app stays closed
+  if (min) {
+    if (d.uid && d.ideaId) event.waitUntil(snoozeInBackground(d, min));
+    return;
   }
 
   const url = (event.action === "snoozeMore" && d.ideaId)

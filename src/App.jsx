@@ -481,10 +481,12 @@ function Shell({ user, dark, setDark, th }) {
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      // Force an update check every open — notification buttons come from the SW,
-      // which otherwise can lag a deploy by up to a day. skipWaiting (in sw.js)
-      // then activates the new version immediately for future pushes.
-      navigator.serviceWorker.register("/sw.js")
+      // Force an update check every open — notification buttons + click handling
+      // come from the SW, which otherwise can lag a deploy. updateViaCache:"none"
+      // makes the browser re-fetch sw.js from the network (not its HTTP cache) so
+      // a stale worker can't keep opening the app on the "15 דק׳" snooze button.
+      // skipWaiting (in sw.js) then activates the new version immediately.
+      navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
         .then(reg => reg.update().catch(() => {}))
         .catch(() => {});
     }
