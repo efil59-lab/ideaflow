@@ -1,5 +1,5 @@
 // IdeaFlow Service Worker — Web Push reminders
-const SW_VERSION = "5.12-1btn";
+const SW_VERSION = "5.12-snoozetap";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
@@ -24,7 +24,8 @@ self.addEventListener("push", event => {
   const snoozable = data.kind === "reminder" && data.ideaId && data.uid;
   event.waitUntil(
     self.registration.showNotification(title, {
-      body: data.body || "",
+      // For reminders, hint that tapping the body opens the full snooze picker.
+      body: (data.body || "") + (snoozable ? "\n💤 הקש להודעה לדחייה לזמן אחר" : ""),
       icon: "/icons/icon-192.png",
       badge: "/icons/badge-96.png",
       dir: "rtl",
@@ -65,8 +66,9 @@ function snoozeInBackground(d, min) {
 }
 
 // Click behaviour:
-// - snooze button ("15 דק׳" / "שעה") → background reschedule, no window opens
-// - notification body                 → open / focus the app on the idea itself
+// - snooze button ("😴 דחה 15 דק׳") → background reschedule, no window opens
+// - notification body (a reminder)   → open the app on the full snooze picker
+// - notification body (other)        → open / focus the app on its target
 self.addEventListener("notificationclick", event => {
   event.notification.close();
   const d = event.notification.data || {};
@@ -79,8 +81,11 @@ self.addEventListener("notificationclick", event => {
     return;
   }
 
-  // Body tap → open / focus the app on the idea.
-  const url = d.url || "/";
+  // Body tap on a reminder → the snooze picker (custom / longer times). Other
+  // notifications (digest, share) → their own target url.
+  const url = (d.uid && d.ideaId)
+    ? `/?snooze=${encodeURIComponent(d.ideaId)}`
+    : (d.url || "/");
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async clients => {
       for (const c of clients) {
