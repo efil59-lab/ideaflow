@@ -395,14 +395,22 @@ function Shell({ user, dark, setDark, th }) {
   const uid = user.uid;
   const [migrating, setMigrating] = useState(true);
   const [migMsg, setMigMsg] = useState("");
-  const [tab, setTab] = useState("inbox");
-  const [openProjectId, setOpenProjectId] = useState(null);
+  // Where you were last — restored on refresh so a reload doesn't kick you back
+  // to the Inbox. (Deep links via ?idea/?share still override after mount.)
+  const [tab, setTab] = useState(() => {
+    try { return localStorage.getItem("if_nav_tab") || "inbox"; } catch { return "inbox"; }
+  });
+  const [openProjectId, setOpenProjectId] = useState(() => {
+    try { return localStorage.getItem("if_nav_project") || null; } catch { return null; }
+  });
   const [editIdea, setEditIdea] = useState(null);
   const [shareIdea, setShareIdea] = useState(null);
   const [moveIdea, setMoveIdea] = useState(null);
   const [remindIdea, setRemindIdea] = useState(null);
   const [snoozeIdea, setSnoozeIdea] = useState(null);
-  const [searchQ, setSearchQ] = useState("");
+  const [searchQ, setSearchQ] = useState(() => {
+    try { return localStorage.getItem("if_nav_q") || ""; } catch { return ""; }
+  });
   const [showAI, setShowAI] = useState(false);
   const [showUser, setShowUser] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -431,6 +439,17 @@ function Shell({ user, dark, setDark, th }) {
   const [commentsCtx, setCommentsCtx] = useState(null);
 
   const toast$ = m => { setToast(m); setTimeout(() => setToast(null), 1700); };
+
+  // Remember the current location across a refresh (see the tab/openProjectId init).
+  useEffect(() => {
+    try {
+      localStorage.setItem("if_nav_tab", tab);
+      if (openProjectId) localStorage.setItem("if_nav_project", openProjectId);
+      else localStorage.removeItem("if_nav_project");
+      if (searchQ) localStorage.setItem("if_nav_q", searchQ);
+      else localStorage.removeItem("if_nav_q");
+    } catch { /* storage full/blocked */ }
+  }, [tab, openProjectId, searchQ]);
 
   // One-time migration gate, then SW + push
   useEffect(() => {
