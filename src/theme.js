@@ -1,6 +1,10 @@
 // "Tsalul" design language — crisp neutrals, one cobalt accent, Rubik.
-export function getTheme(dark) {
-  if (dark) return {
+// A second look, "Vivid" (זוהר), layers a signature gradient, saturated card
+// colors and colored side-bars on top — user-switchable, per device.
+export const GRAD = "linear-gradient(120deg,#2E5BE6,#7C3AED,#DB2777)";
+
+export function getTheme(dark, look = "calm") {
+  const t = dark ? {
     dark: true,
     bg: "#0F1218", surface: "#171B23", surface2: "#1E232E",
     border: "#262C37", borderStrong: "#333A48",
@@ -9,8 +13,7 @@ export function getTheme(dark) {
     green: "#34D399", red: "#F87171", amber: "#FBBF24",
     inputBg: "#171B23",
     pastels: ["#252112", "#16223A", "#12291F", "#241C36", "#2A1E13", "#2A1622"],
-  };
-  return {
+  } : {
     dark: false,
     bg: "#F6F7F9", surface: "#FFFFFF", surface2: "#F0F2F5",
     border: "#E3E6EC", borderStrong: "#D5DAE2",
@@ -20,6 +23,21 @@ export function getTheme(dark) {
     inputBg: "#FFFFFF",
     pastels: ["#FDF6DE", "#EAF2FB", "#E6F7F1", "#F3ECFA", "#FCEFE6", "#FBEAF0"],
   };
+  // Tokens every look defines; vivid overrides them below.
+  t.cta = t.accent;          // main save/CTA button background
+  t.navActive = t.accent;    // active bottom-nav item
+  if (look === "vivid") {
+    t.vivid = true;
+    t.grad = GRAD;
+    t.cta = GRAD;
+    t.navActive = dark ? "#A78BFA" : "#7C3AED";
+    t.pastels = dark
+      ? ["#3A3110", "#11304F", "#0D3A2A", "#2F2052", "#3E2712", "#3B1631"]
+      : ["#FFE9A8", "#C2E0F8", "#BDEDDB", "#E3D3F9", "#FFD9BC", "#F9D2E2"];
+    // Side-bar accent per pastel index (same order as pastels).
+    t.pastelBars = ["#EF9F27", "#378ADD", "#1D9E75", "#7C3AED", "#D85A30", "#D4537E"];
+  }
+  return t;
 }
 
 export const FONT = "'Rubik', sans-serif";

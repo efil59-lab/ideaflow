@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { auth, googleProvider } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { getTheme, FONT } from "./theme";
+import { getTheme, GRAD, FONT } from "./theme";
 import {
   useIdeas, useProjects, addIdea, updateIdea, deleteIdea, reorderIdeas,
   addProject, updateProject, deleteProject, reorderProjects, guideNotSeenYet,
@@ -62,7 +62,8 @@ setTimeout(reloadIfNewVersion, 8000);
 export default function App() {
   const [user, setUser] = useState(undefined);
   const [dark, setDark] = useState(() => localStorage.getItem("if_dark") === "1");
-  const th = getTheme(dark);
+  const [look, setLook] = useState(() => localStorage.getItem("if_look") || "calm");
+  const th = getTheme(dark, look);
 
   // A shortcut / share launch wants the keyboard up immediately. Android only
   // raises it for a focus() that lands while the launch tap's activation is
@@ -115,6 +116,7 @@ export default function App() {
 
   useEffect(() => onAuthStateChanged(auth, u => setUser(u || null)), []);
   useEffect(() => { localStorage.setItem("if_dark", dark ? "1" : "0"); }, [dark]);
+  useEffect(() => { localStorage.setItem("if_look", look); }, [look]);
 
   // Quick-capture screen — rendered before every other gate so the text field
   // exists on the first paint of the shortcut launch. `user` may still be
@@ -132,12 +134,12 @@ export default function App() {
   // its demo user literal) dead in production, so it's fully stripped.
   if (import.meta.env.DEV && isUipreview) {
     return <Shell user={{ uid: "demo", displayName: "תצוגה מקדימה", email: "demo@local", photoURL: null }}
-      dark={dark} setDark={setDark} th={th} />;
+      dark={dark} setDark={setDark} look={look} setLook={setLook} th={th} />;
   }
 
   if (user === undefined) return <Splash th={th} />;
   if (!user) return <><Login th={th} /><InstallBanner th={th} /></>;
-  return <Shell user={user} dark={dark} setDark={setDark} th={th} />;
+  return <Shell user={user} dark={dark} setDark={setDark} look={look} setLook={setLook} th={th} />;
 }
 
 // Prompts browser visitors to install the PWA. Hidden when already installed,
@@ -218,20 +220,21 @@ function Splash({ th, text, still = false }) {
   return (
     <div style={{ minHeight: "100vh", background: th.bg, display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center", gap: 18, fontFamily: FONT }}>
-      {/* The bulb "lights up": soft disc pops in, a ring ripples outward */}
+      {/* The bulb "lights up": soft disc pops in, a ring ripples outward.
+          Vivid look: the disc becomes the signature gradient with a white bulb. */}
       <div style={{ position: "relative", width: 88, height: 88,
         display: "flex", alignItems: "center", justifyContent: "center" }}>
         {!still && (
           <span style={{ position: "absolute", inset: 0, borderRadius: "50%",
-            border: `2px solid ${th.accent}`,
+            border: `2px solid ${th.vivid ? "#7C3AED" : th.accent}`,
             animation: "ringExpand 1.3s ease-out 0.35s both" }} />
         )}
         <span style={{ position: "absolute", inset: 0, borderRadius: "50%",
-          background: th.accentSoft,
+          background: th.vivid ? th.grad : th.accentSoft,
           animation: still ? "none" : "bulbPop 0.65s cubic-bezier(0.34,1.56,0.64,1) both" }} />
         <span style={{ position: "relative", display: "inline-flex",
           animation: still ? "none" : "bulbPop 0.65s cubic-bezier(0.34,1.56,0.64,1) 0.12s both" }}>
-          <Icon name="bulb" size={40} color={th.accent} />
+          <Icon name="bulb" size={40} color={th.vivid ? "#fff" : th.accent} />
         </span>
       </div>
       <div style={{ textAlign: "center",
@@ -384,7 +387,7 @@ function QuickCapture({ user, th, onDone }) {
           {savedFlash ? "נשמר ✓ — אפשר להוסיף עוד" : user ? "יישמר לאינבוקס" : "מתחבר…"}
         </span>
         <button onClick={save} disabled={!canSave}
-          style={{ background: th.accent, color: "#fff", border: "none", borderRadius: 12,
+          style={{ background: th.cta, color: "#fff", border: "none", borderRadius: 12,
             padding: "12px 30px", cursor: canSave ? "pointer" : "default",
             fontSize: 15.5, fontWeight: 700, fontFamily: FONT, opacity: canSave ? 1 : 0.45 }}>
           שמור
@@ -394,7 +397,7 @@ function QuickCapture({ user, th, onDone }) {
   );
 }
 
-function Shell({ user, dark, setDark, th }) {
+function Shell({ user, dark, setDark, look, setLook, th }) {
   const uid = user.uid;
   const [migrating, setMigrating] = useState(true);
   const [migMsg, setMigMsg] = useState("");
@@ -432,6 +435,7 @@ function Shell({ user, dark, setDark, th }) {
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const [toast, setToast] = useState(null);
+  const [bulbBeat, setBulbBeat] = useState(0); // header bulb pulses on capture
 
   const ideas = useIdeas(migrating ? null : uid);
   const projects = useProjects(migrating ? null : uid);
@@ -651,6 +655,7 @@ function Shell({ user, dark, setDark, th }) {
   const capture = async (data) => {
     const idea = await addIdea(uid, data);
     toast$("נשמר");
+    setBulbBeat(b => b + 1); // the header bulb "lights up" for a beat
     // Owner captured straight into a shared project → let the guests know
     const share = data.projectId ? myShares[data.projectId] : null;
     if (share) {
@@ -801,29 +806,42 @@ function Shell({ user, dark, setDark, th }) {
 
   return (
     <div style={{ minHeight: "100vh", background: th.bg, fontFamily: FONT, direction: "rtl" }}>
-      {/* Header */}
-      <div style={{ position: "sticky", top: 0, zIndex: 100, background: th.bg,
-        borderBottom: `1px solid ${th.border}`,
+      {/* Header — vivid look paints it with the signature gradient */}
+      <div style={{ position: "sticky", top: 0, zIndex: 100,
+        background: th.vivid ? th.grad : th.bg,
+        borderBottom: th.vivid ? "none" : `1px solid ${th.border}`,
         animation: "fadeDown 0.55s ease-out both" }}>
         <div style={{ maxWidth: 560, margin: "0 auto", padding: "10px 14px",
           display: "flex", alignItems: "center", gap: 8 }}>
           <span onClick={() => setShowGuide(true)}
             style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", userSelect: "none" }}>
-            <Icon name="bulb" size={22} color={th.accent} />
-            <span style={{ fontSize: 17, fontWeight: 800, color: th.text }}>IdeaFlow</span>
+            {/* key restarts the beat animation on every capture */}
+            <span key={bulbBeat} style={{ display: "inline-flex",
+              animation: bulbBeat ? "bulbBeat .6s ease-out" : "none" }}>
+              <Icon name="bulb" size={22} color={th.vivid ? "#FFD866" : th.accent} />
+            </span>
+            <span style={{ fontSize: 17, fontWeight: 800, color: th.vivid ? "#fff" : th.text }}>IdeaFlow</span>
           </span>
           <div style={{ marginRight: "auto", display: "flex", gap: 5 }}>
-            <IconBtn name="help" onClick={() => setShowGuide(true)} color={th.secondary} bg={th.surface} size={17} pad="8px"
-              style={{ border: `1px solid ${th.border}` }} title="מדריך" />
-            <IconBtn name="sparkle" onClick={() => setShowAI(true)} color={th.accent} bg={th.accentSoft} size={17} pad="8px" />
-            <IconBtn name={dark ? "sun" : "moon"} onClick={() => setDark(d => !d)} color={th.secondary} bg={th.surface} size={17} pad="8px"
-              style={{ border: `1px solid ${th.border}` }} />
+            <IconBtn name="help" onClick={() => setShowGuide(true)}
+              color={th.vivid ? "#fff" : th.secondary}
+              bg={th.vivid ? "rgba(255,255,255,0.16)" : th.surface} size={17} pad="8px"
+              style={{ border: th.vivid ? "1px solid rgba(255,255,255,0.25)" : `1px solid ${th.border}` }} title="מדריך" />
+            <IconBtn name="sparkle" onClick={() => setShowAI(true)}
+              color={th.vivid ? "#FFD866" : th.accent}
+              bg={th.vivid ? "rgba(255,255,255,0.16)" : th.accentSoft} size={17} pad="8px" />
+            <IconBtn name={dark ? "sun" : "moon"} onClick={() => setDark(d => !d)}
+              color={th.vivid ? "#fff" : th.secondary}
+              bg={th.vivid ? "rgba(255,255,255,0.16)" : th.surface} size={17} pad="8px"
+              style={{ border: th.vivid ? "1px solid rgba(255,255,255,0.25)" : `1px solid ${th.border}` }} />
             <button onClick={() => setShowUser(true)}
-              style={{ width: 33, height: 33, borderRadius: "50%", border: `1px solid ${th.border}`,
-                background: th.surface, cursor: "pointer", overflow: "hidden", padding: 0 }}>
+              style={{ width: 33, height: 33, borderRadius: "50%",
+                border: th.vivid ? "1px solid rgba(255,255,255,0.4)" : `1px solid ${th.border}`,
+                background: th.vivid ? "rgba(255,255,255,0.16)" : th.surface,
+                cursor: "pointer", overflow: "hidden", padding: 0 }}>
               {user.photoURL
                 ? <img src={user.photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                : <Icon name="logout" size={15} color={th.secondary} />}
+                : <Icon name="logout" size={15} color={th.vivid ? "#fff" : th.secondary} />}
             </button>
           </div>
         </div>
@@ -863,9 +881,9 @@ function Shell({ user, dark, setDark, th }) {
                   display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
                   padding: "5px 0", position: "relative", fontFamily: FONT }}>
                 <span style={{ position: "relative" }}>
-                  <Icon name={n.icon} size={21} color={active ? th.accent : th.muted} />
+                  <Icon name={n.icon} size={21} color={active ? th.navActive : th.muted} />
                   {n.badge > 0 && (
-                    <span style={{ position: "absolute", top: -4, left: -10, background: th.accent,
+                    <span style={{ position: "absolute", top: -4, left: -10, background: th.navActive,
                       color: "#fff", fontSize: 9.5, fontWeight: 700, borderRadius: 9,
                       minWidth: 15, height: 15, padding: "0 4px",
                       display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -874,7 +892,7 @@ function Shell({ user, dark, setDark, th }) {
                   )}
                 </span>
                 <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 400,
-                  color: active ? th.accent : th.muted }}>{n.label}</span>
+                  color: active ? th.navActive : th.muted }}>{n.label}</span>
               </button>
             );
           })}
@@ -948,6 +966,22 @@ function Shell({ user, dark, setDark, th }) {
             {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 54, height: 54, borderRadius: "50%", marginBottom: 10 }} />}
             <div style={{ fontSize: 15, fontWeight: 600, color: th.text }}>{user.displayName}</div>
             <div style={{ fontSize: 13, color: th.muted, marginBottom: 18 }}>{user.email}</div>
+
+            {/* Look picker — calm (Tsalul) vs vivid (Zohar), saved per device */}
+            <p style={{ fontSize: 12, fontWeight: 600, color: th.muted, textAlign: "right", margin: "0 0 6px" }}>מראה</p>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12, direction: "rtl" }}>
+              {[["calm", "רגוע"], ["vivid", "זוהר ✨"]].map(([v, label]) => (
+                <button key={v} onClick={() => setLook(v)}
+                  style={{ flex: 1, height: 40, borderRadius: 11, cursor: "pointer",
+                    fontFamily: FONT, fontSize: 13.5, fontWeight: 600,
+                    background: look === v ? (v === "vivid" ? GRAD : th.accent) : th.surface2,
+                    color: look === v ? "#fff" : th.text,
+                    border: look === v ? "none" : `1px solid ${th.border}` }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <button onClick={() => { setShowUser(false); setShowLog(true); }}
               style={{ width: "100%", height: 42, marginBottom: 8, background: th.surface2, color: th.text,
                 border: `1px solid ${th.border}`, borderRadius: 11, cursor: "pointer",
@@ -1064,6 +1098,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "chat", title: "שיתוף פרויקט", text: "בתפריט פרויקט → שיתוף → הוסף כתובות Gmail. המוזמנים רואים את הרעיונות, מגיבים ומוסיפים משלהם — ואתה מקבל התראה על כל תגובה, ונקודה אדומה מהבהבת ליד הפרויקט מסמנת תגובה שלא נקראה." },
     { icon: "search", title: "חיפוש ותגיות", text: "חיפוש בכל הפרויקטים, כולל כותרות ותגיות. כל תגית היא כפתור — לחיצה מציגה את כל הרעיונות הדומים." },
     { icon: "delete", title: "פח אשפה", text: "מחיקה היא הפיכה: הרעיון עובר לפח (אייקון הפח במסך הפרויקטים) ונשאר שם 30 יום לפני שנמחק לצמיתות." },
+    { icon: "sparkle", title: "מראה", text: "בתפריט המשתמש (התמונה למעלה) בוחרים בין מראה \"רגוע\" ל\"זוהר\" הצבעוני, ובכפתור הירח/שמש עוברים למצב כהה. הבחירה נשמרת במכשיר." },
   ];
   const Row = ({ it, last }) => (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 11,

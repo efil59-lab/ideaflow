@@ -4,11 +4,15 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.12";
+export const APP_VERSION = "5.13";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.13", date: "7 ביולי 2026", items: [
+    { icon: "sparkle", title: "מראה חדש — זוהר", text: "מצב תצוגה צבעוני ובולט: כותרת בגרדיאנט, כרטיסים בצבעים חיים עם פס צבע, וכפתורים זוהרים. מחליפים בין \"רגוע\" ל\"זוהר\" בתפריט המשתמש (התמונה למעלה) — עובד גם עם מצב כהה." },
+    { icon: "check", title: "קצת חיים", text: "המנורה בכותרת נדלקת כשרעיון נשמר, וסימון \"בוצע\" חוגג עם קונפטי קטן." },
+  ] },
   { v: "5.12", date: "5 ביולי 2026", items: [
     { icon: "bell", title: "דחיית תזכורת אמינה", text: "על התראת תזכורת: כפתור \"דחה 15 דק׳\" שדוחה את התזכורת ברקע בלי לפתוח את האפליקציה. לדחייה לזמן אחר — לחיצה על גוף ההתראה פותחת בורר זמני דחייה (5/15/30 דק׳, שעה, יום או זמן מותאם)." },
   ] },

@@ -6,6 +6,28 @@ import { Chip, Confirm } from "./base";
 import { fmtSize } from "../data/media";
 import { FONT, fmt } from "../theme";
 
+// A tiny celebratory burst around the checkbox when an idea is marked done.
+// Pure CSS particles — spawned for the 0.7s "completing" window, then gone.
+function ConfettiBurst() {
+  const colors = ["#2E5BE6", "#7C3AED", "#DB2777", "#EF9F27", "#1D9E75"];
+  return (
+    <span style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible" }}>
+      {Array.from({ length: 10 }).map((_, i) => {
+        const ang = (i / 10) * Math.PI * 2;
+        const dist = 24 + (i % 3) * 9;
+        return (
+          <span key={i} style={{ position: "absolute", top: "50%", left: "50%",
+            width: 5, height: 5, borderRadius: i % 2 ? "50%" : 1,
+            background: colors[i % colors.length],
+            "--dx": `${Math.round(Math.cos(ang) * dist)}px`,
+            "--dy": `${Math.round(Math.sin(ang) * dist)}px`,
+            animation: "confetti .65s ease-out forwards" }} />
+        );
+      })}
+    </span>
+  );
+}
+
 export default function IdeaCard({ idea, project, projects, showProject, th,
   onUpdate, onDelete, onEdit, onShare, onMove, onAcceptAI, onDismissAI,
   onRemind, onTagClick, onOpenProject, onComments,
@@ -67,7 +89,11 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
         </div>, document.body)}
 
       <div style={{ background: cardBg, borderRadius: 14, marginBottom: 10,
-        border: `1px solid ${th.border}`, opacity: (done && !completing) ? 0.55 : 1,
+        border: `1px solid ${th.border}`,
+        // Vivid look: colored cards get a bold side-bar in their accent hue
+        borderRight: th.vivid && idea.colorIdx != null
+          ? `4px solid ${th.pastelBars[idea.colorIdx]}` : undefined,
+        opacity: (done && !completing) ? 0.55 : 1,
         direction: "rtl",
         animation: completing ? "completeOut .7s ease-in forwards" : "fadeUp .18s ease-out" }}>
 
@@ -92,11 +118,13 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
             background: showDone ? th.green : "transparent",
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: shared ? "default" : "pointer", transition: "all .15s",
+            position: "relative",
             opacity: shared ? 0.55 : 1 }}>
             {showDone && <span style={{ display: "inline-flex",
               animation: completing ? "checkPop .3s ease-out" : "none" }}>
               <Icon name="check" size={13} color="#fff" />
             </span>}
+            {completing && <ConfettiBurst />}
           </div>
           )}
 
@@ -147,7 +175,9 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
                   </Chip>
                 )}
                 {(idea.tags || []).map(t => (
-                  <Chip key={t} th={th} color={th.accentText}
+                  <Chip key={t} th={th}
+                    color={th.vivid ? "#fff" : th.accentText}
+                    bg={th.vivid ? th.navActive : undefined}
                     onClick={onTagClick ? () => onTagClick(t) : undefined}>#{t}</Chip>
                 ))}
                 {idea.remindAt && idea.remindAt > Date.now() && (

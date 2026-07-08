@@ -357,6 +357,11 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
 
   return (
     <>
+      {/* Vivid look: a gradient ribbon in the project's color crowns the view */}
+      {th.vivid && (
+        <div style={{ height: 5, borderRadius: 99, margin: "0 0 12px",
+          background: `linear-gradient(90deg, ${project.color}, #7C3AED, #DB2777)` }} />
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <button onClick={onBack}
           style={{ display: "inline-flex", alignItems: "center", gap: 5,

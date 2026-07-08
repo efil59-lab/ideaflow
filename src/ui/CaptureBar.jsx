@@ -169,7 +169,7 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
           <span style={{ fontSize: 11, color: th.muted }}>יישמר לבד בעוד רגע</span>
         )}
         <button onClick={save} disabled={busy || (!text.trim() && !pending.length)}
-          style={{ marginRight: "auto", background: th.accent, color: "#fff", border: "none",
+          style={{ marginRight: "auto", background: th.cta || th.accent, color: "#fff", border: "none",
             borderRadius: 10, padding: "8px 22px", cursor: "pointer",
             fontSize: 14, fontWeight: 600, fontFamily: FONT,
             opacity: (!text.trim() && !pending.length) || busy ? 0.45 : 1 }}>

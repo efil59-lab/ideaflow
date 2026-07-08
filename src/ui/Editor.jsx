@@ -238,7 +238,7 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
       )}
 
       <button onClick={handleSave} disabled={busy}
-        style={{ width: "100%", marginTop: 10, background: th.accent, color: "#fff",
+        style={{ width: "100%", marginTop: 10, background: th.cta || th.accent, color: "#fff",
           border: "none", borderRadius: 12, padding: "12px 0", cursor: "pointer",
           fontSize: 15, fontWeight: 700, fontFamily: FONT, opacity: busy ? 0.6 : 1,
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
