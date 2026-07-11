@@ -18,8 +18,12 @@ export default function IdeaList({ ideas, projects, showProject = false, th, act
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
   );
 
+  // "Note" ideas (noCheck) always sink to the bottom, below everything else;
+  // among the rest, pinned first, then manual order / newest.
   const sorted = [...ideas].sort((a, b) =>
-    (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || eff(a) - eff(b));
+    (a.noCheck ? 1 : 0) - (b.noCheck ? 1 : 0)
+    || (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)
+    || eff(a) - eff(b));
 
   if (!sorted.length) return (
     <div style={{ textAlign: "center", padding: "36px 0", color: th.muted }}>

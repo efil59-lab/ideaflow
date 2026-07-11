@@ -182,8 +182,9 @@ function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
   );
 
+  // "Note" ideas (noCheck) are background info, not active work — excluded from the count.
   const counts = p => ({
-    active: ideas.filter(i => i.projectId === p.id && i.status !== "done" && i.status !== "trash").length,
+    active: ideas.filter(i => i.projectId === p.id && !i.noCheck && i.status !== "done" && i.status !== "trash").length,
     done: ideas.filter(i => i.projectId === p.id && i.status === "done").length,
   });
 

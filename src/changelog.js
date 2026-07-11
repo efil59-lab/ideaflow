@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.13";
+export const APP_VERSION = "5.14";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.14", date: "7 ביולי 2026", items: [
+    { icon: "notes", title: "הערות בתחתית הרשימה", text: "רעיונות שסומנו כ\"הערה\" (ללא סימון ביצוע) יורדים תמיד לתחתית הרשימה בפרויקט, ואינם נספרים במספר הרעיונות הפעילים." },
+  ] },
   { v: "5.13", date: "7 ביולי 2026", items: [
     { icon: "sparkle", title: "מראה חדש — זוהר", text: "מצב תצוגה צבעוני ובולט: כותרת בגרדיאנט, כרטיסים בצבעים חיים עם פס צבע, וכפתורים זוהרים. מחליפים בין \"רגוע\" ל\"זוהר\" בתפריט המשתמש (התמונה למעלה) — עובד גם עם מצב כהה." },
     { icon: "check", title: "קצת חיים", text: "המנורה בכותרת נדלקת כשרעיון נשמר, וסימון \"בוצע\" חוגג עם קונפטי קטן." },
