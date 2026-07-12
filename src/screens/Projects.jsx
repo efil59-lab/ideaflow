@@ -169,7 +169,15 @@ function TrashView({ ideas, th, actions, onBack }) {
 function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares = {}, sharedWithMe = [], commentSeen = {} }) {
   const [name, setName] = useState("");
   const [sortMode, setSortMode] = useState(false);
-  const [sortBy, setSortBy] = useState("manual"); // "manual" | "active"
+  // "manual" | "active" — persisted so the choice survives future visits.
+  const [sortBy, setSortBy] = useState(() => {
+    try { return localStorage.getItem("if_projsort") || "manual"; } catch { return "manual"; }
+  });
+  const chooseSort = v => {
+    setSortBy(v);
+    try { localStorage.setItem("if_projsort", v); } catch { /* ignore */ }
+    if (v === "active") setSortMode(false);
+  };
   const trashCount = ideas.filter(i => i.status === "trash").length;
 
   // "Note" ideas (noCheck) are background info, not active work — excluded from the count.
@@ -221,7 +229,7 @@ function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, direction: "rtl" }}>
           <span style={{ fontSize: 12, color: th.muted, fontWeight: 600 }}>מיון:</span>
           {[["manual", "ידני"], ["active", "הכי פעילים"]].map(([v, label]) => (
-            <button key={v} onClick={() => { setSortBy(v); if (v === "active") setSortMode(false); }}
+            <button key={v} onClick={() => chooseSort(v)}
               style={{ background: sortBy === v ? th.accentSoft : th.surface,
                 color: sortBy === v ? th.accentText : th.secondary,
                 border: `1px solid ${sortBy === v ? th.accent : th.border}`,
