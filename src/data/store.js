@@ -35,6 +35,8 @@ function demoData() {
         comments: [{ id: "c1", text: "רעיון מעולה! אפשר להתחיל מ'זהו זה'", authorUid: "guest", authorName: "דנה", at: now - 600e3 }] },
       { ...base, id: "d5", text: "רעיון ישן שכבר לא רלוונטי", title: "רעיון ישן", status: "trash", deletedAt: now - 172800e3, createdAt: now - 200000e3 },
       { ...base, id: "d6", text: "סיסמת הפאנל של האתר: admin / 1234 — הערת רקע", title: "פרטי גישה", status: "active", projectId: "p1", noCheck: true, createdAt: now - 1800e3 },
+      { ...base, id: "d7", text: "לתקן את הברז במטבח", title: "ברז מטבח", status: "active", projectId: "p2", createdAt: now - 900e3 },
+      { ...base, id: "d8", text: "לצבוע את הסלון", title: "צביעת הסלון", status: "active", projectId: "p2", createdAt: now - 1200e3 },
     ],
   };
 }

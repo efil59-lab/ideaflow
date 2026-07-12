@@ -169,8 +169,18 @@ function TrashView({ ideas, th, actions, onBack }) {
 function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares = {}, sharedWithMe = [], commentSeen = {} }) {
   const [name, setName] = useState("");
   const [sortMode, setSortMode] = useState(false);
-  const sorted = [...projects].sort(projSort);
+  const [sortBy, setSortBy] = useState("manual"); // "manual" | "active"
   const trashCount = ideas.filter(i => i.status === "trash").length;
+
+  // "Note" ideas (noCheck) are background info, not active work — excluded from the count.
+  const counts = p => ({
+    active: ideas.filter(i => i.projectId === p.id && !i.noCheck && i.status !== "done" && i.status !== "trash").length,
+    done: ideas.filter(i => i.projectId === p.id && i.status === "done").length,
+  });
+
+  const sorted = sortBy === "active"
+    ? [...projects].sort((a, b) => counts(b).active - counts(a).active || projSort(a, b))
+    : [...projects].sort(projSort);
 
   // Unread = a comment from someone else, newer than this project's last-read mark.
   const hasUnread = p => ideas.some(i =>
@@ -181,12 +191,6 @@ function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares
     useSensor(PointerSensor),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
   );
-
-  // "Note" ideas (noCheck) are background info, not active work — excluded from the count.
-  const counts = p => ({
-    active: ideas.filter(i => i.projectId === p.id && !i.noCheck && i.status !== "done" && i.status !== "trash").length,
-    done: ideas.filter(i => i.projectId === p.id && i.status === "done").length,
-  });
 
   return (
     <>
@@ -214,8 +218,23 @@ function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares
       </div>
 
       {projects.length > 1 && (
-        <div style={{ display: "flex", marginBottom: 8 }}>
-          <SortToggle sortMode={sortMode} setSortMode={setSortMode} th={th} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, direction: "rtl" }}>
+          <span style={{ fontSize: 12, color: th.muted, fontWeight: 600 }}>מיון:</span>
+          {[["manual", "ידני"], ["active", "הכי פעילים"]].map(([v, label]) => (
+            <button key={v} onClick={() => { setSortBy(v); if (v === "active") setSortMode(false); }}
+              style={{ background: sortBy === v ? th.accentSoft : th.surface,
+                color: sortBy === v ? th.accentText : th.secondary,
+                border: `1px solid ${sortBy === v ? th.accent : th.border}`,
+                borderRadius: 18, padding: "4px 12px", cursor: "pointer",
+                fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
+              {label}
+            </button>
+          ))}
+          {sortBy === "manual" && (
+            <span style={{ marginRight: "auto" }}>
+              <SortToggle sortMode={sortMode} setSortMode={setSortMode} th={th} />
+            </span>
+          )}
         </div>
       )}
 
