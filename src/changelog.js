@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.15";
+export const APP_VERSION = "5.16";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.16", date: "7 ביולי 2026", items: [
+    { icon: "folder", title: "התקדמות כללית", text: "בראש מסך הפרויקטים נוסף פס סטטיסטיקה מכל הפרויקטים: אחוז הרעיונות הפעילים שנותרו, כשכל פרויקט מקבל קטע בצבע שלו. לחיצה על הפס פותחת את רשימת כל הרעיונות הפעילים לפי פרויקט, ומשם אפשר לקפוץ לכל פרויקט." },
+  ] },
   { v: "5.15", date: "7 ביולי 2026", items: [
     { icon: "folder", title: "מיון פרויקטים לפי פעילים", text: "במסך הפרויקטים אפשר עכשיו למיין \"הכי פעילים\" — הפרויקטים עם הכי הרבה רעיונות פעילים עולים לראש. חזרה ל\"ידני\" בכל רגע." },
   ] },

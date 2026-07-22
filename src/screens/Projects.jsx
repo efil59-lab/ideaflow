@@ -166,6 +166,84 @@ function TrashView({ ideas, th, actions, onBack }) {
   );
 }
 
+// Overall progress across every project. The coloured part of the bar is what's
+// still open — one segment per project, in the project's colour — and the muted
+// tail is what's already done. Tapping it lists exactly which ideas are left.
+function ProjectsStats({ projects, ideas, th, onOpen }) {
+  const [open, setOpen] = useState(false);
+
+  const activeOf = pid => ideas.filter(i =>
+    i.projectId === pid && !i.noCheck && i.status !== "done" && i.status !== "trash");
+  const groups = projects.map(p => ({ p, list: activeOf(p.id) })).filter(g => g.list.length);
+  const activeTotal = groups.reduce((n, g) => n + g.list.length, 0);
+  const doneTotal = ideas.filter(i => i.projectId && i.status === "done").length;
+  const total = activeTotal + doneTotal;
+  if (!total) return null;
+  const pct = Math.round((activeTotal / total) * 100);
+
+  return (
+    <>
+      <div onClick={() => activeTotal && setOpen(true)}
+        style={{ background: th.surface, border: `1px solid ${th.border}`, borderRadius: 14,
+          padding: "12px 14px", marginBottom: 12, direction: "rtl",
+          cursor: activeTotal ? "pointer" : "default" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 9 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: th.text }}>התקדמות כללית</span>
+          <span style={{ marginRight: "auto", fontSize: 17, fontWeight: 800, color: th.accentText }}>
+            {pct}%
+          </span>
+          <span style={{ fontSize: 12, color: th.muted }}>נותרו</span>
+        </div>
+
+        <div style={{ display: "flex", height: 10, borderRadius: 99, overflow: "hidden",
+          background: th.surface2, border: `1px solid ${th.border}` }}>
+          {groups.map(g => (
+            <div key={g.p.id} title={`${g.p.name}: ${g.list.length}`}
+              style={{ width: `${(g.list.length / total) * 100}%`, background: g.p.color }} />
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 6, marginTop: 8, fontSize: 12, color: th.muted }}>
+          <span><strong style={{ color: th.text, fontWeight: 600 }}>{activeTotal}</strong> פעילים</span>
+          <span>·</span>
+          <span>{doneTotal} בוצעו</span>
+          {activeTotal > 0 && (
+            <span style={{ marginRight: "auto", color: th.accentText, fontWeight: 600 }}>הצג רשימה ›</span>
+          )}
+        </div>
+      </div>
+
+      {open && (
+        <Modal onClose={() => setOpen(false)} maxWidth={420} th={th}>
+          <ModalHeader title={`${activeTotal} רעיונות פעילים`} icon="folder"
+            onClose={() => setOpen(false)} th={th} />
+          {groups.map(g => (
+            <div key={g.p.id} style={{ marginBottom: 14, direction: "rtl" }}>
+              <div onClick={() => { setOpen(false); onOpen(g.p.id); }}
+                style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer",
+                  marginBottom: 6, paddingBottom: 5, borderBottom: `1px solid ${th.border}` }}>
+                <span style={{ width: 9, height: 9, borderRadius: "50%", background: g.p.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: th.text }}>{g.p.name}</span>
+                <span style={{ fontSize: 12, color: th.muted }}>({g.list.length})</span>
+                <span style={{ marginRight: "auto", display: "inline-flex" }}>
+                  <Icon name="back" size={13} color={th.muted} />
+                </span>
+              </div>
+              {g.list.map(i => (
+                <p key={i.id} style={{ margin: "0 0 5px", paddingRight: 16, fontSize: 13,
+                  color: th.secondary, lineHeight: 1.5, overflow: "hidden",
+                  display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                  • {i.title || i.text || "(מדיה בלבד)"}
+                </p>
+              ))}
+            </div>
+          ))}
+        </Modal>
+      )}
+    </>
+  );
+}
+
 function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares = {}, sharedWithMe = [], commentSeen = {} }) {
   const [name, setName] = useState("");
   const [sortMode, setSortMode] = useState(false);
@@ -224,6 +302,8 @@ function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares
           )}
         </button>
       </div>
+
+      <ProjectsStats projects={projects} ideas={ideas} th={th} onOpen={onOpen} />
 
       {projects.length > 1 && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, direction: "rtl" }}>
