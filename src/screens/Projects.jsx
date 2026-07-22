@@ -174,7 +174,10 @@ function ProjectsStats({ projects, ideas, th, onOpen }) {
 
   const activeOf = pid => ideas.filter(i =>
     i.projectId === pid && !i.noCheck && i.status !== "done" && i.status !== "trash");
-  const groups = projects.map(p => ({ p, list: activeOf(p.id) })).filter(g => g.list.length);
+  // Busiest project first — both in the bar and in the drill-down list.
+  const groups = projects.map(p => ({ p, list: activeOf(p.id) }))
+    .filter(g => g.list.length)
+    .sort((a, b) => b.list.length - a.list.length);
   const activeTotal = groups.reduce((n, g) => n + g.list.length, 0);
   const doneTotal = ideas.filter(i => i.projectId && i.status === "done").length;
   const total = activeTotal + doneTotal;
