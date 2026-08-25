@@ -78,7 +78,7 @@ input:focus, textarea:focus, [contenteditable]:focus { outline: none; }
 .side { display: none; }
 .if-main { display: contents; }
 
-@media (min-width: 900px) {
+@media (min-width: 720px) and (min-height: 640px) {
   .if-app { display: flex; flex-direction: row; align-items: stretch; }
 
   .if-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
