@@ -55,7 +55,7 @@ export function Confirm({ title, message, confirmLabel = "מחק", icon = "delet
 
 export function Toast({ msg, th }) {
   return (
-    <div style={{ position: "fixed", top: 14, left: "50%", transform: "translateX(-50%)",
+    <div className="if-toast" style={{ position: "fixed", top: 14, left: "50%", transform: "translateX(-50%)",
       background: th.text, color: th.bg, borderRadius: 11, padding: "9px 20px",
       fontSize: 14, fontWeight: 500, zIndex: 9999, pointerEvents: "none", fontFamily: FONT }}>
       {msg}

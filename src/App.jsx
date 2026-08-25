@@ -188,7 +188,7 @@ function InstallBanner({ th, hidden = false }) {
   };
 
   return (
-    <div style={{ position: "fixed", bottom: "calc(66px + env(safe-area-inset-bottom))",
+    <div className="if-install" style={{ position: "fixed", bottom: "calc(66px + env(safe-area-inset-bottom))",
       left: 12, right: 12, zIndex: 500, display: "flex", justifyContent: "center" }}>
       <div style={{ maxWidth: 536, width: "100%", background: th.surface,
         border: `1px solid ${th.border}`, borderRadius: 14, padding: "10px 12px",
@@ -805,13 +805,39 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: th.bg, fontFamily: FONT, direction: "rtl" }}>
+    // The --if-* custom properties hand the JS theme to the desktop side-rail
+    // rules in index.css (this app styles everything with inline objects, so
+    // the stylesheet has no tokens of its own to read).
+    <div className="if-app" style={{ minHeight: "100vh", background: th.bg, fontFamily: FONT, direction: "rtl",
+      "--if-card": th.surface, "--if-line": th.border, "--if-ink": th.text,
+      "--if-muted": th.muted, "--if-accent": th.navActive }}>
+      {/* Desktop side rail — display:none below 900px, so phones are untouched.
+          First child + RTL row layout is what puts it on the right. */}
+      <aside className="side">
+        <button className="side-brand" onClick={() => setTab("inbox")}>
+          <Icon name="bulb" size={26} color={th.accent} />
+          <span>IdeaFlow</span>
+        </button>
+        {navItems.map(n => {
+          const active = tab === n.id;
+          return (
+            <button key={n.id} className={"side-item" + (active ? " on" : "")}
+              onClick={() => { setTab(n.id); if (n.id === "projects") setOpenProjectId(null); }}>
+              <Icon name={n.icon} size={19} color={active ? th.navActive : th.muted} />
+              <span>{n.label}</span>
+              {n.badge > 0 && <span className="side-badge">{n.badge}</span>}
+            </button>
+          );
+        })}
+      </aside>
+
+      <div className="if-main">
       {/* Header — vivid look paints it with the signature gradient */}
       <div style={{ position: "sticky", top: 0, zIndex: 100,
         background: th.vivid ? th.grad : th.bg,
         borderBottom: th.vivid ? "none" : `1px solid ${th.border}`,
         animation: "fadeDown 0.55s ease-out both" }}>
-        <div style={{ maxWidth: 560, margin: "0 auto", padding: "10px 14px",
+        <div className="if-head-inner" style={{ maxWidth: 560, margin: "0 auto", padding: "10px 14px",
           display: "flex", alignItems: "center", gap: 8 }}>
           <span onClick={() => setShowGuide(true)}
             style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", userSelect: "none" }}>
@@ -848,7 +874,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
       </div>
 
       {/* Body */}
-      <div style={{ maxWidth: 560, margin: "0 auto", padding: "14px 14px 90px",
+      <div className="if-body" style={{ maxWidth: 560, margin: "0 auto", padding: "14px 14px 90px",
         animation: "fadeUp 0.6s ease-out 0.15s both" }}>
         {tab === "inbox" && (
           <Inbox uid={uid} ideas={ideas} projects={projects} th={th} actions={actions} onCapture={capture} myShares={myShares} />
@@ -866,9 +892,10 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
             q={searchQ} setQ={setSearchQ} />
         )}
       </div>
+      </div>
 
       {/* Bottom nav */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
+      <div className="if-nav" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
         background: th.surface, borderTop: `1px solid ${th.border}`,
         animation: "navUp 0.55s ease-out 0.25s both" }}>
         <div style={{ maxWidth: 560, margin: "0 auto", display: "flex",

@@ -65,3 +65,70 @@ input:focus, textarea:focus, [contenteditable]:focus { outline: none; }
 
 .rich-content ul { margin: 4px 8px 4px 0; padding-right: 18px; }
 .rich-content b, .rich-content strong { font-weight: 700; }
+
+/* ---------- desktop side rail ----------
+   Below 900px nothing in here applies: the rail is display:none and .if-main
+   is display:contents (no box at all), so the phone layout is exactly what it
+   was. Above 900px the shell becomes an RTL row — the rail is the first child,
+   so it lands on the right — the bottom nav goes away, and the reading column
+   keeps a comfortable width instead of stretching across the monitor.
+   Colours come from the --if-* vars the Shell sets inline from the JS theme;
+   the !important overrides exist because this app's layout lives in inline
+   style objects, which a plain rule could never beat. */
+.side { display: none; }
+.if-main { display: contents; }
+
+@media (min-width: 900px) {
+  .if-app { display: flex; flex-direction: row; align-items: stretch; }
+
+  .if-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+
+  /* header band and body share one centred, slightly wider reading column */
+  .if-head-inner { max-width: 720px !important; }
+  /* width:100% because the body's inline `margin: 0 auto` cancels the flex
+     cross-axis stretch, which would otherwise shrink it to fit-content */
+  .if-body {
+    width: 100% !important; max-width: 720px !important;
+    padding: 18px 18px 44px !important;
+  }
+
+  .if-nav { display: none !important; }
+
+  .side {
+    display: flex; flex-direction: column; gap: 4px; flex-shrink: 0;
+    width: 232px; padding: 18px 14px;
+    background: var(--if-card); border-left: 1px solid var(--if-line);
+    position: sticky; top: 0; align-self: flex-start;
+    height: 100dvh; overflow-y: auto;
+  }
+  .side-brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 10px 18px;
+    background: none; border: none; cursor: pointer;
+    font-family: inherit; font-size: 21px; font-weight: 800;
+    color: var(--if-ink); text-align: right;
+  }
+  .side-item {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 12px 14px; border: none; border-radius: 14px; background: none;
+    font-family: inherit; font-size: 15px; font-weight: 600;
+    color: var(--if-muted); text-align: right; cursor: pointer;
+  }
+  .side-item.on {
+    background: color-mix(in srgb, var(--if-accent) 14%, transparent);
+    color: var(--if-accent);
+  }
+  .side-badge {
+    margin-inline-start: auto;
+    background: var(--if-accent); color: #fff;
+    font-size: 11px; font-weight: 700; line-height: 1;
+    min-width: 18px; padding: 4px 6px; border-radius: 9px; text-align: center;
+  }
+
+  /* keep every fixed floater clear of the 232px rail (RTL: it's the right edge) */
+  .if-toast { top: 20px !important; left: calc(50% - 116px) !important; }
+  .if-install {
+    right: calc(232px + 16px) !important; left: 16px !important;
+    bottom: 24px !important;
+  }
+}
