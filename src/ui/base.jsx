@@ -1,8 +1,12 @@
+import { createPortal } from "react-dom";
 import { Icon, IconBtn } from "./Icons";
 import { FONT } from "../theme";
 
+// Rendered into document.body: an ancestor with a transform/animation (the app
+// body's fadeUp) would otherwise become the containing block for position:fixed,
+// dropping the dialog to the middle of the scrolled page instead of the viewport.
 export function Modal({ onClose, children, maxWidth = 480, th }) {
-  return (
+  return createPortal(
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,14,22,0.55)",
       backdropFilter: "blur(4px)", zIndex: 800,
       display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -13,7 +17,8 @@ export function Modal({ onClose, children, maxWidth = 480, th }) {
           animation: "fadeUp .18s ease-out" }}>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

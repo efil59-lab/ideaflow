@@ -73,14 +73,14 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
 
   return (
     <>
-      {confirmDel && createPortal(
-        <div style={{ position: "fixed", inset: 0, zIndex: 9000 }}>
-          <Confirm title="העברה לפח האשפה" icon="delete"
-            message="הרעיון יעבור לפח — אפשר לשחזר משם תוך 30 יום."
-            confirmLabel="העבר לפח"
-            onConfirm={() => { setConfirmDel(false); onDelete(); }}
-            onCancel={() => setConfirmDel(false)} th={th} />
-        </div>, document.body)}
+      {/* Modal portals itself to document.body — no wrapper needed here. */}
+      {confirmDel && (
+        <Confirm title="העברה לפח האשפה" icon="delete"
+          message="הרעיון יעבור לפח — אפשר לשחזר משם תוך 30 יום."
+          confirmLabel="העבר לפח"
+          onConfirm={() => { setConfirmDel(false); onDelete(); }}
+          onCancel={() => setConfirmDel(false)} th={th} />
+      )}
       {bigImg && createPortal(
         <div onClick={() => setBigImg(null)} style={{ position: "fixed", inset: 0,
           background: "rgba(0,0,0,0.95)", zIndex: 9000,
