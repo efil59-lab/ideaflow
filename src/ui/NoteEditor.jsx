@@ -88,6 +88,57 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   // Any way out flushes the pending edit.
   useEffect(() => () => { save(); }, []);
 
+  // Undo / redo for the note body. A controlled textarea loses the browser's
+  // native history, so we keep our own: typing commits a snapshot after a short
+  // pause, undo/redo walk the stack. All body edits go through changeText.
+  const hist = useRef([initial?.text || ""]);
+  const hp = useRef(0);
+  const commitTimer = useRef();
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const commit = val => {
+    if (val === hist.current[hp.current]) return;
+    hist.current = hist.current.slice(0, hp.current + 1);
+    hist.current.push(val);
+    hp.current = hist.current.length - 1;
+    setCanUndo(true); setCanRedo(false);
+  };
+  const changeText = val => {
+    setText(val);
+    clearTimeout(commitTimer.current);
+    commitTimer.current = setTimeout(() => commit(val), 450);
+  };
+  const undo = () => {
+    clearTimeout(commitTimer.current);
+    commit(stateRef.current.text);            // fold in any uncommitted typing
+    if (hp.current <= 0) return;
+    hp.current -= 1;
+    setText(hist.current[hp.current]);
+    setCanUndo(hp.current > 0); setCanRedo(true);
+    requestAnimationFrame(() => taRef.current?.focus());
+  };
+  const redo = () => {
+    clearTimeout(commitTimer.current);
+    if (hp.current >= hist.current.length - 1) return;
+    hp.current += 1;
+    setText(hist.current[hp.current]);
+    setCanUndo(true); setCanRedo(hp.current < hist.current.length - 1);
+    requestAnimationFrame(() => taRef.current?.focus());
+  };
+
+  // Track the visual viewport so the footer (undo/redo) floats just above the
+  // on-screen keyboard instead of hiding behind it.
+  const [vp, setVp] = useState(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onR = () => setVp({ h: vv.height, top: vv.offsetTop });
+    onR();
+    vv.addEventListener("resize", onR);
+    vv.addEventListener("scroll", onR);
+    return () => { vv.removeEventListener("resize", onR); vv.removeEventListener("scroll", onR); };
+  }, []);
+
   // "רשימת סימון": turn every line into a checkbox item, or strip the markers off
   // if the note is already a list. Autosave picks up the change.
   const PREFIX = /^\s*(?:[-*]\s+|\[[ xX]\]\s*)/;
@@ -96,10 +147,10 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     const filled = lines.filter(l => l.trim());
     const allItems = filled.length > 0 && filled.every(l => PREFIX.test(l));
     if (allItems) {                                   // list → plain text
-      setText(lines.map(l => l.replace(PREFIX, "")).join("\n"));
+      changeText(lines.map(l => l.replace(PREFIX, "")).join("\n"));
     } else {                                          // plain text → checkbox list
       const items = filled.map(l => "[ ] " + l.replace(PREFIX, ""));
-      setText((items.length ? items : ["[ ] "]).join("\n"));
+      changeText((items.length ? items : ["[ ] "]).join("\n"));
     }
   };
 
@@ -128,7 +179,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     const m = l.match(PARSE);
     return { i, done: (m?.[1] || "").toLowerCase() === "x", label: m?.[2] ?? l };
   });
-  const rebuild = arr => setText(arr.join("\n"));
+  const rebuild = arr => changeText(arr.join("\n"));
   const setItemLine = (i, done, label) => {
     const a = [...rawLines]; a[i] = `[${done ? "x" : " "}] ${label}`; rebuild(a);
   };
@@ -148,6 +199,10 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     setFocusIdx(-1);
   }, [focusIdx]);
 
+  // Only trust the visual-viewport height when it's clearly real (a collapsed or
+  // zero value would otherwise shrink the whole editor to nothing).
+  const vpSafe = vp && vp.h > 200;
+
   const c = NOTE_COLORS[colorIdx];
   const pageBg = th.pastels[colorIdx] || th.surface;
   const line = th.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.09)";
@@ -157,7 +212,11 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const nameOf = i => (colorNames[i] || "").trim() || NOTE_COLOR_FALLBACK[i];
 
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 700, background: pageBg,
+    <div style={{ position: "fixed", left: 0, right: 0, zIndex: 700, background: pageBg,
+      // Track the visual viewport so the footer rides above the keyboard — but
+      // only when it reports a sane height (some webviews report 0), else fill.
+      top: vpSafe ? vp.top : 0,
+      height: vpSafe ? vp.h + "px" : "100dvh",
       display: "flex", flexDirection: "column", direction: "rtl", fontFamily: FONT }}>
 
       {/* Top bar: ⋮ menu · colour square · title · ✓ done */}
@@ -251,7 +310,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
           </button>
         </div>
       ) : (
-        <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)}
+        <textarea ref={taRef} value={text} onChange={e => changeText(e.target.value)}
           placeholder="כתוב כאן…"
           style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
             resize: "none", padding: "6px 16px 16px", fontSize: fs, fontFamily: FONT,
@@ -261,12 +320,27 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
             backgroundAttachment: "local" }} />
       )}
 
-      <div style={{ padding: "7px 14px calc(7px + env(safe-area-inset-bottom))",
-        display: "flex", alignItems: "center", gap: 6,
-        fontSize: 11.5, color: th.muted, background: barBg }}>
-        <Icon name={saved ? "check" : "refresh"} size={12} color={saved ? th.green : th.muted} />
-        {saved ? "נשמר" : "נשמר אוטומטית תוך כדי כתיבה"}
-        <span style={{ marginRight: "auto" }}>{nameOf(colorIdx)}</span>
+      {/* Footer: undo / redo (kept above the keyboard by the viewport tracking)
+          plus the autosave status. preventDefault on pointer-down keeps the
+          textarea focused, so tapping an arrow doesn't dismiss the keyboard. */}
+      <div style={{ padding: "5px 10px calc(5px + env(safe-area-inset-bottom))",
+        display: "flex", alignItems: "center", gap: 4, background: barBg,
+        borderTop: `1px solid ${line}` }}>
+        {[["undo", undo, canUndo, "בטל"], ["redo", redo, canRedo, "החזר"]].map(([ic, fn, on, t]) => (
+          <button key={ic} title={t} disabled={!on}
+            onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+            onClick={fn}
+            style={{ background: "transparent", border: "none", borderRadius: 9, padding: "8px",
+              cursor: on ? "pointer" : "default", opacity: on ? 1 : 0.3,
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name={ic} size={21} color={th.text} />
+          </button>
+        ))}
+        <span style={{ marginRight: "auto", display: "flex", alignItems: "center", gap: 6,
+          fontSize: 11.5, color: th.muted }}>
+          <Icon name={saved ? "check" : "refresh"} size={12} color={saved ? th.green : th.muted} />
+          {saved ? "נשמר" : "נשמר אוטומטית"}
+        </span>
       </div>
     </div>,
     document.body
