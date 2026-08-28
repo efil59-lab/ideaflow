@@ -9,7 +9,7 @@ import {
   markVersionSeen, whatsNewNotSeenYet,
   useMyShares, useSharedWithMe, saveShare, removeShare, shareIdOf,
   addComment, addSharedIdea, queueNotification,
-  useUserDoc, markCommentsSeen, recordPresence,
+  useUserDoc, markCommentsSeen, recordPresence, addNote, saveColorNames,
 } from "./data/store";
 import { migrateIfNeeded } from "./data/migrate";
 import { enrichIdea } from "./data/ai";
@@ -22,6 +22,7 @@ import { ShareModal, MoveSheet, ReminderSheet, SnoozeSheet, CommentsSheet } from
 import Editor from "./ui/Editor";
 import Inbox from "./screens/Inbox";
 import Projects from "./screens/Projects";
+import Notes from "./screens/Notes";
 import Search from "./screens/Search";
 import Assistant from "./screens/Assistant";
 
@@ -496,6 +497,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   // switch tabs first, CaptureBar picks the intent up from storage on mount.
   const fabAction = kind => {
     setFabOpen(false);
+    if (kind === "note") { setTab("notes"); return; }
     try { localStorage.setItem("if_focus_capture", "1"); } catch { /* ignore */ }
     if (tab === "inbox") {
       window.dispatchEvent(new CustomEvent("if-capture", { detail: { kind } }));
@@ -750,18 +752,32 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     if (data.remindAt && data.remindAt > Date.now()) enablePush(uid);
   };
 
+  // Notes land in the reference lane, never in the Inbox funnel.
+  const captureNote = async (data) => {
+    const note = await addNote(uid, data);
+    toast$("הפתק נשמר");
+    setBulbBeat(b => b + 1);
+    if (note?.text) {
+      enrichIdea(note.text, []).then(en =>
+        updateIdea(uid, note.id, { title: en.title, tags: en.tags }).catch(() => {})
+      ).catch(() => {});
+    }
+  };
+
   const actions = {
     update: (id, patch, base) => updateIdea(uid, id, patch, base),
     // Soft delete → trash (recoverable, auto-purged after 30 days)
     remove: async (idea) => {
       await updateIdea(uid, idea.id, {
-        status: "trash", deletedAt: Date.now(), remindAt: null, aiProject: null, pinned: false,
+        status: "trash", prevStatus: idea.status, deletedAt: Date.now(),
+        remindAt: null, aiProject: null, pinned: false,
       }, idea);
       toast$("הועבר לפח האשפה");
     },
     restore: async (idea) => {
       await updateIdea(uid, idea.id, {
-        status: idea.projectId ? "active" : "inbox", deletedAt: null,
+        status: idea.prevStatus === "note" ? "note" : (idea.projectId ? "active" : "inbox"),
+        prevStatus: null, deletedAt: null,
       }, idea);
       toast$("שוחזר");
     },
@@ -991,13 +1007,11 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
             commentSeen={commentSeen}
             openProjectId={openProjectId} setOpenProjectId={setOpenProjectId} />
         )}
-        {tab === "favs" && (
-          <Projects uid={uid} ideas={ideas} projects={projects} th={th} actions={actions}
-            projActions={projActions} onCapture={capture} favOnly
-            myShares={myShares} sharedWithMe={sharedWithMe}
-            shareActions={shareActions} onSharedCapture={sharedCapture}
-            commentSeen={commentSeen}
-            openProjectId={openProjectId} setOpenProjectId={setOpenProjectId} />
+        {tab === "notes" && (
+          <Notes uid={uid} ideas={ideas} th={th} actions={actions}
+            onCapture={captureNote}
+            colorNames={userDoc.colorNames || []}
+            onSaveNames={names => saveColorNames(uid, names).catch(() => {})} />
         )}
         {tab === "search" && (
           <Search ideas={ideas} projects={projects} th={th} actions={actions}
@@ -1053,14 +1067,13 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
           </span>
 
           {/* favourites + search sit after the FAB, so it lands dead centre */}
-          <button onClick={() => { setTab("favs"); setOpenProjectId(null); }}
+          <button onClick={() => setTab("notes")}
             style={{ flex: 1, background: "transparent", border: "none", cursor: "pointer",
               display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
               padding: "5px 0", fontFamily: FONT }}>
-            <Icon name="star" filled={tab === "favs"} size={21}
-              color={tab === "favs" ? th.navActive : th.muted} />
-            <span style={{ fontSize: 10.5, fontWeight: tab === "favs" ? 600 : 400,
-              color: tab === "favs" ? th.navActive : th.muted }}>מועדפים</span>
+            <Icon name="notes" size={21} color={tab === "notes" ? th.navActive : th.muted} />
+            <span style={{ fontSize: 10.5, fontWeight: tab === "notes" ? 600 : 400,
+              color: tab === "notes" ? th.navActive : th.muted }}>פתקים</span>
           </button>
           <button onClick={() => setTab("search")}
             style={{ flex: 1, background: "transparent", border: "none", cursor: "pointer",
@@ -1077,6 +1090,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
         <Modal onClose={() => setFabOpen(false)} maxWidth={340} th={th}>
           <ModalHeader title="רעיון חדש" icon="bulb" onClose={() => setFabOpen(false)} th={th} />
           {[["text", "bulb", "רעיון", "כתוב אותו עכשיו"],
+            ["note", "notes", "פתק", "מידע לשמור, לא משימה"],
             ["audio", "mic", "הקלטה", "תפוס אותו בקול"],
             ["image", "camera", "תמונה", "צלם או בחר מהגלריה"]].map(([kind, icon, label, sub]) => (
             <button key={kind} onClick={() => fabAction(kind)}
@@ -1409,7 +1423,8 @@ function Guide({ onClose, onLog, th }) {
     { icon: "delete", title: "פח אשפה", text: "מחיקה היא הפיכה: הרעיון עובר לפח (אייקון הפח במסך הפרויקטים) ונשאר שם 30 יום לפני שנמחק לצמיתות." },
     { icon: "sparkle", title: "מראה", text: "בתפריט המשתמש (התמונה למעלה) בוחרים מראה: \"אלקטריק\" הכהה והזוהר (ברירת המחדל), \"זוהר\" הצבעוני או \"רגוע\" המינימלי. בכפתור הירח/שמש עוברים למצב כהה. הבחירה נשמרת במכשיר." },
     { icon: "add", title: "כפתור רעיון חדש", text: "הכפתור העגול במרכז סרגל הניווט פותח שלוש דרכים לתפוס רעיון: כתיבה, הקלטה קולית או תמונה." },
-    { icon: "star", title: "מועדפים", text: "כוכב ⭐ על כרטיס פרויקט מוסיף אותו ללשונית \"מועדפים\" — הפרויקטים שאתה חוזר אליהם, במקום אחד." },
+    { icon: "star", title: "מועדפים", text: "כוכב ⭐ על כרטיס פרויקט מעלה אותו לראש מסך הפרויקטים — מה שאתה חוזר אליו, ראשון." },
+    { icon: "notes", title: "פתקים", text: "לשונית \"פתקים\" היא לדברים שרוצים לשמור ולא לבצע: כתובות, קודים, קטעים שהעתקת. נותנים שם לצבעים ומסננים לפיהם, ושורות שמתחילות ב-\"- \" הופכות לרשימת סימון. פתקים לא מגיעים ל-Inbox ולא נספרים כרעיונות פעילים." },
     { icon: "bulb", title: "AI על הרעיון", text: "בעורך של כל רעיון: שפר ניסוח, הרחב, הפוך למשימות או קבל זוויות נוספות. התוצאה מוצעת — אתה בוחר אם להחליף, להוסיף או לבטל." },
   ];
   const Row = ({ it, last }) => (

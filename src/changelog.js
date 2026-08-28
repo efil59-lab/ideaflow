@@ -4,11 +4,18 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.18";
+export const APP_VERSION = "5.19";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.19", date: "28 באוגוסט 2026", items: [
+    { icon: "notes", title: "פתקים — נתיב חדש", text: "לשונית \"פתקים\" חדשה למידע שרוצים לשמור ולא למשימות: מה שנכנס לשם לא מגיע ל-Inbox, לא נספר ברעיונות הפעילים ולא בתזכורת הערבית. ה-Inbox נשאר משפך נקי." },
+    { icon: "tag", title: "צבעים עם שמות", text: "אפשר לתת שם לכל אחד מששת הצבעים (\"קניות\", \"טיולים\") ולסנן פתקים לפי צבע בנגיעה — הצבע הפך לקטגוריה אמיתית." },
+    { icon: "copy", title: "תצוגת רשת והדבקה מהירה", text: "פתקים מוצגים בשתי עמודות צבעוניות (או ברשימה, לבחירתך), וכפתור \"הדבק מהלוח\" יוצר פתק בלחיצה אחת." },
+    { icon: "check", title: "רשימת סימון בפתק", text: "שורות שמתחילות ב-\"- \" הופכות לפריטים לסימון בתוך הפתק — רשימת קניות אמיתית, מסמנים ישר מהכרטיס." },
+    { icon: "star", title: "מועדפים עברו לפרויקטים", text: "הפרויקטים המסומנים בכוכב מופיעים עכשיו בראש מסך הפרויקטים, מעל השאר." },
+  ] },
   { v: "5.18", date: "28 באוגוסט 2026", items: [
     { icon: "star", title: "פרויקטים מועדפים", text: "מסמנים פרויקט בכוכב ⭐ במסך הפרויקטים, והוא מופיע בלשונית \"מועדפים\" החדשה בסרגל התחתון — גישה מהירה למה שחשוב עכשיו." },
     { icon: "refresh", title: "פס עדכון גרסה", text: "כשיוצאת גרסה חדשה יופיע פס בראש המסך — לחיצה עליו מעדכנת מיד. האפליקציה כבר לא מתרעננת מעצמה באמצע העבודה." },

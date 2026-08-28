@@ -18,7 +18,7 @@ const projSort = (a, b) =>
   || (a.createdAt || 0) - (b.createdAt || 0);
 
 export default function Projects({ uid, ideas, projects, th, actions, projActions, onCapture,
-  openProjectId, setOpenProjectId, commentSeen = {}, favOnly = false,
+  openProjectId, setOpenProjectId, commentSeen = {},
   myShares = {}, sharedWithMe = [], shareActions, onSharedCapture }) {
   const open = projects.find(p => p.id === openProjectId);
   if (openProjectId === "__trash__") {
@@ -39,7 +39,7 @@ export default function Projects({ uid, ideas, projects, th, actions, projAction
         share={myShares[open.id]} shareActions={shareActions}
         onBack={() => setOpenProjectId(null)} />
     : <ProjectsIndex uid={uid} projects={projects} ideas={ideas} th={th} projActions={projActions}
-        myShares={myShares} sharedWithMe={sharedWithMe} commentSeen={commentSeen} favOnly={favOnly}
+        myShares={myShares} sharedWithMe={sharedWithMe} commentSeen={commentSeen}
         onOpen={setOpenProjectId} />;
 }
 
@@ -183,7 +183,7 @@ function ProjectsStats({ projects, ideas, th, onOpen }) {
   const total = activeTotal + doneTotal;
   if (!total) return null;
   const pct = Math.round((activeTotal / total) * 100);
-  const allIdeas = ideas.filter(i => i.status !== "trash").length;
+  const allIdeas = ideas.filter(i => i.status !== "trash" && i.status !== "note").length;
   // On the dark/gradient heroes the text sits on colour, not on the surface.
   const heroInk = (th.electric || th.vivid) ? "#fff" : th.text;
   const heroSub = (th.electric || th.vivid) ? "rgba(255,255,255,0.72)" : th.muted;
@@ -286,9 +286,7 @@ function ProjectsStats({ projects, ideas, th, onOpen }) {
   );
 }
 
-function ProjectsIndex({ uid, projects: allProjects, ideas, th, projActions, onOpen, myShares = {}, sharedWithMe = [], commentSeen = {}, favOnly = false }) {
-  // The favourites tab is the same index, narrowed to starred projects.
-  const projects = favOnly ? allProjects.filter(p => p.fav) : allProjects;
+function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares = {}, sharedWithMe = [], commentSeen = {} }) {
   const [name, setName] = useState("");
   const [sortMode, setSortMode] = useState(false);
   // "manual" | "active" — persisted so the choice survives future visits.
@@ -324,14 +322,7 @@ function ProjectsIndex({ uid, projects: allProjects, ideas, th, projActions, onO
 
   return (
     <>
-      {favOnly && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, direction: "rtl", margin: "2px 2px 12px" }}>
-          <Icon name="star" size={19} color={th.amber} filled />
-          <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: th.text }}>מועדפים</h2>
-        </div>
-      )}
-
-      {!favOnly && <div style={{ display: "flex", gap: 7, marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 7, marginBottom: 12 }}>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="פרויקט חדש..."
           onKeyDown={e => { if (e.key === "Enter" && name.trim()) { projActions.add(name.trim()); setName(""); } }}
           style={{ flex: 1, border: `1px solid ${th.border}`, borderRadius: 12, padding: "11px 14px",
@@ -352,11 +343,11 @@ function ProjectsIndex({ uid, projects: allProjects, ideas, th, projActions, onO
             </span>
           )}
         </button>
-      </div>}
+      </div>
 
-      {!favOnly && <ProjectsStats projects={projects} ideas={ideas} th={th} onOpen={onOpen} />}
+      <ProjectsStats projects={projects} ideas={ideas} th={th} onOpen={onOpen} />
 
-      {!favOnly && projects.length > 1 && (
+      {projects.length > 1 && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, direction: "rtl" }}>
           <span style={{ fontSize: 12, color: th.muted, fontWeight: 600 }}>מיון:</span>
           {[["manual", "ידני"], ["active", "הכי פעילים"]].map(([v, label]) => (
@@ -379,12 +370,8 @@ function ProjectsIndex({ uid, projects: allProjects, ideas, th, projActions, onO
 
       {sorted.length === 0 && (
         <div style={{ textAlign: "center", padding: "36px 0", color: th.muted, direction: "rtl" }}>
-          <Icon name={favOnly ? "star" : "folder"} size={40} color={favOnly ? th.amber : th.border} />
-          <p style={{ fontSize: 14, marginTop: 8 }}>
-            {favOnly
-              ? "עוד אין מועדפים — סמנו פרויקט בכוכב ⭐ במסך הפרויקטים והוא יופיע כאן"
-              : "צור פרויקט ראשון כדי לארגן רעיונות"}
-          </p>
+          <Icon name="folder" size={40} color={th.border} />
+          <p style={{ fontSize: 14, marginTop: 8 }}>צור פרויקט ראשון כדי לארגן רעיונות</p>
         </div>
       )}
 
@@ -404,17 +391,39 @@ function ProjectsIndex({ uid, projects: allProjects, ideas, th, projActions, onO
           </SortableContext>
         </DndContext>
       ) : (
-        sorted.map(p => (
-          <ProjectRow key={p.id} p={p} th={th} counts={counts(p)}
-            isShared={!!myShares[p.id]} unread={hasUnread(p)}
-            onOpen={() => onOpen(p.id)}
-            onPin={() => projActions.update(p.id, { pinned: !p.pinned })}
-            onFav={() => projActions.update(p.id, { fav: !p.fav })} />
-        ))
+        (() => {
+          const row = p => (
+            <ProjectRow key={p.id} p={p} th={th} counts={counts(p)}
+              isShared={!!myShares[p.id]} unread={hasUnread(p)}
+              onOpen={() => onOpen(p.id)}
+              onPin={() => projActions.update(p.id, { pinned: !p.pinned })}
+              onFav={() => projActions.update(p.id, { fav: !p.fav })} />
+          );
+          const favs = sorted.filter(p => p.fav);
+          const rest = sorted.filter(p => !p.fav);
+          return (
+            <>
+              {favs.length > 0 && (
+                <>
+                  <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600,
+                    color: th.amber, letterSpacing: 0.4, margin: "2px 2px 8px", direction: "rtl" }}>
+                    <Icon name="star" size={13} color={th.amber} filled /> מועדפים
+                  </p>
+                  {favs.map(row)}
+                  {rest.length > 0 && (
+                    <p style={{ fontSize: 12, fontWeight: 600, color: th.muted, letterSpacing: 0.4,
+                      margin: "16px 2px 8px", direction: "rtl" }}>כל הפרויקטים</p>
+                  )}
+                </>
+              )}
+              {rest.map(row)}
+            </>
+          );
+        })()
       )}
 
       {/* Projects shared with me by others */}
-      {!favOnly && sharedWithMe.length > 0 && !sortMode && (
+      {sharedWithMe.length > 0 && !sortMode && (
         <>
           <p style={{ fontSize: 12, fontWeight: 600, color: th.muted, letterSpacing: 0.6,
             margin: "18px 2px 8px" }}>

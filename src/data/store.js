@@ -38,6 +38,10 @@ function demoData() {
       { ...base, id: "d7", text: "לתקן את הברז במטבח", title: "ברז מטבח", status: "active", projectId: "p2", createdAt: now - 900e3 },
       { ...base, id: "d8", text: "לצבוע את הסלון", title: "צביעת הסלון", status: "active", projectId: "p2", createdAt: now - 1200e3 },
       { ...base, id: "d9", text: "לסגור חוזה עם הסטודיו", title: "חוזה סטודיו", status: "done", projectId: "p1", createdAt: now - 250000e3 },
+      { ...base, id: "n1", text: "- חלב\n- לחם\n[x] ביצים", title: "רשימת סופר", status: "note", noCheck: true, colorIdx: 0, createdAt: now - 500e3 },
+      { ...base, id: "n2", text: "מלון ליד הגשר, צק-אין 15:00", title: "Ljubljana — לילה 1", status: "note", noCheck: true, colorIdx: 1, createdAt: now - 900e3 },
+      { ...base, id: "n3", text: "המידה שמתאימה למדף", title: "ברג 10700", status: "note", noCheck: true, colorIdx: 5, createdAt: now - 1300e3 },
+      { ...base, id: "n4", text: "ideaflow.app@gmail.com", title: "מייל אפליקציה", status: "note", noCheck: true, colorIdx: 2, createdAt: now - 2000e3 },
     ],
   };
 }
@@ -333,6 +337,19 @@ export async function addSharedIdea(ownerUid, data, createdBy) {
   };
   await setDoc(doc(collection(db, "users", ownerUid, "ideas"), id), idea);
   return { id, ...idea };
+}
+
+// A note is a permanent reference card, not work to process: status "note"
+// keeps it out of the Inbox, the active counts and the nightly digest, while
+// every other feature (editor, reminders, files, search, trash) still applies.
+export async function addNote(uid, data) {
+  return addIdea(uid, { ...data, status: "note", noCheck: true });
+}
+
+// The user's names for the six card colours, e.g. ["קניות","טיולים",...].
+export async function saveColorNames(uid, names) {
+  if (import.meta.env.DEV && uid === "demo") return;
+  await setDoc(doc(db, "users", uid), { colorNames: names }, { merge: true });
 }
 
 // Stamp who this is and when they were last here, so the owner's admin panel

@@ -62,6 +62,11 @@ function electricTheme() {
   };
 }
 
+// Note colours: one stable accent per card colour, in every look. Index matches
+// pastels[] / pastelBars[], so a note's colour reads the same everywhere.
+export const NOTE_COLORS = ["#EAB308", "#3B82F6", "#10B981", "#A855F7", "#F97316", "#EC4899"];
+export const NOTE_COLOR_FALLBACK = ["צהוב", "כחול", "ירוק", "סגול", "כתום", "ורוד"];
+
 export const FONT = "'Rubik', sans-serif";
 
 export function fmt(ts) {
