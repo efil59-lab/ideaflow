@@ -39,8 +39,8 @@ function usePress(onTap, onLong) {
   };
 }
 
-export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote, onImport,
-  colorNames = [], onSaveNames }) {
+export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote,
+  projects = [], onMoveToProject, noteFont = 0, colorNames = [], onSaveNames }) {
   const [color, setColor] = useState(null);              // colour filter, null = all
   const [view, setView] = useState(() => {
     try { return localStorage.getItem("if_notes_view") === "grid" ? "grid" : "rows"; }
@@ -49,17 +49,8 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [sortBy, setSortBy] = useState(() => {
     try { return localStorage.getItem("if_notes_sortby") || "modified"; } catch { return "modified"; }
   });
-  // Note-text size: 0 normal, 1 big, 2 huge — persisted, applies to rows/cards/editor.
-  const [fontStep, setFontStep] = useState(() => {
-    try { return Number(localStorage.getItem("if_notes_font")) || 0; } catch { return 0; }
-  });
-  const SCALES = [1, 1.2, 1.42];
-  const scale = SCALES[fontStep] || 1;
-  const cycleFont = () => setFontStep(v => {
-    const next = (v + 1) % 3;
-    try { localStorage.setItem("if_notes_font", String(next)); } catch { /* ignore */ }
-    return next;
-  });
+  // Note-text size (0/1/2) is chosen in the profile sheet; here we just apply it.
+  const scale = [1, 1.2, 1.42][noteFont] || 1;
   const [showSort, setShowSort] = useState(false);
   const [showArch, setShowArch] = useState(false);
   const [editNames, setEditNames] = useState(false);
@@ -68,43 +59,6 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [selected, setSelected] = useState(null);        // Set<id> | null = not selecting
   const [pickColor, setPickColor] = useState(false);     // bulk colour picker
   const [confirmDel, setConfirmDel] = useState(null);    // array of notes to trash
-  const [importing, setImporting] = useState("");
-  const fileRef = useRef();
-
-  const runImport = async e => {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
-    setImporting("קורא…");
-    try {
-      const data = JSON.parse(await f.text());
-      const list = Array.isArray(data) ? data : data.notes;
-      if (!Array.isArray(list) || !list.length) { setImporting("הקובץ ריק או לא בפורמט הנכון"); return; }
-      setImporting(`מייבא \u200f${list.length} פתקים…`);
-      const n = await onImport(list);
-      setImporting(`\u2713 יובאו ${n} פתקים`);
-      setTimeout(() => setImporting(""), 3500);
-    } catch { setImporting("קובץ לא תקין — צריך קובץ JSON"); }
-  };
-
-  // Export every note as a JSON backup the same shape import reads back.
-  const runExport = () => {
-    const data = notesAll.map(n => ({
-      text: n.text || "", title: n.title || "", colorIdx: n.colorIdx ?? 0,
-      archived: !!n.archived, tags: n.tags || [],
-      createdAt: n.createdAt || 0, updatedAt: n.updatedAt || 0,
-    }));
-    const blob = new Blob([JSON.stringify({ source: "ideaflow", version: 1, notes: data })], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    const d = new Date(), pad = x => String(x).padStart(2, "0");
-    a.download = `ideaflow-notes-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.json`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    setImporting(`\u2713 יוצאו ${data.length} פתקים לקובץ`);
-    setTimeout(() => setImporting(""), 3500);
-  };
-
 
   // The FAB's "פתק" route asks us to open a fresh editor.
   useEffect(() => {
@@ -214,10 +168,6 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
         <Icon name="down" size={12} color={th.muted} />
       </button>
 
-      <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={runImport} />
-      {importing && (
-        <p style={{ margin: "0 2px 10px", fontSize: 12.5, fontWeight: 600, color: th.accentText, direction: "rtl" }}>{importing}</p>
-      )}
 
       {inSel ? (
         /* Selection header: count + the bulk actions */
@@ -242,6 +192,10 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
               </>
             )}
             <IconBtn name="tag" onClick={() => setPickColor(true)} color={th.accentText} size={17} pad="7px" title="צבע לכולם" />
+            {projects.length > 0 && (
+              <IconBtn name="folder" onClick={() => { onMoveToProject?.(selNotes); setSelected(null); }}
+                color={th.accentText} size={17} pad="7px" title="העבר לפרויקט" />
+            )}
             <IconBtn name="download" onClick={bulkArchive} color={th.accentText} size={17} pad="7px"
               title={showArch ? "שחזר מהארכיון" : "לארכיון"} />
             <IconBtn name="delete" onClick={() => setConfirmDel(selNotes)} color={th.red} size={17} pad="7px" title="מחק" />
@@ -258,17 +212,6 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
             <IconBtn name="folder" onClick={() => { setShowArch(a => !a); setColor(null); }}
               color={showArch ? th.accent : th.muted} size={17} pad="6px"
               title={showArch ? "חזרה לפתקים" : `ארכיון (${archCount})`} />
-            <IconBtn name="download" onClick={() => fileRef.current?.click()} color={th.muted} size={17} pad="6px"
-              title="ייבוא פתקים מקובץ" style={{ transform: "rotate(180deg)" }} />
-            <IconBtn name="export" onClick={runExport} color={th.muted} size={17} pad="6px"
-              title="יצוא הפתקים לקובץ" />
-            <button onClick={cycleFont} title="גודל הטקסט"
-              style={{ background: fontStep ? th.accentSoft : "transparent", border: "none",
-                borderRadius: 9, cursor: "pointer", padding: "5px 9px", fontFamily: FONT,
-                color: fontStep ? th.accentText : th.muted, fontWeight: 700,
-                display: "inline-flex", alignItems: "baseline", gap: 1 }}>
-              <span style={{ fontSize: 16 }}>א</span><span style={{ fontSize: 11 }}>א</span>
-            </button>
             <IconBtn name="tag" onClick={() => setEditNames(true)} color={th.muted} size={17} pad="6px"
               title="שמות הצבעים" />
             <IconBtn name={view === "rows" ? "copy" : "notes"}

@@ -453,6 +453,17 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   const [editIdea, setEditIdea] = useState(null);
   const [shareIdea, setShareIdea] = useState(null);
   const [moveIdea, setMoveIdea] = useState(null);
+  const [moveNotes, setMoveNotes] = useState(null);   // notes selected for → project
+  const [noteFontStep, setNoteFontStep] = useState(() => {
+    try { return Number(localStorage.getItem("if_notes_font")) || 0; } catch { return 0; }
+  });
+  const [notesMsg, setNotesMsg] = useState("");      // import/export status line
+  const notesFileRef = useRef();
+  const cycleNoteFont = () => setNoteFontStep(v => {
+    const next = (v + 1) % 3;
+    try { localStorage.setItem("if_notes_font", String(next)); } catch { /* ignore */ }
+    return next;
+  });
   const [remindIdea, setRemindIdea] = useState(null);
   const [snoozeIdea, setSnoozeIdea] = useState(null);
   const [searchQ, setSearchQ] = useState(() => {
@@ -688,7 +699,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   // at the root, require a double-press to actually exit.
   const uiRef = useRef({});
   useEffect(() => {
-    uiRef.current = { showGuide, showWhatsNew, showLog, showUser, showAI, remindIdea, snoozeIdea, moveIdea, shareIdea, editIdea, commentsCtx, openProjectId, tab };
+    uiRef.current = { showGuide, showWhatsNew, showLog, showUser, showAI, remindIdea, snoozeIdea, moveIdea, moveNotes, shareIdea, editIdea, commentsCtx, openProjectId, tab };
   });
   const rearmRef = useRef(null);
   useEffect(() => {
@@ -714,6 +725,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
       else if (s.commentsCtx) setCommentsCtx(null);
       else if (s.remindIdea) setRemindIdea(null);
       else if (s.snoozeIdea) setSnoozeIdea(null);
+      else if (s.moveNotes) setMoveNotes(null);
       else if (s.moveIdea) setMoveIdea(null);
       else if (s.shareIdea) setShareIdea(null);
       else if (s.editIdea) setEditIdea(null);
@@ -907,6 +919,39 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   // Everything still open anywhere — the header's "ideas in motion" line.
   const inMotion = ideas.filter(i => !i.noCheck && i.status !== "done" && i.status !== "trash").length;
 
+  // Notes import/export live in the profile sheet now, so their logic sits here.
+  const runExportNotes = () => {
+    const data = ideas.filter(i => i.status === "note").map(n => ({
+      text: n.text || "", title: n.title || "", colorIdx: n.colorIdx ?? 0,
+      archived: !!n.archived, tags: n.tags || [],
+      createdAt: n.createdAt || 0, updatedAt: n.updatedAt || 0,
+    }));
+    const blob = new Blob([JSON.stringify({ source: "ideaflow", version: 1, notes: data })], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    const d = new Date(), pad = x => String(x).padStart(2, "0");
+    a.download = `ideaflow-notes-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    setNotesMsg(`\u2713 יוצאו ${data.length} פתקים לקובץ`);
+    setTimeout(() => setNotesMsg(""), 3500);
+  };
+  const runImportNotes = async e => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setNotesMsg("קורא…");
+    try {
+      const parsed = JSON.parse(await f.text());
+      const list = Array.isArray(parsed) ? parsed : parsed.notes;
+      if (!Array.isArray(list) || !list.length) { setNotesMsg("הקובץ ריק או לא בפורמט הנכון"); return; }
+      setNotesMsg(`מייבא \u200f${list.length} פתקים…`);
+      const n = await importNotes(uid, list);
+      setNotesMsg(`\u2713 יובאו ${n} פתקים`);
+      setTimeout(() => setNotesMsg(""), 3500);
+    } catch { setNotesMsg("קובץ לא תקין — צריך קובץ JSON"); }
+  };
+
   const navItems = [
     { id: "inbox", icon: "inbox", label: "Inbox", badge: inboxCount },
     { id: "projects", icon: "folder", label: "פרויקטים" },
@@ -1028,7 +1073,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
           <Notes uid={uid} ideas={ideas} th={th} actions={actions}
             onCapture={captureNote}
             onCreateNote={data => addNote(uid, data)}
-            onImport={list => importNotes(uid, list)}
+            projects={projects} onMoveToProject={setMoveNotes} noteFont={noteFontStep}
             colorNames={userDoc.colorNames || []}
             onSaveNames={names => saveColorNames(uid, names).catch(() => {})} />
         )}
@@ -1190,6 +1235,27 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
           }}
           onClose={() => setMoveIdea(null)} />
       )}
+      {moveNotes && (
+        <MoveSheet idea={{ projectId: null }} projects={projects} th={th}
+          onMove={async pid => {
+            for (const n of moveNotes) await updateIdea(uid, n.id, {
+              projectId: pid, aiProject: null, noCheck: false, archived: false,
+              status: pid ? "active" : "inbox",
+            }, n);
+            setMoveNotes(null);
+            toast$(pid ? `הועברו ${moveNotes.length} פתקים` : "הועברו ל-Inbox");
+          }}
+          onNewProject={async () => {
+            const name = prompt("שם הפרויקט החדש:");
+            if (!name?.trim()) return;
+            const pid = await addProject(uid, name.trim(), projects.length);
+            for (const n of moveNotes) await updateIdea(uid, n.id, {
+              projectId: pid, aiProject: null, noCheck: false, archived: false, status: "active",
+            }, n);
+            setMoveNotes(null); toast$("הועברו");
+          }}
+          onClose={() => setMoveNotes(null)} />
+      )}
       {showAI && <Assistant ideas={ideas} projects={projects} onClose={() => setShowAI(false)} th={th} />}
       {showUser && (
         <Modal onClose={() => setShowUser(false)} maxWidth={300} th={th}>
@@ -1214,6 +1280,34 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
                 </button>
               ))}
             </div>
+
+            {/* Notes tools: text size + import / export a JSON backup */}
+            <p style={{ fontSize: 12, fontWeight: 600, color: th.muted, textAlign: "right", margin: "0 0 6px" }}>פתקים</p>
+            <div style={{ display: "flex", gap: 8, marginBottom: notesMsg ? 6 : 12, direction: "rtl" }}>
+              <button onClick={cycleNoteFont} title="גודל הטקסט בפתקים"
+                style={{ flex: 1, height: 42, borderRadius: 11, cursor: "pointer", fontFamily: FONT,
+                  background: noteFontStep ? th.accentSoft : th.surface2,
+                  color: noteFontStep ? th.accentText : th.text,
+                  border: `1px solid ${noteFontStep ? "transparent" : th.border}`,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                <span style={{ fontSize: 17, fontWeight: 700 }}>א</span><span style={{ fontSize: 12, fontWeight: 700 }}>א</span>
+                <span style={{ fontSize: 12.5, fontWeight: 600 }}>{["רגיל", "גדול", "ענק"][noteFontStep]}</span>
+              </button>
+              <button onClick={() => notesFileRef.current?.click()} title="ייבוא פתקים מקובץ"
+                style={{ width: 44, height: 42, borderRadius: 11, cursor: "pointer", background: th.surface2,
+                  border: `1px solid ${th.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ transform: "rotate(180deg)", display: "inline-flex" }}><Icon name="download" size={17} color={th.secondary} /></span>
+              </button>
+              <button onClick={runExportNotes} title="יצוא הפתקים לקובץ"
+                style={{ width: 44, height: 42, borderRadius: 11, cursor: "pointer", background: th.surface2,
+                  border: `1px solid ${th.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name="export" size={17} color={th.secondary} />
+              </button>
+            </div>
+            <input ref={notesFileRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={runImportNotes} />
+            {notesMsg && (
+              <p style={{ margin: "0 0 12px", fontSize: 12.5, fontWeight: 600, color: th.accentText, textAlign: "right", direction: "rtl" }}>{notesMsg}</p>
+            )}
 
             <button onClick={() => { setShowUser(false); setShowLog(true); }}
               style={{ width: "100%", height: 42, marginBottom: 8, background: th.surface2, color: th.text,
@@ -1443,7 +1537,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "sparkle", title: "מראה", text: "בתפריט המשתמש (התמונה למעלה) בוחרים מראה: \"אלקטריק\" הכהה והזוהר (ברירת המחדל), \"זוהר\" הצבעוני או \"רגוע\" המינימלי. בכפתור הירח/שמש עוברים למצב כהה. הבחירה נשמרת במכשיר." },
     { icon: "add", title: "כפתור רעיון חדש", text: "הכפתור העגול במרכז סרגל הניווט פותח שלוש דרכים לתפוס רעיון: כתיבה, הקלטה קולית או תמונה." },
     { icon: "star", title: "מועדפים", text: "כוכב ⭐ על כרטיס פרויקט מעלה אותו לראש מסך הפרויקטים — מה שאתה חוזר אליו, ראשון." },
-    { icon: "notes", title: "פתקים", text: "לשונית \"פתקים\" היא לדברים שרוצים לשמור ולא לבצע. + פותח דף כתיבה שנשמר אוטומטית; לחיצה ארוכה מסמנת פתקים לבחירה מרובה — צביעה, ארכיון או מחיקה לכולם יחד. שורת המיון למעלה, שמות לצבעים, ושורות שמתחילות ב-\"- \" הופכות לרשימת סימון. סרגל הכלים העליון נעוץ בזמן גלילה, וכפתורי הכותרת מייבאים/מייצאים פתקים לקובץ ומשנים את גודל הטקסט. פתקים לא מגיעים ל-Inbox ולא נספרים כרעיונות פעילים." },
+    { icon: "notes", title: "פתקים", text: "לשונית \"פתקים\" היא לדברים שרוצים לשמור ולא לבצע. + פותח דף כתיבה שנשמר אוטומטית; לחיצה ארוכה מסמנת פתקים לבחירה מרובה — צביעה, ארכיון, מחיקה, או העברה לפרויקט קיים (הפתק הופך לרעיון פעיל). שורת המיון למעלה, שמות לצבעים, ושורות שמתחילות ב-\"- \" הופכות לרשימת סימון, וסרגל הכלים נעוץ בזמן גלילה. גודל הטקסט, ייבוא וייצוא פתקים נמצאים בתפריט הפרופיל (תמונת המשתמש). פתקים לא מגיעים ל-Inbox ולא נספרים כרעיונות פעילים." },
     { icon: "bulb", title: "AI על הרעיון", text: "בעורך של כל רעיון: שפר ניסוח, הרחב, הפוך למשימות או קבל זוויות נוספות. התוצאה מוצעת — אתה בוחר אם להחליף, להוסיף או לבטל." },
   ];
   const Row = ({ it, last }) => (
