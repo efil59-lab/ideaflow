@@ -4,11 +4,17 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.19";
+export const APP_VERSION = "5.20";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.20", date: "28 באוגוסט 2026", items: [
+    { icon: "edit", title: "מסך כתיבה לפתקים", text: "לחיצה על + פותחת דף כתיבה מלא בצבע הפתק, עם שורות כמו במחברת. הכל נשמר אוטומטית תוך כדי כתיבה — אין כפתור שמירה. ריבוע הצבע למעלה מחליף צבע." },
+    { icon: "notes", title: "שורה לכל פתק", text: "רשימת הפתקים היא עכשיו שורות ברוחב מלא — פס צבע, הטקסט והתאריך — ולחיצה פותחת את הפתק לעריכה. תצוגת הרשת נשארה כאפשרות." },
+    { icon: "more", title: "לחיצה ארוכה על פתק", text: "פותחת תפריט: החלפת צבע בנגיעה, שכפול, שיתוף או העברה לפח." },
+    { icon: "tag", title: "מיון לפי צבע", text: "כפתור \"לפי צבע\" מקבץ את כל הפתקים לפי הצבעים — כמו ב-ColorNote. הבחירה נשמרת." },
+  ] },
   { v: "5.19", date: "28 באוגוסט 2026", items: [
     { icon: "notes", title: "פתקים — נתיב חדש", text: "לשונית \"פתקים\" חדשה למידע שרוצים לשמור ולא למשימות: מה שנכנס לשם לא מגיע ל-Inbox, לא נספר ברעיונות הפעילים ולא בתזכורת הערבית. ה-Inbox נשאר משפך נקי." },
     { icon: "tag", title: "צבעים עם שמות", text: "אפשר לתת שם לכל אחד מששת הצבעים (\"קניות\", \"טיולים\") ולסנן פתקים לפי צבע בנגיעה — הצבע הפך לקטגוריה אמיתית." },

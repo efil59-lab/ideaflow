@@ -497,7 +497,12 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   // switch tabs first, CaptureBar picks the intent up from storage on mount.
   const fabAction = kind => {
     setFabOpen(false);
-    if (kind === "note") { setTab("notes"); return; }
+    if (kind === "note") {
+      try { sessionStorage.setItem("if_new_note", "1"); } catch { /* ignore */ }
+      window.dispatchEvent(new Event("if-new-note"));
+      setTab("notes");
+      return;
+    }
     try { localStorage.setItem("if_focus_capture", "1"); } catch { /* ignore */ }
     if (tab === "inbox") {
       window.dispatchEvent(new CustomEvent("if-capture", { detail: { kind } }));
@@ -757,7 +762,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     const note = await addNote(uid, data);
     toast$("הפתק נשמר");
     setBulbBeat(b => b + 1);
-    if (note?.text) {
+    if (note?.text && !data.title) {
       enrichIdea(note.text, []).then(en =>
         updateIdea(uid, note.id, { title: en.title, tags: en.tags }).catch(() => {})
       ).catch(() => {});
@@ -1010,6 +1015,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
         {tab === "notes" && (
           <Notes uid={uid} ideas={ideas} th={th} actions={actions}
             onCapture={captureNote}
+            onCreateNote={data => addNote(uid, data)}
             colorNames={userDoc.colorNames || []}
             onSaveNames={names => saveColorNames(uid, names).catch(() => {})} />
         )}
@@ -1424,7 +1430,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "sparkle", title: "מראה", text: "בתפריט המשתמש (התמונה למעלה) בוחרים מראה: \"אלקטריק\" הכהה והזוהר (ברירת המחדל), \"זוהר\" הצבעוני או \"רגוע\" המינימלי. בכפתור הירח/שמש עוברים למצב כהה. הבחירה נשמרת במכשיר." },
     { icon: "add", title: "כפתור רעיון חדש", text: "הכפתור העגול במרכז סרגל הניווט פותח שלוש דרכים לתפוס רעיון: כתיבה, הקלטה קולית או תמונה." },
     { icon: "star", title: "מועדפים", text: "כוכב ⭐ על כרטיס פרויקט מעלה אותו לראש מסך הפרויקטים — מה שאתה חוזר אליו, ראשון." },
-    { icon: "notes", title: "פתקים", text: "לשונית \"פתקים\" היא לדברים שרוצים לשמור ולא לבצע: כתובות, קודים, קטעים שהעתקת. נותנים שם לצבעים ומסננים לפיהם, ושורות שמתחילות ב-\"- \" הופכות לרשימת סימון. פתקים לא מגיעים ל-Inbox ולא נספרים כרעיונות פעילים." },
+    { icon: "notes", title: "פתקים", text: "לשונית \"פתקים\" היא לדברים שרוצים לשמור ולא לבצע. + פותח דף כתיבה שנשמר אוטומטית; לחיצה ארוכה על פתק מחליפה צבע, משכפלת, משתפת או מוחקת. נותנים שם לצבעים, מסננים וממיינים לפיהם, ושורות שמתחילות ב-\"- \" הופכות לרשימת סימון. פתקים לא מגיעים ל-Inbox ולא נספרים כרעיונות פעילים." },
     { icon: "bulb", title: "AI על הרעיון", text: "בעורך של כל רעיון: שפר ניסוח, הרחב, הפוך למשימות או קבל זוויות נוספות. התוצאה מוצעת — אתה בוחר אם להחליף, להוסיף או לבטל." },
   ];
   const Row = ({ it, last }) => (
