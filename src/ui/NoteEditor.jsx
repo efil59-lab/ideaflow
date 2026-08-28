@@ -26,6 +26,7 @@ function GrowTextarea({ value, onChange, onKeyDown, placeholder, style, taRef })
 
 const MENU = [
   { k: "checklist", label: "רשימת סימון", icon: "check" },
+  { k: "pin",       label: "הצמד",         icon: "pin" },
   { k: "share",     label: "שיתוף",        icon: "share" },
   { k: "remind",    label: "תזכורת",       icon: "bell" },
   { k: "move",      label: "העבר לפרויקט", icon: "folder" },
@@ -248,7 +249,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
                 border: `1px solid ${th.border}`, boxShadow: "0 12px 34px rgba(0,0,0,0.3)",
                 overflow: "hidden", direction: "rtl" }}>
                 {MENU.map((m, i) => {
-                  const active = m.k === "checklist" && isChecklist;
+                  const active = (m.k === "checklist" && isChecklist) || (m.k === "pin" && initial?.pinned);
+                  const label = m.k === "pin" && initial?.pinned ? "בטל הצמדה" : m.label;
                   return (
                     <button key={m.k} onClick={() => doMenu(m.k)}
                       style={{ display: "flex", alignItems: "center", gap: 12, width: "100%",
@@ -256,8 +258,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
                         padding: "12px 15px", fontSize: 14.5, fontWeight: active ? 700 : 500,
                         color: m.danger ? th.red : active ? th.accentText : th.text,
                         borderTop: i ? `1px solid ${th.border}` : "none" }}>
-                      <span style={{ flex: 1, textAlign: "right" }}>{m.label}</span>
-                      <Icon name={m.icon} size={18}
+                      <span style={{ flex: 1, textAlign: "right" }}>{label}</span>
+                      <Icon name={m.icon} size={18} filled={active && m.k === "pin"}
                         color={m.danger ? th.red : active ? th.accentText : th.secondary} />
                     </button>
                   );

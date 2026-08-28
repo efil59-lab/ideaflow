@@ -117,6 +117,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const modified = n => n.updatedAt || n.createdAt || 0;
   const alpha = n => (n.title || n.text || "").trim();
   pool = [...pool].sort((a, b) => {
+    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;   // pinned notes first
     if (sortBy === "created") return (b.createdAt || 0) - (a.createdAt || 0);
     if (sortBy === "alpha") return alpha(a).localeCompare(alpha(b), "he");
     if (sortBy === "color") return ((a.colorIdx ?? 9) - (b.colorIdx ?? 9)) || (modified(b) - modified(a));
@@ -147,6 +148,11 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   };
   const bulkArchive = () => {
     selNotes.forEach(n => actions.update?.(n.id, { archived: !showArch }, n));
+    setSelected(null);
+  };
+  const bulkPin = () => {
+    const pin = !selNotes.every(n => n.pinned);   // pin all, unless already all pinned
+    selNotes.forEach(n => actions.update?.(n.id, { pinned: pin }, n));
     setSelected(null);
   };
   const doDelete = list => {
@@ -211,6 +217,9 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
                   color={th.secondary} size={22} pad="9px" title="שתף" />
               </>
             )}
+            <IconBtn name="pin" onClick={bulkPin} color={th.accentText} size={22} pad="9px"
+              filled={selNotes.every(n => n.pinned)}
+              title={selNotes.every(n => n.pinned) ? "בטל הצמדה" : "הצמד"} />
             <IconBtn name="tag" onClick={() => setPickColor(true)} color={th.accentText} size={22} pad="9px" title="צבע לכולם" />
             {projects.length > 0 && (
               <IconBtn name="folder" onClick={() => { onMoveToProject?.(selNotes); setSelected(null); }}
@@ -343,6 +352,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
             else if (kind === "remind") actions.remind?.(note);
             else if (kind === "move") onMoveToProject?.([note]);
             else if (kind === "archive") actions.update?.(note.id, { archived: !note.archived }, note);
+            else if (kind === "pin") actions.update?.(note.id, { pinned: !note.pinned }, note);
             else if (kind === "delete") setConfirmDel([note]);   // always warn first
           }}
           onClose={() => setEditing(null)} />
@@ -434,6 +444,7 @@ function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
         flexDirection: "column", alignItems: "flex-end", justifyContent: "space-between", gap: 6 }}>
         <span style={{ fontSize: 11, color: th.muted, whiteSpace: "nowrap" }}>{stamp}</span>
         <span style={{ display: "flex", gap: 5 }}>
+          {note.pinned && <Icon name="pin" size={12} color={th.accentText} filled />}
           {note.remindAt > Date.now() && <Icon name="bell" size={12} color={th.accentText} />}
           {note.images?.length > 0 && <Icon name="photo" size={12} color={th.muted} />}
           {note.files?.length > 0 && <Icon name="clip" size={12} color={th.muted} />}
@@ -473,6 +484,11 @@ function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, o
           background: isSel ? th.accent : "rgba(127,127,127,0.15)",
           display: "flex", alignItems: "center", justifyContent: "center" }}>
           {isSel && <Icon name="check" size={11} color="#fff" />}
+        </span>
+      )}
+      {note.pinned && !inSel && (
+        <span style={{ position: "absolute", top: 8, left: 8 }}>
+          <Icon name="pin" size={13} color={th.accentText} filled />
         </span>
       )}
       {showCardTitle && (
