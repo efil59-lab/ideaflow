@@ -39,7 +39,7 @@ function usePress(onTap, onLong) {
   };
 }
 
-export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote,
+export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote, onImport,
   colorNames = [], onSaveNames }) {
   const [color, setColor] = useState(null);              // colour filter, null = all
   const [view, setView] = useState(() => {
@@ -57,6 +57,25 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [selected, setSelected] = useState(null);        // Set<id> | null = not selecting
   const [pickColor, setPickColor] = useState(false);     // bulk colour picker
   const [confirmDel, setConfirmDel] = useState(null);    // array of notes to trash
+  const [importing, setImporting] = useState("");
+  const fileRef = useRef();
+
+  const runImport = async e => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setImporting("קורא…");
+    try {
+      const data = JSON.parse(await f.text());
+      const list = Array.isArray(data) ? data : data.notes;
+      if (!Array.isArray(list) || !list.length) { setImporting("הקובץ ריק או לא בפורמט הנכון"); return; }
+      setImporting(`מייבא \u200f${list.length} פתקים…`);
+      const n = await onImport(list);
+      setImporting(`\u2713 יובאו ${n} פתקים`);
+      setTimeout(() => setImporting(""), 3500);
+    } catch { setImporting("קובץ לא תקין — צריך קובץ JSON"); }
+  };
+
 
   // The FAB's "פתק" route asks us to open a fresh editor.
   useEffect(() => {
@@ -162,6 +181,11 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
         <Icon name="down" size={12} color={th.muted} />
       </button>
 
+      <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={runImport} />
+      {importing && (
+        <p style={{ margin: "0 2px 10px", fontSize: 12.5, fontWeight: 600, color: th.accentText, direction: "rtl" }}>{importing}</p>
+      )}
+
       {inSel ? (
         /* Selection header: count + the bulk actions */
         <div style={{ display: "flex", alignItems: "center", gap: 2, margin: "0 0 12px",
@@ -201,6 +225,8 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
             <IconBtn name="download" onClick={() => { setShowArch(a => !a); setColor(null); }}
               color={showArch ? th.accent : th.muted} size={17} pad="6px"
               title={showArch ? "חזרה לפתקים" : `ארכיון (${archCount})`} />
+            <IconBtn name="download" onClick={() => fileRef.current?.click()} color={th.muted} size={17} pad="6px"
+              title="ייבוא פתקים מקובץ" style={{ transform: "rotate(180deg)" }} />
             <IconBtn name="tag" onClick={() => setEditNames(true)} color={th.muted} size={17} pad="6px"
               title="שמות הצבעים" />
             <IconBtn name={view === "rows" ? "copy" : "notes"}

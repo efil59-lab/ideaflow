@@ -9,7 +9,7 @@ import {
   markVersionSeen, whatsNewNotSeenYet,
   useMyShares, useSharedWithMe, saveShare, removeShare, shareIdOf,
   addComment, addSharedIdea, queueNotification,
-  useUserDoc, markCommentsSeen, recordPresence, addNote, autoTitle, saveColorNames,
+  useUserDoc, markCommentsSeen, recordPresence, addNote, autoTitle, saveColorNames, importNotes,
 } from "./data/store";
 import { migrateIfNeeded } from "./data/migrate";
 import { enrichIdea } from "./data/ai";
@@ -1016,6 +1016,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
           <Notes uid={uid} ideas={ideas} th={th} actions={actions}
             onCapture={captureNote}
             onCreateNote={data => addNote(uid, data)}
+            onImport={list => importNotes(uid, list)}
             colorNames={userDoc.colorNames || []}
             onSaveNames={names => saveColorNames(uid, names).catch(() => {})} />
         )}

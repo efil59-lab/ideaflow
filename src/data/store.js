@@ -351,6 +351,31 @@ export function autoTitle(text) {
   return (sp > 20 ? cut.slice(0, sp) : cut) + "…";
 }
 
+// Bulk-import notes (e.g. a decoded ColorNote backup). Each item is already
+// shaped like a note; we fill defaults and commit in batches of 400.
+export async function importNotes(uid, items) {
+  if (import.meta.env.DEV && uid === "demo") return items.length;
+  let n = 0;
+  for (let i = 0; i < items.length; i += 400) {
+    const b = writeBatch(db);
+    for (const it of items.slice(i, i + 400)) {
+      const id = newId();
+      b.set(doc(ideasCol(uid), id), {
+        text: "", html: "", title: "", tags: [],
+        status: "note", noCheck: true, projectId: null, aiProject: null,
+        pinned: false, colorIdx: 0, order: null, archived: false,
+        images: [], audios: [], files: [], remindAt: null, repeat: null,
+        repeatAnchor: null, comments: [],
+        createdAt: Date.now(), updatedAt: Date.now(),
+        ...it, status: "note", noCheck: true,
+      });
+      n++;
+    }
+    await b.commit();
+  }
+  return n;
+}
+
 // A note is a permanent reference card, not work to process: status "note"
 // keeps it out of the Inbox, the active counts and the nightly digest, while
 // every other feature (editor, reminders, files, search, trash) still applies.
