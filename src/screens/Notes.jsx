@@ -225,8 +225,6 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
             <IconBtn name="download" onClick={() => { setShowArch(a => !a); setColor(null); }}
               color={showArch ? th.accent : th.muted} size={17} pad="6px"
               title={showArch ? "חזרה לפתקים" : `ארכיון (${archCount})`} />
-            <IconBtn name="download" onClick={() => fileRef.current?.click()} color={th.muted} size={17} pad="6px"
-              title="ייבוא פתקים מקובץ" style={{ transform: "rotate(180deg)" }} />
             <IconBtn name="tag" onClick={() => setEditNames(true)} color={th.muted} size={17} pad="6px"
               title="שמות הצבעים" />
             <IconBtn name={view === "rows" ? "copy" : "notes"}
@@ -277,6 +275,18 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
             borderRadius: 12, padding: "9px 0", cursor: "pointer",
             fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
           <Icon name="clip" size={15} color={th.accentText} /> הדבק מהלוח כפתק חדש
+        </button>
+      )}
+      {!showArch && !inSel && (
+        <button onClick={() => fileRef.current?.click()}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+            width: "100%", margin: "0 0 12px", background: "transparent", color: th.secondary,
+            border: `1px dashed ${th.border}`, borderRadius: 12, padding: "9px 0", cursor: "pointer",
+            fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
+          <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}>
+            <Icon name="download" size={15} color={th.secondary} />
+          </span>
+          ייבא פתקים מקובץ
         </button>
       )}
       {pasteErr && <p style={{ margin: "0 2px 10px", fontSize: 12, color: th.red, direction: "rtl" }}>{pasteErr}</p>}
