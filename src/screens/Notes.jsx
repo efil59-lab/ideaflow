@@ -10,6 +10,11 @@ import NoteEditor from "../ui/NoteEditor";
 import { pushBackLayer } from "../ui/backstack";
 import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
 
+// Colours offered for new notes / filtering — kept to four so the chips fit one
+// row. The full NOTE_COLORS array stays intact so notes already coloured orange
+// or pink still render their colour.
+const PALETTE = NOTE_COLORS.slice(0, 4);
+
 // The sort menu, ColorNote style.
 const SORTS = [
   ["modified", "לפי זמן שינוי", "time"],
@@ -236,17 +241,8 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
               color={th.muted} size={17} pad="6px"
               title={view === "rows" ? "תצוגת רשת" : "תצוגת שורות"} />
             {!showArch && (
-              <>
-                <IconBtn name="clip" onClick={paste} color={th.accentText} size={17} pad="6px"
-                  title="הדבק מהלוח כפתק חדש" />
-                <button onClick={() => setEditing("new")} title="פתק חדש"
-                  style={{ width: 36, height: 36, borderRadius: "50%", border: "none", cursor: "pointer",
-                    background: th.cta || th.accent, display: "flex", alignItems: "center",
-                    justifyContent: "center", marginRight: 2,
-                    boxShadow: th.electric ? "0 0 14px rgba(168,85,247,0.55)" : "none" }}>
-                  <Icon name="add" size={20} color="#fff" />
-                </button>
-              </>
+              <IconBtn name="clip" onClick={paste} color={th.accentText} size={17} pad="6px"
+                title="הדבק מהלוח כפתק חדש" />
             )}
           </span>
         </div>
@@ -261,7 +257,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
             color: color === null ? "#fff" : th.secondary }}>
           הכל
         </button>
-        {NOTE_COLORS.map((c, i) => (
+        {PALETTE.map((c, i) => (
           <button key={i} onClick={() => setColor(color === i ? null : i)}
             style={{ display: "inline-flex", alignItems: "center", gap: 6,
               fontSize: 12, fontWeight: 600, fontFamily: FONT, padding: "6px 12px",
@@ -320,7 +316,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
         <Modal onClose={() => setPickColor(false)} maxWidth={330} th={th}>
           <ModalHeader title={`צבע ל-${selNotes.length} פתקים`} icon="tag" onClose={() => setPickColor(false)} th={th} />
           <div style={{ display: "flex", gap: 10, justifyContent: "center", padding: "4px 0 6px", direction: "rtl" }}>
-            {NOTE_COLORS.map((c, i) => (
+            {PALETTE.map((c, i) => (
               <button key={i} onClick={() => bulkColor(i)} title={nameOf(i)}
                 style={{ width: 36, height: 36, borderRadius: "50%", background: c, cursor: "pointer",
                   border: "2px solid rgba(127,127,127,0.3)" }} />
@@ -486,7 +482,7 @@ function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, o
 }
 
 function ColorNamesModal({ names, onSave, onClose, th }) {
-  const [vals, setVals] = useState(() => NOTE_COLORS.map((_, i) => names[i] || ""));
+  const [vals, setVals] = useState(() => PALETTE.map((_, i) => names[i] || ""));
 
   return (
     <Modal onClose={onClose} maxWidth={360} th={th}>
@@ -494,7 +490,7 @@ function ColorNamesModal({ names, onSave, onClose, th }) {
       <p style={{ margin: "0 0 12px", fontSize: 12.5, color: th.muted, direction: "rtl", lineHeight: 1.6 }}>
         תן לכל צבע שם משלך — "קניות", "טיולים", "עבודה" — והוא יהפוך לקטגוריה אמיתית בסינון.
       </p>
-      {NOTE_COLORS.map((c, i) => (
+      {PALETTE.map((c, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8, direction: "rtl" }}>
           <span style={{ width: 22, height: 22, borderRadius: 7, background: c, flexShrink: 0 }} />
           <input value={vals[i]} onChange={e => setVals(v => v.map((x, j) => j === i ? e.target.value : x))}
