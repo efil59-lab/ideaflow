@@ -236,13 +236,17 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
               color={th.muted} size={17} pad="6px"
               title={view === "rows" ? "תצוגת רשת" : "תצוגת שורות"} />
             {!showArch && (
-              <button onClick={() => setEditing("new")} title="פתק חדש"
-                style={{ width: 36, height: 36, borderRadius: "50%", border: "none", cursor: "pointer",
-                  background: th.cta || th.accent, display: "flex", alignItems: "center",
-                  justifyContent: "center", marginRight: 2,
-                  boxShadow: th.electric ? "0 0 14px rgba(168,85,247,0.55)" : "none" }}>
-                <Icon name="add" size={20} color="#fff" />
-              </button>
+              <>
+                <IconBtn name="clip" onClick={paste} color={th.accentText} size={17} pad="6px"
+                  title="הדבק מהלוח כפתק חדש" />
+                <button onClick={() => setEditing("new")} title="פתק חדש"
+                  style={{ width: 36, height: 36, borderRadius: "50%", border: "none", cursor: "pointer",
+                    background: th.cta || th.accent, display: "flex", alignItems: "center",
+                    justifyContent: "center", marginRight: 2,
+                    boxShadow: th.electric ? "0 0 14px rgba(168,85,247,0.55)" : "none" }}>
+                  <Icon name="add" size={20} color="#fff" />
+                </button>
+              </>
             )}
           </span>
         </div>
@@ -271,17 +275,6 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
         ))}
       </div>
       </div>{/* /sticky toolbar */}
-
-      {!showArch && !inSel && (
-        <button onClick={paste}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-            width: "100%", margin: "0 0 12px", background: "transparent", color: th.accentText,
-            border: `1px dashed ${th.electric ? "rgba(168,85,247,0.5)" : th.borderStrong}`,
-            borderRadius: 12, padding: "9px 0", cursor: "pointer",
-            fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
-          <Icon name="clip" size={15} color={th.accentText} /> הדבק מהלוח כפתק חדש
-        </button>
-      )}
 
       {pasteErr && <p style={{ margin: "0 2px 10px", fontSize: 12, color: th.red, direction: "rtl" }}>{pasteErr}</p>}
 
