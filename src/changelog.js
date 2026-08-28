@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.34";
+export const APP_VERSION = "5.35";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.35", date: "28 באוגוסט 2026", items: [
+    { icon: "clip", title: "הדבקה מהלוח — בלי מבוי סתום", text: "אם הדפדפן חוסם גישה ללוח (נפוץ ב-PWA), כפתור הקליפס פשוט פותח פתק חדש שאפשר להדביק בו ידנית (לחיצה ארוכה ← הדבק) — במקום הודעת שגיאה אדומה." },
+  ] },
   { v: "5.34", date: "28 באוגוסט 2026", items: [
     { icon: "check", title: "רשימת סימון אינטראקטיבית", text: "\"רשימת סימון\" בתפריט הפתק הופכת כל שורה לפריט עם ריבוע — נגיעה מסמנת כבוצע ומעבירה קו. Enter מוסיף פריט, ולחיצה חוזרת על \"רשימת סימון\" מחזירה לטקסט רגיל." },
   ] },

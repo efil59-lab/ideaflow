@@ -59,7 +59,6 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [showSort, setShowSort] = useState(false);
   const [showArch, setShowArch] = useState(false);
   const [editNames, setEditNames] = useState(false);
-  const [pasteErr, setPasteErr] = useState("");
   const [editing, setEditing] = useState(null);          // note object | "new" | null
   const [selected, setSelected] = useState(null);        // Set<id> | null = not selecting
   const [pickColor, setPickColor] = useState(false);     // bulk colour picker
@@ -157,14 +156,13 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   };
 
   const paste = async () => {
-    setPasteErr("");
     try {
       const text = await navigator.clipboard.readText();
-      if (!text.trim()) { setPasteErr("הלוח ריק"); return; }
-      onCapture({ text: text.trim(), colorIdx: color ?? null });
-    } catch {
-      setPasteErr("הדפדפן לא נתן גישה ללוח — פתח פתק חדש והדבק בו");
-    }
+      if (text && text.trim()) { onCapture({ text: text.trim(), colorIdx: color ?? null }); return; }
+    } catch { /* browser blocked clipboard read — fall through to manual paste */ }
+    // Reading the clipboard failed or it was empty: open a fresh note so the
+    // user can paste by hand (long-press → הדבק). Never a dead-end error.
+    setEditing("new");
   };
 
   const noteProps = n => ({
@@ -272,7 +270,6 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
       </div>
       </div>{/* /sticky toolbar */}
 
-      {pasteErr && <p style={{ margin: "0 2px 10px", fontSize: 12, color: th.red, direction: "rtl" }}>{pasteErr}</p>}
 
       {pool.length === 0 ? (
         <div style={{ textAlign: "center", padding: "30px 0", color: th.muted, direction: "rtl" }}>
