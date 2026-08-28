@@ -35,7 +35,7 @@ export default function Inbox({ uid, ideas, projects, th, actions, onCapture, my
         </p>
       </div>
 
-      <CaptureBar uid={uid} th={th} onCapture={onCapture} />
+      <CaptureBar uid={uid} th={th} onCapture={onCapture} focusOnMount />
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "16px 2px 8px" }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: th.muted, letterSpacing: 0.6 }}>

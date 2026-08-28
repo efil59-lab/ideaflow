@@ -77,7 +77,7 @@ function SharedProjectView({ uid, share, th, actions, onCapture, onBack }) {
 
       <CaptureBar uid={uid} th={th} placeholder={`רעיון חדש ב"${share.projectName}"...`}
         draftKey={`if_draft_s_${share.id}`}
-        onCapture={data => onCapture(share, data)} />
+        onCapture={data => onCapture(share, data)} focusOnMount />
 
       <div style={{ height: 14 }} />
       {ideas === null
@@ -588,7 +588,7 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
 
       <CaptureBar uid={uid} th={th} placeholder={`רעיון חדש ב"${project.name}"...`}
         draftKey={`if_draft_p_${project.id}`}
-        onCapture={data => onCapture({ ...data, projectId: project.id, status: "active" })} />
+        onCapture={data => onCapture({ ...data, projectId: project.id, status: "active" })} focusOnMount />
 
       <div style={{ height: 14 }} />
       <IdeaList ideas={list} projects={projects} th={th} actions={actions}

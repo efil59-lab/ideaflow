@@ -4,7 +4,7 @@ import { Icon } from "./Icons";
 import { uploadFile, fmtSize, MAX_FILE_BYTES } from "../data/media";
 import { FONT } from "../theme";
 
-export default function CaptureBar({ uid, onCapture, th, placeholder = "מה עולה לך בראש?", draftKey = "if_draft" }) {
+export default function CaptureBar({ uid, onCapture, th, placeholder = "מה עולה לך בראש?", draftKey = "if_draft", focusOnMount = false }) {
   // Draft survives closing/refreshing the app — nothing typed is ever lost.
   const [text, setText] = useState(() => {
     try { return localStorage.getItem(draftKey) || ""; } catch { return ""; }
@@ -95,6 +95,20 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
     return () => { window.removeEventListener("if-capture", onEvt); if (t) clearTimeout(t); };
   }, []);
 
+  // Screens meant for writing land the cursor in the box on arrival. Unlike the
+  // cold-launch shortcut, the tab tap is a real in-page gesture — so React's
+  // autoFocus (committed inside that same tap) does raise the Android keyboard.
+  useEffect(() => {
+    if (!focusOnMount) return;
+    const timers = [0, 70, 200].map(ms => setTimeout(() => {
+      const el = taRef.current;
+      if (!el || document.activeElement === el) return;
+      el.focus();
+      try { const n = el.value.length; el.setSelectionRange(n, n); } catch { /* ignore */ }
+    }, ms));
+    return () => timers.forEach(clearTimeout);
+  }, [focusOnMount]);
+
   const addMedia = async (file, kind) => {
     if (!file) return;
     if (file.size > MAX_FILE_BYTES) {
@@ -140,7 +154,7 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
   return (
     <div style={{ background: th.surface, border: `1px solid ${th.border}`, borderRadius: 16, padding: "12px 13px" }}>
       <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)}
-        autoFocus={autoFocus}
+        autoFocus={autoFocus || focusOnMount}
         onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save(); }}
         placeholder={placeholder} rows={text.length > 80 ? 3 : 2}
         style={{ width: "100%", border: "none", resize: "none", background: "transparent",
