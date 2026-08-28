@@ -63,6 +63,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [selected, setSelected] = useState(null);        // Set<id> | null = not selecting
   const [pickColor, setPickColor] = useState(false);     // bulk colour picker
   const [confirmDel, setConfirmDel] = useState(null);    // array of notes to trash
+  const [selMenu, setSelMenu] = useState(false);         // "more" menu in the selection bar
 
   // Reading a note opens a full-screen editor; keep the list exactly where it
   // was. We snapshot the scroll when it opens (before the textarea autofocus
@@ -133,7 +134,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const sortLabel = SORTS.find(s => s[0] === sortBy)?.[1] || "";
 
   // ── selection ──────────────────────────────────────────────────────────────
-  const startSel = id => setSelected(new Set([id]));
+  const startSel = id => { setSelMenu(false); setSelected(new Set([id])); };
   const toggleSel = id => setSelected(prev => {
     const s = new Set(prev);
     if (s.has(id)) s.delete(id); else s.add(id);
@@ -204,7 +205,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
           <span style={{ fontSize: 14, fontWeight: 700, color: th.text, margin: "0 4px" }}>
             {selNotes.length} נבחרו
           </span>
-          <span style={{ marginRight: "auto", display: "flex", gap: 2 }}>
+          <span style={{ marginRight: "auto", display: "flex", gap: 2, alignItems: "center" }}>
             {selNotes.length === 1 && (
               <>
                 <IconBtn name="copy" onClick={() => {
@@ -220,14 +221,38 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
             <IconBtn name="pin" onClick={bulkPin} color={th.accentText} size={22} pad="9px"
               filled={selNotes.every(n => n.pinned)}
               title={selNotes.every(n => n.pinned) ? "בטל הצמדה" : "הצמד"} />
-            <IconBtn name="tag" onClick={() => setPickColor(true)} color={th.accentText} size={22} pad="9px" title="צבע לכולם" />
-            {projects.length > 0 && (
-              <IconBtn name="folder" onClick={() => { onMoveToProject?.(selNotes); setSelected(null); }}
-                color={th.accentText} size={22} pad="9px" title="העבר לפרויקט" />
-            )}
-            <IconBtn name="download" onClick={bulkArchive} color={th.accentText} size={22} pad="9px"
-              title={showArch ? "שחזר מהארכיון" : "לארכיון"} />
             <IconBtn name="delete" onClick={() => setConfirmDel(selNotes)} color={th.red} size={22} pad="9px" title="מחק" />
+            {/* The rest (colour · move · archive) live behind a compact menu so the
+                bar never overflows. */}
+            <div style={{ position: "relative" }}>
+              <IconBtn name="more" onClick={() => setSelMenu(o => !o)} color={th.secondary} size={22} pad="9px" title="עוד" />
+              {selMenu && (
+                <>
+                  <div onClick={() => setSelMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 30 }} />
+                  <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 31,
+                    minWidth: 190, background: th.surface, borderRadius: 12,
+                    border: `1px solid ${th.border}`, boxShadow: "0 12px 34px rgba(0,0,0,0.3)",
+                    overflow: "hidden", direction: "rtl" }}>
+                    {[
+                      { k: "color", label: "צבע לכולם", icon: "tag", on: () => { setSelMenu(false); setPickColor(true); } },
+                      ...(projects.length > 0 ? [{ k: "move", label: "העבר לפרויקט", icon: "folder",
+                        on: () => { setSelMenu(false); onMoveToProject?.(selNotes); setSelected(null); } }] : []),
+                      { k: "arch", label: showArch ? "שחזר מהארכיון" : "לארכיון", icon: "download",
+                        on: () => { setSelMenu(false); bulkArchive(); } },
+                    ].map((m, i) => (
+                      <button key={m.k} onClick={m.on}
+                        style={{ display: "flex", alignItems: "center", gap: 12, width: "100%",
+                          background: "transparent", border: "none", cursor: "pointer", fontFamily: FONT,
+                          padding: "12px 15px", fontSize: 14.5, fontWeight: 500, color: th.text,
+                          borderTop: i ? `1px solid ${th.border}` : "none" }}>
+                        <span style={{ flex: 1, textAlign: "right" }}>{m.label}</span>
+                        <Icon name={m.icon} size={18} color={th.secondary} />
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </span>
         </div>
       ) : (
