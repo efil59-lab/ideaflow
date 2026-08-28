@@ -191,7 +191,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
         <div style={{ display: "flex", alignItems: "center", gap: 2, margin: "0 0 12px",
           background: th.surface, border: `1px solid ${th.electric ? "rgba(168,85,247,0.4)" : th.border}`,
           borderRadius: 13, padding: "7px 9px", direction: "rtl" }}>
-          <IconBtn name="close" onClick={() => setSelected(null)} color={th.secondary} size={16} pad="7px" title="בטל בחירה" />
+          <IconBtn name="close" onClick={() => setSelected(null)} color={th.secondary} size={20} pad="9px" title="בטל בחירה" />
           <span style={{ fontSize: 14, fontWeight: 700, color: th.text, margin: "0 4px" }}>
             {selNotes.length} נבחרו
           </span>
@@ -203,19 +203,19 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
                   onCapture({ text: n.text, html: n.html || "", colorIdx: n.colorIdx ?? null,
                     title: n.title ? `${n.title} (עותק)` : "", tags: n.tags || [] });
                   setSelected(null);
-                }} color={th.secondary} size={17} pad="7px" title="שכפל" />
+                }} color={th.secondary} size={22} pad="9px" title="שכפל" />
                 <IconBtn name="share" onClick={() => { actions.share?.(selNotes[0]); setSelected(null); }}
-                  color={th.secondary} size={17} pad="7px" title="שתף" />
+                  color={th.secondary} size={22} pad="9px" title="שתף" />
               </>
             )}
-            <IconBtn name="tag" onClick={() => setPickColor(true)} color={th.accentText} size={17} pad="7px" title="צבע לכולם" />
+            <IconBtn name="tag" onClick={() => setPickColor(true)} color={th.accentText} size={22} pad="9px" title="צבע לכולם" />
             {projects.length > 0 && (
               <IconBtn name="folder" onClick={() => { onMoveToProject?.(selNotes); setSelected(null); }}
-                color={th.accentText} size={17} pad="7px" title="העבר לפרויקט" />
+                color={th.accentText} size={22} pad="9px" title="העבר לפרויקט" />
             )}
-            <IconBtn name="download" onClick={bulkArchive} color={th.accentText} size={17} pad="7px"
+            <IconBtn name="download" onClick={bulkArchive} color={th.accentText} size={22} pad="9px"
               title={showArch ? "שחזר מהארכיון" : "לארכיון"} />
-            <IconBtn name="delete" onClick={() => setConfirmDel(selNotes)} color={th.red} size={17} pad="7px" title="מחק" />
+            <IconBtn name="delete" onClick={() => setConfirmDel(selNotes)} color={th.red} size={22} pad="9px" title="מחק" />
           </span>
         </div>
       ) : (
