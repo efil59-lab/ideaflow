@@ -4,11 +4,16 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.20";
+export const APP_VERSION = "5.21";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.21", date: "28 באוגוסט 2026", items: [
+    { icon: "check", title: "בחירה מרובה של פתקים", text: "לחיצה ארוכה על פתק מסמנת אותו, וכל נגיעה נוספת מוסיפה לבחירה. על כל המסומנים יחד: צביעה, העברה לארכיון או מחיקה (עם אישור). פתק בודד מקבל גם שכפול ושיתוף." },
+    { icon: "download", title: "ארכיון פתקים", text: "פתקים שסיימת איתם עוברים לארכיון (אייקון התיבה למעלה) — יוצאים מהרשימה בלי להימחק, וניתן לשחזר אותם משם בכל רגע." },
+    { icon: "time", title: "מיון מלא בראש המסך", text: "שורת \"מיין\" בראש מסך הפתקים: לפי זמן שינוי, זמן יצירה, אלפביתי, צבע או זמן תזכורת. הבחירה נשמרת." },
+  ] },
   { v: "5.20", date: "28 באוגוסט 2026", items: [
     { icon: "edit", title: "מסך כתיבה לפתקים", text: "לחיצה על + פותחת דף כתיבה מלא בצבע הפתק, עם שורות כמו במחברת. הכל נשמר אוטומטית תוך כדי כתיבה — אין כפתור שמירה. ריבוע הצבע למעלה מחליף צבע." },
     { icon: "notes", title: "שורה לכל פתק", text: "רשימת הפתקים היא עכשיו שורות ברוחב מלא — פס צבע, הטקסט והתאריך — ולחיצה פותחת את הפתק לעריכה. תצוגת הרשת נשארה כאפשרות." },
