@@ -5,7 +5,7 @@ import { Icon } from "../ui/Icons";
 import { FONT } from "../theme";
 
 export default function Search({ ideas, projects, th, actions, q, setQ }) {
-  const [filter, setFilter] = useState("all"); // all | active | done
+  const [filter, setFilter] = useState("active"); // all | active | done
   // Recent searches live on the device — a fast way back to a previous hunt.
   const [recent, setRecent] = useState(() => {
     try { return JSON.parse(localStorage.getItem("if_recent_q") || "[]"); } catch { return []; }

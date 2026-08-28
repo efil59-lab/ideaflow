@@ -335,6 +335,24 @@ export async function addSharedIdea(ownerUid, data, createdBy) {
   return { id, ...idea };
 }
 
+// Stamp who this is and when they were last here, so the owner's admin panel
+// has something to show. Own-doc write — covered by the existing rules.
+export async function recordPresence(uid, user) {
+  if (import.meta.env.DEV && uid === "demo") return;
+  try {
+    const ref = doc(db, "users", uid);
+    const snap = await getDoc(ref);
+    const patch = {
+      name: user.displayName || "",
+      email: (user.email || "").toLowerCase(),
+      photo: user.photoURL || "",
+      lastSeen: Date.now(),
+    };
+    if (!snap.exists() || !snap.data().firstSeen) patch.firstSeen = Date.now();
+    await setDoc(ref, patch, { merge: true });
+  } catch { /* offline — the next launch stamps it */ }
+}
+
 // Live view of the user's own doc (holds commentSeen map, seenVersion, etc.).
 export function useUserDoc(uid) {
   const [data, setData] = useState({});

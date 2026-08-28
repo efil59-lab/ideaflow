@@ -9,7 +9,7 @@ import {
   markVersionSeen, whatsNewNotSeenYet,
   useMyShares, useSharedWithMe, saveShare, removeShare, shareIdOf,
   addComment, addSharedIdea, queueNotification,
-  useUserDoc, markCommentsSeen,
+  useUserDoc, markCommentsSeen, recordPresence,
 } from "./data/store";
 import { migrateIfNeeded } from "./data/migrate";
 import { enrichIdea } from "./data/ai";
@@ -437,6 +437,26 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   const [toast, setToast] = useState(null);
   const [bulbBeat, setBulbBeat] = useState(0); // header bulb pulses on capture
   const [fabOpen, setFabOpen] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+
+  // The logo is two controls in one: a tap goes home, a long press (700ms)
+  // opens the owner's admin panel.
+  const longRef = useRef(null);
+  const heldRef = useRef(false);
+  const logoPress = {
+    down: () => {
+      heldRef.current = false;
+      clearTimeout(longRef.current);
+      longRef.current = setTimeout(() => { heldRef.current = true; setShowAdmin(true); }, 700);
+    },
+    up: () => {
+      clearTimeout(longRef.current);
+      if (heldRef.current) { heldRef.current = false; return; }
+      setTab("inbox");
+      setOpenProjectId(null);
+    },
+    cancel: () => { clearTimeout(longRef.current); heldRef.current = false; },
+  };
 
   // The FAB's three ways in. Dispatching synchronously keeps the tap's user
   // activation alive so the camera/mic picker actually opens; when we have to
@@ -501,6 +521,10 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
       .finally(() => { clearTimeout(t); finish(); });
     return () => clearTimeout(t);
   }, [uid]);
+
+  useEffect(() => {
+    if (!migrating) recordPresence(uid, user).catch(() => {});
+  }, [uid, user, migrating]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -861,8 +885,10 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
         animation: "fadeDown 0.55s ease-out both" }}>
         <div className="if-head-inner" style={{ maxWidth: 560, margin: "0 auto", padding: "10px 14px",
           display: "flex", alignItems: "center", gap: 8 }}>
-          <span onClick={() => setShowGuide(true)}
-            style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer", userSelect: "none" }}>
+          <span onPointerDown={logoPress.down} onPointerUp={logoPress.up}
+            onPointerLeave={logoPress.cancel} onContextMenu={e => e.preventDefault()}
+            style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer", userSelect: "none",
+              WebkitTouchCallout: "none" }}>
             {/* The bulb is the brand mark: it glows, and beats on every capture */}
             <span key={bulbBeat} style={{ display: "inline-flex",
               filter: th.electric ? "drop-shadow(0 0 9px rgba(168,85,247,0.85))" : "none",
@@ -1118,6 +1144,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
       {showGuide && <Guide onClose={() => setShowGuide(false)} onLog={() => { setShowGuide(false); setShowLog(true); }} th={th} />}
       {showWhatsNew && !showGuide && <WhatsNew onClose={() => setShowWhatsNew(false)} th={th} />}
       {showLog && <UpdatesLog onClose={() => setShowLog(false)} th={th} />}
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} th={th} />}
 
       {/* Install banner waits politely while the guide (or any modal) is open */}
       <InstallBanner th={th} hidden={showGuide || showWhatsNew || showLog || showAI || showUser || !!editIdea || !!remindIdea || !!moveIdea || !!shareIdea || !!commentsCtx} />
@@ -1186,6 +1213,114 @@ function UpdatesLog({ onClose, th }) {
       ))}
       <button onClick={onClose}
         style={{ width: "100%", marginTop: 8, height: 44, background: th.accent, color: "#fff",
+          border: "none", borderRadius: 12, cursor: "pointer",
+          fontSize: 15, fontWeight: 700, fontFamily: FONT }}>
+        סגור
+      </button>
+    </Modal>
+  );
+}
+
+// Owner-only panel — who is using IdeaFlow. Long-press the logo to open it.
+// The server checks the caller's ID token, so a non-owner just sees a refusal.
+function AdminPanel({ onClose, th }) {
+  const [state, setState] = useState({ loading: true });
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) throw new Error("no-auth");
+        const r = await fetch("/api/admin-users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken }),
+        });
+        const d = await r.json();
+        if (!alive) return;
+        if (!r.ok) throw new Error(d.error || "failed");
+        setState({ loading: false, users: d.users });
+      } catch (e) {
+        if (alive) setState({ loading: false, error: e.message === "forbidden"
+          ? "הפאנל זמין לבעלים בלבד" : "לא הצלחתי לטעון — נסה שוב" });
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const when = ts => {
+    if (!ts) return "—";
+    const d = Math.floor((Date.now() - ts) / 86400e3);
+    if (d === 0) return "היום";
+    if (d === 1) return "אתמול";
+    if (d < 30) return `לפני ${d} ימים`;
+    return new Date(ts).toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  };
+
+  const users = state.users || [];
+  const totalIdeas = users.reduce((n, u) => n + (u.ideas || 0), 0);
+  const active7 = users.filter(u => u.lastSeen && Date.now() - u.lastSeen < 7 * 86400e3).length;
+
+  return (
+    <Modal onClose={onClose} maxWidth={460} th={th}>
+      <ModalHeader title="פאנל ניהול" icon="logout" onClose={onClose} th={th} />
+
+      {state.loading && <p style={{ textAlign: "center", color: th.muted, fontSize: 13.5, padding: "18px 0" }}>טוען…</p>}
+      {state.error && <p style={{ textAlign: "center", color: th.red, fontSize: 13.5, padding: "18px 0" }}>{state.error}</p>}
+
+      {!state.loading && !state.error && (
+        <>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14, direction: "rtl" }}>
+            {[[users.length, "משתמשים"], [active7, "פעילים השבוע"], [totalIdeas, "רעיונות"]].map(([n, label]) => (
+              <div key={label} style={{ flex: 1, background: th.surface2, borderRadius: 12,
+                border: `1px solid ${th.border}`, padding: "10px 8px", textAlign: "center" }}>
+                <div style={{ fontSize: 19, fontWeight: 800, color: th.text }}>{n}</div>
+                <div style={{ fontSize: 11, color: th.muted, marginTop: 1 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {users.map(u => (
+            <div key={u.uid} style={{ display: "flex", alignItems: "center", gap: 10, direction: "rtl",
+              background: th.surface, border: `1px solid ${th.border}`, borderRadius: 13,
+              padding: "10px 12px", marginBottom: 8 }}>
+              {u.photo
+                ? <img src={u.photo} alt="" style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0 }} />
+                : <span style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                    background: th.accentSoft, display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 14, fontWeight: 700, color: th.accentText }}>
+                    {(u.name || u.email || "?").trim().charAt(0).toUpperCase()}
+                  </span>}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: th.text,
+                  display: "flex", alignItems: "center", gap: 6 }}>
+                  {u.name || "(ללא שם)"}
+                  {u.push && <Icon name="bell" size={11} color={th.green} />}
+                </p>
+                <p style={{ margin: "1px 0 0", fontSize: 11.5, color: th.muted,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</p>
+              </div>
+              <div style={{ textAlign: "left", flexShrink: 0 }}>
+                <p style={{ margin: 0, fontSize: 12.5, fontWeight: 600, color: th.secondary }}>
+                  {u.ideas} רעיונות
+                </p>
+                <p style={{ margin: "1px 0 0", fontSize: 11, color: th.muted }}>
+                  {when(u.lastSeen)}{u.version ? ` · v${u.version}` : ""}
+                </p>
+              </div>
+            </div>
+          ))}
+          {users.length === 0 && (
+            <p style={{ textAlign: "center", color: th.muted, fontSize: 13.5, padding: "14px 0" }}>
+              אין עדיין משתמשים רשומים
+            </p>
+          )}
+        </>
+      )}
+
+      <button onClick={onClose}
+        style={{ width: "100%", marginTop: 10, height: 44, background: th.cta || th.accent, color: "#fff",
           border: "none", borderRadius: 12, cursor: "pointer",
           fontSize: 15, fontWeight: 700, fontFamily: FONT }}>
         סגור
