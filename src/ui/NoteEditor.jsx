@@ -35,8 +35,20 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const stateRef = useRef({ title, text, colorIdx });
   stateRef.current = { title, text, colorIdx };
 
+  // What's already persisted. A pure read (or the no-op flush on unmount) must
+  // NOT rewrite the note — that would bump updatedAt and jump it to the top of
+  // the modified-sorted list. So we only write when something actually changed.
+  const savedRef = useRef({
+    title: initial?.title || "",
+    text: initial?.text || "",
+    colorIdx: initial?.colorIdx ?? defaultColor ?? 0,
+  });
+
   const save = async () => {
     const s = stateRef.current;
+    const unchanged = s.title === savedRef.current.title
+      && s.text === savedRef.current.text
+      && s.colorIdx === savedRef.current.colorIdx;
     if (!idRef.current) {
       if (!s.title.trim() && !s.text.trim()) return;    // nothing to keep
       if (creatingRef.current) return;
@@ -44,9 +56,12 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       try {
         const n = await onCreate({ title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx });
         idRef.current = n?.id || null;
+        savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx };
       } finally { creatingRef.current = false; }
     } else {
+      if (unchanged) return;                            // read-only visit — leave it in place
       onUpdate(idRef.current, { title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, html: "" });
+      savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx };
     }
     setSaved(true);
   };
