@@ -183,37 +183,76 @@ function ProjectsStats({ projects, ideas, th, onOpen }) {
   const total = activeTotal + doneTotal;
   if (!total) return null;
   const pct = Math.round((activeTotal / total) * 100);
+  const allIdeas = ideas.filter(i => i.status !== "trash").length;
+  // On the dark/gradient heroes the text sits on colour, not on the surface.
+  const heroInk = (th.electric || th.vivid) ? "#fff" : th.text;
+  const heroSub = (th.electric || th.vivid) ? "rgba(255,255,255,0.72)" : th.muted;
 
   return (
     <>
+      {/* Hero: the app's pulse — how much is still in motion, and where. */}
       <div onClick={() => activeTotal && setOpen(true)}
-        style={{ background: th.surface, border: `1px solid ${th.border}`, borderRadius: 14,
-          padding: "12px 14px", marginBottom: 12, direction: "rtl",
+        style={{ position: "relative", overflow: "hidden",
+          background: th.electric
+            ? "linear-gradient(135deg,#1A1040 0%,#101634 55%,#0C1026 100%)"
+            : th.vivid ? th.grad : th.surface,
+          border: th.electric ? "1px solid rgba(168,85,247,0.3)"
+            : th.vivid ? "none" : `1px solid ${th.border}`,
+          boxShadow: th.electric ? "0 0 34px rgba(124,58,237,0.28)" : "none",
+          borderRadius: 18, padding: "16px 16px 14px", marginBottom: 10, direction: "rtl",
           cursor: activeTotal ? "pointer" : "default" }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 9 }}>
-          <span style={{ fontSize: 13.5, fontWeight: 600, color: th.text }}>התקדמות כללית</span>
-          <span style={{ marginRight: "auto", fontSize: 17, fontWeight: 800, color: th.accentText }}>
-            {pct}%
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <span style={{ width: 44, height: 44, borderRadius: 14, flexShrink: 0,
+            background: th.electric ? "rgba(168,85,247,0.18)"
+              : th.vivid ? "rgba(255,255,255,0.2)" : th.accentSoft,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: th.electric ? "0 0 16px rgba(168,85,247,0.4)" : "none" }}>
+            <Icon name="bulb" size={22} color={heroInk} />
           </span>
-          <span style={{ fontSize: 12, color: th.muted }}>נותרו</span>
+          <span style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
+            <span style={{ fontSize: 38, fontWeight: 800, color: heroInk, letterSpacing: -0.5 }}>
+              {activeTotal}
+            </span>
+            <span style={{ fontSize: 12.5, fontWeight: 500, color: heroSub, marginTop: 4 }}>
+              רעיונות פעילים
+            </span>
+          </span>
+          <span style={{ marginRight: "auto", textAlign: "left", display: "flex",
+            flexDirection: "column", lineHeight: 1.1 }}>
+            <span style={{ fontSize: 22, fontWeight: 800, color: heroInk }}>{pct}%</span>
+            <span style={{ fontSize: 11, color: heroSub }}>נותרו</span>
+          </span>
         </div>
 
-        <div style={{ display: "flex", height: 10, borderRadius: 99, overflow: "hidden",
-          background: th.surface2, border: `1px solid ${th.border}` }}>
+        <div style={{ display: "flex", height: 9, borderRadius: 99, overflow: "hidden",
+          background: th.electric || th.vivid ? "rgba(255,255,255,0.13)" : th.surface2,
+          border: th.electric || th.vivid ? "none" : `1px solid ${th.border}` }}>
           {groups.map(g => (
             <div key={g.p.id} title={`${g.p.name}: ${g.list.length}`}
-              style={{ width: `${(g.list.length / total) * 100}%`, background: g.p.color }} />
+              style={{ width: `${(g.list.length / total) * 100}%`, background: g.p.color,
+                boxShadow: th.electric ? `0 0 10px ${g.p.color}` : "none" }} />
           ))}
         </div>
 
-        <div style={{ display: "flex", gap: 6, marginTop: 8, fontSize: 12, color: th.muted }}>
-          <span><strong style={{ color: th.text, fontWeight: 600 }}>{activeTotal}</strong> פעילים</span>
-          <span>·</span>
-          <span>{doneTotal} בוצעו</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 9,
+          fontSize: 12, color: heroSub }}>
+          <span>{doneTotal} פעולות שבוצעו</span>
           {activeTotal > 0 && (
-            <span style={{ marginRight: "auto", color: th.accentText, fontWeight: 600 }}>הצג רשימה ›</span>
+            <span style={{ marginRight: "auto", color: heroInk, fontWeight: 600 }}>הצג רשימה ›</span>
           )}
         </div>
+      </div>
+
+      {/* Your activity at a glance */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, direction: "rtl" }}>
+        {[[allIdeas, "רעיונות"], [doneTotal, "בוצעו"], [projects.length, "פרויקטים"]].map(([n, label]) => (
+          <div key={label} style={{ flex: 1, background: th.surface, borderRadius: 13,
+            border: `1px solid ${th.border}`, padding: "9px 10px", textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{n}</div>
+            <div style={{ fontSize: 11, color: th.muted, marginTop: 1 }}>{label}</div>
+          </div>
+        ))}
       </div>
 
       {open && (
@@ -394,11 +433,19 @@ function ProjectRow({ p, th, counts, onOpen, onPin, isShared = false, unread = f
   return (
     <div onClick={onOpen}
       style={{ display: "flex", alignItems: "center", gap: 11, background: th.surface,
-        border: `1px solid ${p.pinned ? th.accent : th.border}`, borderRadius: 14, padding: "14px 15px",
+        border: `1px solid ${p.pinned ? th.accent : th.border}`,
+        // Each project wears its own colour as a leading bar
+        borderRight: `4px solid ${p.color}`,
+        boxShadow: th.electric ? `0 0 14px ${p.color}22` : "none",
+        borderRadius: 14, padding: "14px 15px 14px 12px",
         marginBottom: 9, cursor: "pointer", direction: "rtl" }}>
-      <span style={{ width: 13, height: 13, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
+      <span style={{ width: 34, height: 34, borderRadius: 11, flexShrink: 0,
+        background: th.electric ? `${p.color}22` : th.surface2,
+        display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Icon name="folder" size={17} color={p.color} />
+      </span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: th.text,
+        <p style={{ margin: 0, fontSize: 15.5, fontWeight: 700, color: th.text,
           display: "flex", alignItems: "center", gap: 6 }}>
           {p.name}
           {unread && (
@@ -409,8 +456,11 @@ function ProjectRow({ p, th, counts, onOpen, onPin, isShared = false, unread = f
           )}
           {isShared && <Icon name="share" size={12} color={th.accent} />}
         </p>
-        <p style={{ margin: "2px 0 0", fontSize: 12, color: th.muted }}>
-          {counts.active} פעילים{counts.done ? ` · ${counts.done} בוצעו` : ""}
+        <p style={{ margin: "3px 0 0", fontSize: 12, color: th.muted,
+          display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: p.color }} />
+          <span style={{ color: th.secondary, fontWeight: 600 }}>{counts.active}</span> רעיונות
+          {counts.done ? <><span>·</span><span>{counts.done} בוצעו</span></> : null}
         </p>
       </div>
       <IconBtn name="pin" onClick={e => { e.stopPropagation(); onPin(); }}

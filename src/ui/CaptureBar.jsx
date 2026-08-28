@@ -75,6 +75,26 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
     };
   }, []);
 
+  // The new-idea FAB routes here: "text" just focuses, "audio"/"image" open the
+  // matching picker. A live event keeps the tap's user activation (so the picker
+  // opens); a stored kind covers the case where we had to switch tabs first.
+  useEffect(() => {
+    const run = kind => {
+      if (kind === "audio") micRef.current?.click();
+      else if (kind === "image") imgRef.current?.click();
+      else taRef.current?.focus();
+    };
+    const onEvt = e => run(e.detail?.kind);
+    window.addEventListener("if-capture", onEvt);
+    let stored = null;
+    try {
+      stored = localStorage.getItem("if_capture_kind");
+      if (stored) localStorage.removeItem("if_capture_kind");
+    } catch { /* ignore */ }
+    const t = stored ? setTimeout(() => run(stored), 260) : null;
+    return () => { window.removeEventListener("if-capture", onEvt); if (t) clearTimeout(t); };
+  }, []);
+
   const addMedia = async (file, kind) => {
     if (!file) return;
     if (file.size > MAX_FILE_BYTES) {

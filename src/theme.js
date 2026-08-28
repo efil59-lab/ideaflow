@@ -2,8 +2,12 @@
 // A second look, "Vivid" (זוהר), layers a signature gradient, saturated card
 // colors and colored side-bars on top — user-switchable, per device.
 export const GRAD = "linear-gradient(120deg,#2E5BE6,#7C3AED,#DB2777)";
+// "Electric" — the dark/neon look: near-black navy ground, electric purple and
+// blue accents, glow instead of borders. Always dark, whatever the sun/moon says.
+export const GRAD_ELECTRIC = "linear-gradient(120deg,#3B82F6,#7C3AED,#EC4899)";
 
 export function getTheme(dark, look = "calm") {
+  if (look === "electric") return electricTheme();
   const t = dark ? {
     dark: true,
     bg: "#0F1218", surface: "#171B23", surface2: "#1E232E",
@@ -38,6 +42,24 @@ export function getTheme(dark, look = "calm") {
     t.pastelBars = ["#EF9F27", "#378ADD", "#1D9E75", "#7C3AED", "#D85A30", "#D4537E"];
   }
   return t;
+}
+
+function electricTheme() {
+  return {
+    dark: true, electric: true, glow: true,
+    grad: GRAD_ELECTRIC,
+    bg: "#080B18", surface: "#11152A", surface2: "#171D36",
+    border: "#1F2745", borderStrong: "#2E3A63",
+    text: "#EEF1FF", secondary: "#9BA7CA", muted: "#6C779C",
+    accent: "#A855F7", accentSoft: "#241A46", accentText: "#C9A2FF",
+    green: "#34D399", red: "#FB7185", amber: "#FBBF24",
+    inputBg: "#0D1224",
+    cta: GRAD_ELECTRIC,
+    navActive: "#A855F7",
+    // Colour-coded cards stay legible on the near-black ground.
+    pastels: ["#2A2410", "#0F2445", "#0C2F27", "#241540", "#33200F", "#33132A"],
+    pastelBars: ["#FBBF24", "#3B82F6", "#10B981", "#A855F7", "#F97316", "#EC4899"],
+  };
 }
 
 export const FONT = "'Rubik', sans-serif";

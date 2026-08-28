@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { auth, googleProvider } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { getTheme, GRAD, FONT } from "./theme";
+import { getTheme, GRAD, GRAD_ELECTRIC, FONT } from "./theme";
 import {
   useIdeas, useProjects, addIdea, updateIdea, deleteIdea, reorderIdeas,
   addProject, updateProject, deleteProject, reorderProjects, guideNotSeenYet,
@@ -17,7 +17,7 @@ import { exportIdeas } from "./data/export";
 import { enablePush } from "./push";
 import { APP_VERSION, CHANGELOG } from "./changelog";
 import { Icon, IconBtn } from "./ui/Icons";
-import { Modal, Toast } from "./ui/base";
+import { Modal, ModalHeader, Toast } from "./ui/base";
 import { ShareModal, MoveSheet, ReminderSheet, SnoozeSheet, CommentsSheet } from "./ui/sheets";
 import Editor from "./ui/Editor";
 import Inbox from "./screens/Inbox";
@@ -62,7 +62,7 @@ setTimeout(reloadIfNewVersion, 8000);
 export default function App() {
   const [user, setUser] = useState(undefined);
   const [dark, setDark] = useState(() => localStorage.getItem("if_dark") === "1");
-  const [look, setLook] = useState(() => localStorage.getItem("if_look") || "calm");
+  const [look, setLook] = useState(() => localStorage.getItem("if_look") || "electric");
   const th = getTheme(dark, look);
 
   // A shortcut / share launch wants the keyboard up immediately. Android only
@@ -436,6 +436,22 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   const [showLog, setShowLog] = useState(false);
   const [toast, setToast] = useState(null);
   const [bulbBeat, setBulbBeat] = useState(0); // header bulb pulses on capture
+  const [fabOpen, setFabOpen] = useState(false);
+
+  // The FAB's three ways in. Dispatching synchronously keeps the tap's user
+  // activation alive so the camera/mic picker actually opens; when we have to
+  // switch tabs first, CaptureBar picks the intent up from storage on mount.
+  const fabAction = kind => {
+    setFabOpen(false);
+    try { localStorage.setItem("if_focus_capture", "1"); } catch { /* ignore */ }
+    if (tab === "inbox") {
+      window.dispatchEvent(new CustomEvent("if-capture", { detail: { kind } }));
+      return;
+    }
+    if (kind !== "text") { try { localStorage.setItem("if_capture_kind", kind); } catch { /* ignore */ } }
+    setTab("inbox");
+    setOpenProjectId(null);
+  };
 
   const ideas = useIdeas(migrating ? null : uid);
   const projects = useProjects(migrating ? null : uid);
@@ -704,6 +720,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     reorder: ids => reorderIdeas(uid, ids).catch(e => console.warn("reorder:", e)),
     tag: t => { setSearchQ(t); setTab("search"); },
     openProject: pid => { setOpenProjectId(pid); setTab("projects"); },
+    ai: () => setShowAI(true),
     exportList: async (name, list) => {
       if (!list.length) { toast$("אין רעיונות לייצוא"); return; }
       const copied = await exportIdeas(name, list);
@@ -797,11 +814,12 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   };
 
   const inboxCount = ideas.filter(i => i.status === "inbox" && !i.projectId).length;
+  // Everything still open anywhere — the header's "ideas in motion" line.
+  const inMotion = ideas.filter(i => !i.noCheck && i.status !== "done" && i.status !== "trash").length;
 
   const navItems = [
     { id: "inbox", icon: "inbox", label: "Inbox", badge: inboxCount },
     { id: "projects", icon: "folder", label: "פרויקטים" },
-    { id: "search", icon: "search", label: "חיפוש" },
   ];
 
   return (
@@ -834,40 +852,55 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
       <div className="if-main">
       {/* Header — vivid look paints it with the signature gradient */}
       <div style={{ position: "sticky", top: 0, zIndex: 100,
-        background: th.vivid ? th.grad : th.bg,
-        borderBottom: th.vivid ? "none" : `1px solid ${th.border}`,
+        background: th.electric
+          ? "linear-gradient(180deg,#141A38,#0A0E1F)"
+          : th.vivid ? th.grad : th.bg,
+        borderBottom: th.electric ? "1px solid rgba(168,85,247,0.22)"
+          : th.vivid ? "none" : `1px solid ${th.border}`,
+        boxShadow: th.electric ? "0 6px 26px rgba(0,0,0,0.55)" : "none",
         animation: "fadeDown 0.55s ease-out both" }}>
         <div className="if-head-inner" style={{ maxWidth: 560, margin: "0 auto", padding: "10px 14px",
           display: "flex", alignItems: "center", gap: 8 }}>
           <span onClick={() => setShowGuide(true)}
-            style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", userSelect: "none" }}>
-            {/* key restarts the beat animation on every capture */}
+            style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer", userSelect: "none" }}>
+            {/* The bulb is the brand mark: it glows, and beats on every capture */}
             <span key={bulbBeat} style={{ display: "inline-flex",
+              filter: th.electric ? "drop-shadow(0 0 9px rgba(168,85,247,0.85))" : "none",
               animation: bulbBeat ? "bulbBeat .6s ease-out" : "none" }}>
-              <Icon name="bulb" size={22} color={th.vivid ? "#FFD866" : th.accent} />
+              <Icon name="bulb" size={th.electric ? 25 : 22}
+                color={th.electric ? "#C9A2FF" : th.vivid ? "#FFD866" : th.accent} />
             </span>
-            <span style={{ fontSize: 17, fontWeight: 800, color: th.vivid ? "#fff" : th.text }}>IdeaFlow</span>
+            <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
+              <span style={{ fontSize: 17, fontWeight: 800,
+                color: (th.vivid || th.electric) ? "#fff" : th.text }}>IdeaFlow</span>
+              {inMotion > 0 && (
+                <span style={{ fontSize: 10.5, fontWeight: 500,
+                  color: th.electric ? th.accentText : th.vivid ? "rgba(255,255,255,0.85)" : th.muted }}>
+                  {inMotion} רעיונות בתנועה
+                </span>
+              )}
+            </span>
           </span>
           <div style={{ marginRight: "auto", display: "flex", gap: 5 }}>
             <IconBtn name="help" onClick={() => setShowGuide(true)}
-              color={th.vivid ? "#fff" : th.secondary}
-              bg={th.vivid ? "rgba(255,255,255,0.16)" : th.surface} size={17} pad="8px"
-              style={{ border: th.vivid ? "1px solid rgba(255,255,255,0.25)" : `1px solid ${th.border}` }} title="מדריך" />
+              color={(th.vivid || th.electric) ? "#fff" : th.secondary}
+              bg={(th.vivid || th.electric) ? "rgba(255,255,255,0.10)" : th.surface} size={17} pad="8px"
+              style={{ border: (th.vivid || th.electric) ? "1px solid rgba(255,255,255,0.16)" : `1px solid ${th.border}` }} title="מדריך" />
             <IconBtn name="sparkle" onClick={() => setShowAI(true)}
-              color={th.vivid ? "#FFD866" : th.accent}
-              bg={th.vivid ? "rgba(255,255,255,0.16)" : th.accentSoft} size={17} pad="8px" />
+              color={th.electric ? "#C9A2FF" : th.vivid ? "#FFD866" : th.accent}
+              bg={(th.vivid || th.electric) ? "rgba(255,255,255,0.10)" : th.accentSoft} size={17} pad="8px" />
             <IconBtn name={dark ? "sun" : "moon"} onClick={() => setDark(d => !d)}
-              color={th.vivid ? "#fff" : th.secondary}
-              bg={th.vivid ? "rgba(255,255,255,0.16)" : th.surface} size={17} pad="8px"
-              style={{ border: th.vivid ? "1px solid rgba(255,255,255,0.25)" : `1px solid ${th.border}` }} />
+              color={(th.vivid || th.electric) ? "#fff" : th.secondary}
+              bg={(th.vivid || th.electric) ? "rgba(255,255,255,0.10)" : th.surface} size={17} pad="8px"
+              style={{ border: (th.vivid || th.electric) ? "1px solid rgba(255,255,255,0.16)" : `1px solid ${th.border}` }} />
             <button onClick={() => setShowUser(true)}
               style={{ width: 33, height: 33, borderRadius: "50%",
-                border: th.vivid ? "1px solid rgba(255,255,255,0.4)" : `1px solid ${th.border}`,
-                background: th.vivid ? "rgba(255,255,255,0.16)" : th.surface,
+                border: (th.vivid || th.electric) ? "1px solid rgba(255,255,255,0.3)" : `1px solid ${th.border}`,
+                background: (th.vivid || th.electric) ? "rgba(255,255,255,0.10)" : th.surface,
                 cursor: "pointer", overflow: "hidden", padding: 0 }}>
               {user.photoURL
                 ? <img src={user.photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                : <Icon name="logout" size={15} color={th.vivid ? "#fff" : th.secondary} />}
+                : <Icon name="logout" size={15} color={(th.vivid || th.electric) ? "#fff" : th.secondary} />}
             </button>
           </div>
         </div>
@@ -877,7 +910,8 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
       <div className="if-body" style={{ maxWidth: 560, margin: "0 auto", padding: "14px 14px 90px",
         animation: "fadeUp 0.6s ease-out 0.15s both" }}>
         {tab === "inbox" && (
-          <Inbox uid={uid} ideas={ideas} projects={projects} th={th} actions={actions} onCapture={capture} myShares={myShares} />
+          <Inbox uid={uid} ideas={ideas} projects={projects} th={th} actions={actions} onCapture={capture}
+            myShares={myShares} userName={(user.displayName || "").split(" ")[0]} />
         )}
         {tab === "projects" && (
           <Projects uid={uid} ideas={ideas} projects={projects} th={th} actions={actions}
@@ -923,8 +957,58 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
               </button>
             );
           })}
+          {/* Raised FAB — the app's primary action, mid-bar */}
+          <span style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <button onClick={() => setFabOpen(true)} title="רעיון חדש"
+              style={{ width: 52, height: 52, marginTop: -22, borderRadius: "50%",
+                background: th.cta || th.accent,
+                border: th.electric ? "2px solid rgba(168,85,247,0.55)" : `3px solid ${th.surface}`,
+                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: th.electric
+                  ? "0 0 22px rgba(168,85,247,0.75), 0 6px 18px rgba(0,0,0,0.6)"
+                  : "0 6px 18px rgba(0,0,0,0.22)" }}>
+              <Icon name="add" size={27} color="#fff" />
+            </button>
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: th.navActive, marginTop: -2 }}>
+              רעיון חדש
+            </span>
+          </span>
+
+          {/* search sits last so the FAB lands mid-bar */}
+          <button onClick={() => setTab("search")}
+            style={{ flex: 1, background: "transparent", border: "none", cursor: "pointer",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+              padding: "5px 0", fontFamily: FONT }}>
+            <Icon name="search" size={21} color={tab === "search" ? th.navActive : th.muted} />
+            <span style={{ fontSize: 10.5, fontWeight: tab === "search" ? 600 : 400,
+              color: tab === "search" ? th.navActive : th.muted }}>חיפוש</span>
+          </button>
         </div>
       </div>
+
+      {fabOpen && (
+        <Modal onClose={() => setFabOpen(false)} maxWidth={340} th={th}>
+          <ModalHeader title="רעיון חדש" icon="bulb" onClose={() => setFabOpen(false)} th={th} />
+          {[["text", "bulb", "רעיון", "כתוב אותו עכשיו"],
+            ["audio", "mic", "הקלטה", "תפוס אותו בקול"],
+            ["image", "camera", "תמונה", "צלם או בחר מהגלריה"]].map(([kind, icon, label, sub]) => (
+            <button key={kind} onClick={() => fabAction(kind)}
+              style={{ display: "flex", alignItems: "center", gap: 12, width: "100%",
+                background: th.surface2, color: th.text, border: `1px solid ${th.border}`,
+                borderRadius: 13, padding: "13px 14px", marginBottom: 8, cursor: "pointer",
+                fontFamily: FONT, direction: "rtl", textAlign: "right" }}>
+              <span style={{ width: 36, height: 36, borderRadius: 11, flexShrink: 0,
+                background: th.accentSoft, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name={icon} size={18} color={th.accentText} />
+              </span>
+              <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
+                <span style={{ fontSize: 14.5, fontWeight: 600 }}>{label}</span>
+                <span style={{ fontSize: 12, color: th.muted }}>{sub}</span>
+              </span>
+            </button>
+          ))}
+        </Modal>
+      )}
 
       {/* Modals */}
       {toast && <Toast msg={toast} th={th} />}
@@ -997,11 +1081,13 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
             {/* Look picker — calm (Tsalul) vs vivid (Zohar), saved per device */}
             <p style={{ fontSize: 12, fontWeight: 600, color: th.muted, textAlign: "right", margin: "0 0 6px" }}>מראה</p>
             <div style={{ display: "flex", gap: 8, marginBottom: 12, direction: "rtl" }}>
-              {[["calm", "רגוע"], ["vivid", "זוהר ✨"]].map(([v, label]) => (
+              {[["calm", "רגוע"], ["vivid", "זוהר"], ["electric", "אלקטריק ⚡"]].map(([v, label]) => (
                 <button key={v} onClick={() => setLook(v)}
                   style={{ flex: 1, height: 40, borderRadius: 11, cursor: "pointer",
-                    fontFamily: FONT, fontSize: 13.5, fontWeight: 600,
-                    background: look === v ? (v === "vivid" ? GRAD : th.accent) : th.surface2,
+                    fontFamily: FONT, fontSize: 12.5, fontWeight: 600, padding: 0,
+                    background: look === v
+                      ? (v === "vivid" ? GRAD : v === "electric" ? GRAD_ELECTRIC : th.accent)
+                      : th.surface2,
                     color: look === v ? "#fff" : th.text,
                     border: look === v ? "none" : `1px solid ${th.border}` }}>
                   {label}
@@ -1125,7 +1211,9 @@ function Guide({ onClose, onLog, th }) {
     { icon: "chat", title: "שיתוף פרויקט", text: "בתפריט פרויקט → שיתוף → הוסף כתובות Gmail. המוזמנים רואים את הרעיונות, מגיבים ומוסיפים משלהם — ואתה מקבל התראה על כל תגובה, ונקודה אדומה מהבהבת ליד הפרויקט מסמנת תגובה שלא נקראה." },
     { icon: "search", title: "חיפוש ותגיות", text: "חיפוש בכל הפרויקטים, כולל כותרות ותגיות. כל תגית היא כפתור — לחיצה מציגה את כל הרעיונות הדומים." },
     { icon: "delete", title: "פח אשפה", text: "מחיקה היא הפיכה: הרעיון עובר לפח (אייקון הפח במסך הפרויקטים) ונשאר שם 30 יום לפני שנמחק לצמיתות." },
-    { icon: "sparkle", title: "מראה", text: "בתפריט המשתמש (התמונה למעלה) בוחרים בין מראה \"רגוע\" ל\"זוהר\" הצבעוני, ובכפתור הירח/שמש עוברים למצב כהה. הבחירה נשמרת במכשיר." },
+    { icon: "sparkle", title: "מראה", text: "בתפריט המשתמש (התמונה למעלה) בוחרים מראה: \"אלקטריק\" הכהה והזוהר (ברירת המחדל), \"זוהר\" הצבעוני או \"רגוע\" המינימלי. בכפתור הירח/שמש עוברים למצב כהה. הבחירה נשמרת במכשיר." },
+    { icon: "add", title: "כפתור רעיון חדש", text: "הכפתור העגול במרכז סרגל הניווט פותח שלוש דרכים לתפוס רעיון: כתיבה, הקלטה קולית או תמונה." },
+    { icon: "bulb", title: "AI על הרעיון", text: "בעורך של כל רעיון: שפר ניסוח, הרחב, הפוך למשימות או קבל זוויות נוספות. התוצאה מוצעת — אתה בוחר אם להחליף, להוסיף או לבטל." },
   ];
   const Row = ({ it, last }) => (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 11,

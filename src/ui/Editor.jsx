@@ -4,6 +4,7 @@ import { Modal, ModalHeader } from "./base";
 import { Icon } from "./Icons";
 import RichEditor, { htmlToText, isHtml } from "./RichEditor";
 import { uploadFile, fmtSize, MAX_FILE_BYTES } from "../data/media";
+import { ideaAction, IDEA_ACTION_LIST } from "../data/ai";
 import { FONT, fmtDatetimeLocal, REPEAT_OPTIONS } from "../theme";
 
 export default function Editor({ uid, initial, projects, onSave, onAutosave, onClose, title, th }) {
@@ -24,6 +25,21 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
   const [busy, setBusy] = useState(false);
   const [mediaErr, setMediaErr] = useState("");
   const [autoSaved, setAutoSaved] = useState(false);
+  // AI actions: the result is offered, never forced — replace or append, or drop it.
+  const [aiBusy, setAiBusy] = useState("");
+  const [aiOut, setAiOut] = useState(null);
+  const [aiErr, setAiErr] = useState("");
+
+  const runAi = async kind => {
+    const plain = htmlToText(html).trim();
+    if (!plain) { setAiErr("כתוב משהו קודם"); return; }
+    setAiBusy(kind); setAiErr(""); setAiOut(null);
+    try { setAiOut(await ideaAction(kind, plain)); }
+    catch { setAiErr("ה-AI לא זמין כרגע — נסה שוב"); }
+    setAiBusy("");
+  };
+  const asHtml = t => t.split(/\r?\n/).map(l =>
+    l.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")).join("<br>");
   const fileRef = useRef();
   const audioRef = useRef();
   const audioCapRef = useRef();
@@ -91,6 +107,49 @@ export default function Editor({ uid, initial, projects, onSave, onAutosave, onC
     <Modal onClose={onClose} th={th}>
       <ModalHeader title={title} icon="edit" onClose={onClose} th={th} />
       <RichEditor html={html} onChange={setHtml} th={th} placeholder="מה עולה לך בראש?" />
+
+      {/* Turn the idea into something: AI actions on the text itself */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 9, direction: "rtl" }}>
+        {IDEA_ACTION_LIST.map(a => (
+          <button key={a.id} onClick={() => runAi(a.id)} disabled={!!aiBusy}
+            style={{ display: "inline-flex", alignItems: "center", gap: 5,
+              background: th.accentSoft, color: th.accentText, border: "none",
+              borderRadius: 18, padding: "7px 13px", cursor: aiBusy ? "default" : "pointer",
+              fontSize: 12.5, fontWeight: 600, fontFamily: FONT,
+              opacity: aiBusy && aiBusy !== a.id ? 0.45 : 1 }}>
+            <Icon name="sparkle" size={13} color={th.accentText} />
+            {aiBusy === a.id ? "חושב…" : a.label}
+          </button>
+        ))}
+      </div>
+      {aiErr && <p style={{ margin: "7px 2px 0", fontSize: 12, color: th.red }}>{aiErr}</p>}
+      {aiOut && (
+        <div style={{ marginTop: 9, borderRadius: 13, padding: "11px 12px", direction: "rtl",
+          background: th.electric ? "rgba(168,85,247,0.10)" : th.surface2,
+          border: `1px solid ${th.electric ? "rgba(168,85,247,0.35)" : th.border}` }}>
+          <p style={{ margin: "0 0 9px", fontSize: 13.5, color: th.text, lineHeight: 1.65,
+            whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto" }}>{aiOut}</p>
+          <div style={{ display: "flex", gap: 7 }}>
+            <button onClick={() => { setHtml(asHtml(aiOut)); setAiOut(null); }}
+              style={{ flex: 1, background: th.accent, color: "#fff", border: "none", borderRadius: 10,
+                padding: "9px 0", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
+              החלף
+            </button>
+            <button onClick={() => { setHtml(h => h + "<br><br>" + asHtml(aiOut)); setAiOut(null); }}
+              style={{ flex: 1, background: th.surface, color: th.text, border: `1px solid ${th.border}`,
+                borderRadius: 10, padding: "9px 0", cursor: "pointer",
+                fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
+              הוסף למטה
+            </button>
+            <button onClick={() => setAiOut(null)}
+              style={{ background: "transparent", color: th.muted, border: `1px solid ${th.border}`,
+                borderRadius: 10, padding: "9px 14px", cursor: "pointer",
+                fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
+              בטל
+            </button>
+          </div>
+        </div>
+      )}
       {autoSaved && (
         <p style={{ margin: "6px 2px 0", fontSize: 11.5, color: th.green,
           display: "flex", alignItems: "center", gap: 4 }}>

@@ -57,3 +57,38 @@ export async function weeklyOverview(ideas, projects) {
     ideas, projects,
   );
 }
+
+// Per-idea AI actions — the editor's "turn this idea into something" toolbar.
+// Text-only by design: the proxy has no image generation and no web access, so
+// there is deliberately no "generate a design" or "search the web" action here.
+const IDEA_ACTIONS = {
+  improve: {
+    label: "שפר ניסוח",
+    system: "אתה עורך שמחדד רעיונות. שכתב את הרעיון בעברית, ברור וממוקד, באותו אורך בערך. שמור על הכוונה המקורית. החזר רק את הטקסט המשוכתב, בלי הקדמה.",
+  },
+  expand: {
+    label: "הרחב",
+    system: "אתה מפתח רעיונות. הרחב את הרעיון בעברית לפסקה קצרה ועוד 3-5 נקודות מפתח מעשיות. החזר רק את התוכן, בלי הקדמה.",
+  },
+  tasks: {
+    label: "הפוך למשימות",
+    system: "אתה מפרק רעיונות לביצוע. החזר בעברית רשימת משימות קצרה (3-6 פריטים), כל שורה מתחילה ב-'• '. בלי הקדמה ובלי סיכום.",
+  },
+  angles: {
+    label: "זוויות נוספות",
+    system: "אתה שותף לחשיבה. הצע בעברית 3 כיוונים או וריאציות מעניינות לרעיון, כל אחד בשורה שמתחילה ב-'• ', משפט אחד כל אחד. בלי הקדמה.",
+  },
+};
+
+export const IDEA_ACTION_LIST = Object.entries(IDEA_ACTIONS).map(([id, a]) => ({ id, label: a.label }));
+
+export async function ideaAction(kind, text) {
+  const a = IDEA_ACTIONS[kind];
+  if (!a) throw new Error("unknown action");
+  return callAI({
+    model: "claude-sonnet-4-6",
+    max_tokens: 700,
+    system: a.system,
+    messages: [{ role: "user", content: text.slice(0, 4000) }],
+  });
+}

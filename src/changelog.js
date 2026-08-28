@@ -4,11 +4,18 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.16";
+export const APP_VERSION = "5.17";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.17", date: "22 ביולי 2026", items: [
+    { icon: "sparkle", title: "מראה חדש — אלקטריק ⚡", text: "עיצוב כהה וזוהר: רקע כחול-שחור עמוק, סגול וכחול חשמליים, הילות עדינות במקום מסגרות אפורות. זו ברירת המחדל החדשה — ותמיד אפשר לחזור ל\"רגוע\" או ל\"זוהר\" מתפריט המשתמש." },
+    { icon: "add", title: "כפתור רעיון חדש", text: "כפתור עגול ובולט במרכז סרגל הניווט. בלחיצה נפתחות שלוש דרכים לתפוס רעיון: כתיבה, הקלטה או תמונה." },
+    { icon: "folder", title: "מסך פרויקטים כדשבורד", text: "כרטיס ראשי גדול עם מספר הרעיונות הפעילים, אחוז הנותרים ופס צבעוני לפי פרויקט, ומתחתיו סיכום הפעילות שלך. לכל פרויקט יש עכשיו פס בצבע שלו ואייקון." },
+    { icon: "search", title: "חיפוש חדש", text: "שדה חיפוש גדול, חיפושים אחרונים, התגיות הפופולריות שלך בלחיצה, וכניסה מהירה לחיפוש חכם עם AI." },
+    { icon: "bulb", title: "AI בתוך הרעיון", text: "בעורך הרעיון נוספו פעולות AI: שפר ניסוח, הרחב, הפוך למשימות וזוויות נוספות. התוצאה מוצעת לך — אפשר להחליף, להוסיף למטה או לבטל." },
+  ] },
   { v: "5.16", date: "7 ביולי 2026", items: [
     { icon: "folder", title: "התקדמות כללית", text: "בראש מסך הפרויקטים נוסף פס סטטיסטיקה מכל הפרויקטים: אחוז הרעיונות הפעילים שנותרו, כשכל פרויקט מקבל קטע בצבע שלו. לחיצה על הפס פותחת את רשימת כל הרעיונות הפעילים לפי פרויקט, ומשם אפשר לקפוץ לכל פרויקט." },
   ] },
