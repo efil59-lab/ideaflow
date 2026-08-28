@@ -34,7 +34,7 @@ const MENU = [
   { k: "delete",    label: "מחיקה",        icon: "delete", danger: true },
 ];
 
-export default function NoteEditor({ initial, defaultColor = 0, colorNames = [], scale = 1, th, onCreate, onUpdate, onAction, onClose }) {
+export default function NoteEditor({ initial, defaultColor = 0, colorNames = [], scale = 1, pastePrompt = false, th, onCreate, onUpdate, onAction, onClose }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [text, setText] = useState(initial?.text || "");
   const [colorIdx, setColorIdx] = useState(initial?.colorIdx ?? defaultColor ?? 0);
@@ -291,6 +291,16 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
         </div>
       )}
 
+      {/* Clipboard read was blocked, so tell the user how to paste by hand. */}
+      {pastePrompt && !text.trim() && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 14px 0",
+          padding: "10px 12px", borderRadius: 10, background: barBg, direction: "rtl",
+          fontSize: 13, fontWeight: 600, color: th.text }}>
+          <Icon name="clip" size={16} color={th.accentText} />
+          להדבקה: לחיצה ארוכה על הדף למטה ואז "הדבק"
+        </div>
+      )}
+
       {/* The page — a plain lined textarea, or an interactive checklist */}
       {isChecklist ? (
         <div data-noswipe style={{ flex: 1, overflowY: "auto", padding: "6px 0 16px", background: pageBg }}>
@@ -332,7 +342,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
         </div>
       ) : (
         <textarea ref={taRef} value={text} onChange={e => changeText(e.target.value)}
-          placeholder="כתוב כאן…"
+          placeholder={pastePrompt ? 'לחיצה ארוכה כאן ← "הדבק"' : "כתוב כאן…"}
           style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
             resize: "none", padding: "6px 16px 16px", fontSize: fs, fontFamily: FONT,
             direction: "rtl", color: th.text, background: "transparent",

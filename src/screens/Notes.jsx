@@ -64,6 +64,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [pickColor, setPickColor] = useState(false);     // bulk colour picker
   const [confirmDel, setConfirmDel] = useState(null);    // array of notes to trash
   const [selMenu, setSelMenu] = useState(false);         // "more" menu in the selection bar
+  const [pasteHint, setPasteHint] = useState(false);     // opened via clip but clipboard was blocked
 
   // Reading a note opens a full-screen editor; keep the list exactly where it
   // was. We snapshot the scroll when it opens (before the textarea autofocus
@@ -167,8 +168,9 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
       const text = await navigator.clipboard.readText();
       if (text && text.trim()) { onCapture({ text: text.trim(), colorIdx: color ?? null }); return; }
     } catch { /* browser blocked clipboard read — fall through to manual paste */ }
-    // Reading the clipboard failed or it was empty: open a fresh note so the
-    // user can paste by hand (long-press → הדבק). Never a dead-end error.
+    // Reading the clipboard failed or it was empty: open a fresh note with a
+    // paste prompt so the user can paste by hand (long-press → הדבק).
+    setPasteHint(true);
     setEditing("new");
   };
 
@@ -369,6 +371,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
       {editing && (
         <NoteEditor th={th} colorNames={colorNames} scale={scale}
           initial={editing === "new" ? null : editing}
+          pastePrompt={editing === "new" && pasteHint}
           defaultColor={color ?? 0}
           onCreate={onCreateNote}
           onUpdate={(id, patch) => actions.update?.(id, patch, editing === "new" ? null : editing)}
@@ -380,7 +383,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
             else if (kind === "pin") actions.update?.(note.id, { pinned: !note.pinned }, note);
             else if (kind === "delete") setConfirmDel([note]);   // always warn first
           }}
-          onClose={() => setEditing(null)} />
+          onClose={() => { setEditing(null); setPasteHint(false); }} />
       )}
 
       {editNames && (
