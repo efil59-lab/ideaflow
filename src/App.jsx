@@ -74,7 +74,22 @@ async function applyUpdate() {
 export default function App() {
   const [user, setUser] = useState(undefined);
   const [dark, setDark] = useState(() => localStorage.getItem("if_dark") === "1");
-  const [look, setLook] = useState(() => localStorage.getItem("if_look") || "electric");
+  // Electric is the default look. A value stored before it existed was a choice
+  // against the *old* default, so it isn't carried over — from here on only an
+  // explicit pick (which also sets if_look_set) follows the user to next time.
+  const [look, setLook] = useState(() => {
+    try {
+      if (!localStorage.getItem("if_look_set")) return "electric";
+      return localStorage.getItem("if_look") || "electric";
+    } catch { return "electric"; }
+  });
+  const chooseLook = v => {
+    setLook(v);
+    try {
+      localStorage.setItem("if_look", v);
+      localStorage.setItem("if_look_set", "1");
+    } catch { /* ignore */ }
+  };
   const th = getTheme(dark, look);
 
   // A shortcut / share launch wants the keyboard up immediately. Android only
@@ -128,7 +143,7 @@ export default function App() {
 
   useEffect(() => onAuthStateChanged(auth, u => setUser(u || null)), []);
   useEffect(() => { localStorage.setItem("if_dark", dark ? "1" : "0"); }, [dark]);
-  useEffect(() => { localStorage.setItem("if_look", look); }, [look]);
+
 
   // Quick-capture screen — rendered before every other gate so the text field
   // exists on the first paint of the shortcut launch. `user` may still be
@@ -146,12 +161,12 @@ export default function App() {
   // its demo user literal) dead in production, so it's fully stripped.
   if (import.meta.env.DEV && isUipreview) {
     return <Shell user={{ uid: "demo", displayName: "תצוגה מקדימה", email: "demo@local", photoURL: null }}
-      dark={dark} setDark={setDark} look={look} setLook={setLook} th={th} />;
+      dark={dark} setDark={setDark} look={look} setLook={chooseLook} th={th} />;
   }
 
   if (user === undefined) return <Splash th={th} />;
   if (!user) return <><Login th={th} /><InstallBanner th={th} /></>;
-  return <Shell user={user} dark={dark} setDark={setDark} look={look} setLook={setLook} th={th} />;
+  return <Shell user={user} dark={dark} setDark={setDark} look={look} setLook={chooseLook} th={th} />;
 }
 
 // Prompts browser visitors to install the PWA. Hidden when already installed,
