@@ -16,6 +16,7 @@ import { enrichIdea } from "./data/ai";
 import { exportIdeas } from "./data/export";
 import { enablePush } from "./push";
 import { APP_VERSION, CHANGELOG } from "./changelog";
+import { popBackLayer } from "./ui/backstack";
 import { Icon, IconBtn } from "./ui/Icons";
 import { Modal, ModalHeader, Toast } from "./ui/base";
 import { ShareModal, MoveSheet, ReminderSheet, SnoozeSheet, CommentsSheet } from "./ui/sheets";
@@ -691,7 +692,9 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     const onPop = () => {
       const s = uiRef.current;
       let handled = true;
-      if (s.showGuide) setShowGuide(false);
+      // Registered overlays (modals, the note editor) close first, topmost out.
+      if (popBackLayer()) { /* layer closed itself */ }
+      else if (s.showGuide) setShowGuide(false);
       else if (s.showWhatsNew) setShowWhatsNew(false);
       else if (s.showLog) setShowLog(false);
       else if (s.showUser) setShowUser(false);

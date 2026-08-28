@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { Icon, IconBtn } from "./Icons";
 import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
 import { autoTitle } from "../data/store";
+import { pushBackLayer } from "./backstack";
 
 export default function NoteEditor({ initial, defaultColor = 0, colorNames = [], th, onCreate, onUpdate, onClose }) {
   const [title, setTitle] = useState(initial?.title || "");
@@ -16,6 +17,12 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const idRef = useRef(initial?.id || null);
   const creatingRef = useRef(false);
   const taRef = useRef();
+
+  // Hardware back closes the editor (autosave already flushed on unmount)
+  // instead of dropping the user out of the notes tab.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => pushBackLayer(() => closeRef.current?.()), []);
 
   // Opened from a real tap, so this focus raises the keyboard.
   useEffect(() => {

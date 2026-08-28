@@ -1,4 +1,6 @@
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { pushBackLayer } from "./backstack";
 import { Icon, IconBtn } from "./Icons";
 import { FONT } from "../theme";
 
@@ -6,6 +8,10 @@ import { FONT } from "../theme";
 // body's fadeUp) would otherwise become the containing block for position:fixed,
 // dropping the dialog to the middle of the scrolled page instead of the viewport.
 export function Modal({ onClose, children, maxWidth = 480, th }) {
+  // Hardware back closes this modal instead of navigating tabs.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => pushBackLayer(() => closeRef.current?.()), []);
   return createPortal(
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,14,22,0.55)",
       backdropFilter: "blur(4px)", zIndex: 800,
