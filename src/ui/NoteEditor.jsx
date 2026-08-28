@@ -1,12 +1,28 @@
 // Full-screen note editor, ColorNote style: lined page in the note's colour,
 // title bar with a colour square, and autosave — there is no save button.
 // Leaving (✓ / unmount) flushes the last edit; an empty new note saves nothing.
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { Icon, IconBtn } from "./Icons";
 import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
 import { autoTitle } from "../data/store";
 import { pushBackLayer } from "./backstack";
+
+// A checklist item field that wraps to as many lines as its text needs (a plain
+// input would clip the tail of a long item). Grows to fit its content.
+function GrowTextarea({ value, onChange, onKeyDown, placeholder, style, taRef }) {
+  const ref = useRef(null);
+  const attach = el => { ref.current = el; taRef?.(el); };
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, [value]);
+  return (
+    <textarea ref={attach} value={value} onChange={onChange} onKeyDown={onKeyDown}
+      placeholder={placeholder} rows={1} style={style} />
+  );
+}
 
 const MENU = [
   { k: "checklist", label: "רשימת סימון", icon: "check" },
@@ -277,16 +293,17 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       {isChecklist ? (
         <div data-noswipe style={{ flex: 1, overflowY: "auto", padding: "6px 0 16px", background: pageBg }}>
           {items.map(it => (
-            <div key={it.i} style={{ display: "flex", alignItems: "center", gap: 11,
+            <div key={it.i} style={{ display: "flex", alignItems: "flex-start", gap: 11,
               padding: "0 16px", minHeight: lh, borderBottom: `1px solid ${line}` }}>
               <button onClick={() => toggleItem(it.i)} title={it.done ? "בטל סימון" : "סמן כבוצע"}
                 style={{ flexShrink: 0, width: 23, height: 23, borderRadius: 6, cursor: "pointer",
+                  marginTop: Math.round((lh - 23) / 2) + 4,
                   border: it.done ? "none" : `2px solid ${th.dark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)"}`,
                   background: it.done ? th.green : (th.dark ? "rgba(255,255,255,0.14)" : "#fff"),
                   display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {it.done && <Icon name="check" size={15} color="#fff" />}
               </button>
-              <input ref={el => { inputs.current[it.i] = el; }} value={it.label}
+              <GrowTextarea taRef={el => { inputs.current[it.i] = el; }} value={it.label}
                 onChange={e => editItem(it.i, e.target.value)}
                 onKeyDown={e => {
                   if (e.key === "Enter") { e.preventDefault(); addItem(it.i); }
@@ -296,7 +313,9 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
                 }}
                 placeholder="פריט…"
                 style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent",
-                  fontSize: fs, fontFamily: FONT, direction: "rtl", padding: "9px 0",
+                  resize: "none", overflow: "hidden", boxSizing: "border-box",
+                  fontSize: fs, lineHeight: lh + "px", fontFamily: FONT, direction: "rtl",
+                  padding: "4px 0", wordBreak: "break-word",
                   color: it.done ? th.muted : th.text,
                   textDecoration: it.done ? "line-through" : "none" }} />
             </div>
