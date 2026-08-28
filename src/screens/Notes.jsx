@@ -87,6 +87,24 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
     } catch { setImporting("קובץ לא תקין — צריך קובץ JSON"); }
   };
 
+  // Export every note as a JSON backup the same shape import reads back.
+  const runExport = () => {
+    const data = notesAll.map(n => ({
+      text: n.text || "", title: n.title || "", colorIdx: n.colorIdx ?? 0,
+      archived: !!n.archived, tags: n.tags || [],
+      createdAt: n.createdAt || 0, updatedAt: n.updatedAt || 0,
+    }));
+    const blob = new Blob([JSON.stringify({ source: "ideaflow", version: 1, notes: data })], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    const d = new Date(), pad = x => String(x).padStart(2, "0");
+    a.download = `ideaflow-notes-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    setImporting(`\u2713 יוצאו ${data.length} פתקים לקובץ`);
+    setTimeout(() => setImporting(""), 3500);
+  };
+
 
   // The FAB's "פתק" route asks us to open a fresh editor.
   useEffect(() => {
@@ -182,6 +200,10 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
 
   return (
     <>
+      {/* The whole toolbar (sort · title · colours) stays pinned under the app
+          header while the notes scroll. */}
+      <div style={{ position: "sticky", top: "var(--if-head-h, 56px)", zIndex: 20,
+        background: th.bg, paddingTop: 8 }}>
       {/* Sort bar — top of the screen, ColorNote style */}
       <button onClick={() => setShowSort(true)}
         style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
@@ -233,9 +255,13 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
           </h2>
           <span style={{ fontSize: 12.5, color: th.muted }}>{showArch ? archCount : notesAll.length - archCount}</span>
           <span style={{ marginRight: "auto", display: "flex", gap: 4, alignItems: "center" }}>
-            <IconBtn name="download" onClick={() => { setShowArch(a => !a); setColor(null); }}
+            <IconBtn name="folder" onClick={() => { setShowArch(a => !a); setColor(null); }}
               color={showArch ? th.accent : th.muted} size={17} pad="6px"
               title={showArch ? "חזרה לפתקים" : `ארכיון (${archCount})`} />
+            <IconBtn name="download" onClick={() => fileRef.current?.click()} color={th.muted} size={17} pad="6px"
+              title="ייבוא פתקים מקובץ" style={{ transform: "rotate(180deg)" }} />
+            <IconBtn name="export" onClick={runExport} color={th.muted} size={17} pad="6px"
+              title="יצוא הפתקים לקובץ" />
             <button onClick={cycleFont} title="גודל הטקסט"
               style={{ background: fontStep ? th.accentSoft : "transparent", border: "none",
                 borderRadius: 9, cursor: "pointer", padding: "5px 9px", fontFamily: FONT,
@@ -243,8 +269,6 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
                 display: "inline-flex", alignItems: "baseline", gap: 1 }}>
               <span style={{ fontSize: 16 }}>א</span><span style={{ fontSize: 11 }}>א</span>
             </button>
-            <IconBtn name="download" onClick={() => fileRef.current?.click()} color={th.muted} size={17} pad="6px"
-              title="ייבוא פתקים מקובץ" style={{ transform: "rotate(180deg)" }} />
             <IconBtn name="tag" onClick={() => setEditNames(true)} color={th.muted} size={17} pad="6px"
               title="שמות הצבעים" />
             <IconBtn name={view === "rows" ? "copy" : "notes"}
@@ -286,6 +310,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
           </button>
         ))}
       </div>
+      </div>{/* /sticky toolbar */}
 
       {!showArch && !inSel && (
         <button onClick={paste}

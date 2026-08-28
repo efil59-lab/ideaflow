@@ -1,5 +1,5 @@
 // IdeaFlow v5 — capture-first idea manager. Firestore + Storage + woven AI.
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { auth, googleProvider } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { getTheme, GRAD, GRAD_ELECTRIC, FONT } from "./theme";
@@ -469,6 +469,18 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   const [fabOpen, setFabOpen] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [updateReady, setUpdateReady] = useState(false);
+  // Publish the sticky app-header's live height so inner screens can pin their
+  // own toolbars flush beneath it (the update bar changes this height).
+  const roRef = useRef(null);
+  // A callback ref so this fires when the header actually mounts — Shell shows a
+  // Splash while data loads, so a plain []-effect would run before it exists.
+  const headRef = useCallback(el => {
+    if (roRef.current) { roRef.current.disconnect(); roRef.current = null; }
+    if (!el) return;
+    const set = () => document.documentElement.style.setProperty("--if-head-h", el.offsetHeight + "px");
+    set();
+    roRef.current = new ResizeObserver(set); roRef.current.observe(el);
+  }, []);
   useEffect(() => {
     const on = () => setUpdateReady(true);
     window.addEventListener("if-update", on);
@@ -929,7 +941,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
 
       <div className="if-main">
       {/* Header — vivid look paints it with the signature gradient */}
-      <div style={{ position: "sticky", top: 0, zIndex: 100,
+      <div ref={headRef} style={{ position: "sticky", top: 0, zIndex: 100,
         background: th.electric
           ? "linear-gradient(180deg,#141A38,#0A0E1F)"
           : th.vivid ? th.grad : th.bg,
@@ -1431,7 +1443,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "sparkle", title: "מראה", text: "בתפריט המשתמש (התמונה למעלה) בוחרים מראה: \"אלקטריק\" הכהה והזוהר (ברירת המחדל), \"זוהר\" הצבעוני או \"רגוע\" המינימלי. בכפתור הירח/שמש עוברים למצב כהה. הבחירה נשמרת במכשיר." },
     { icon: "add", title: "כפתור רעיון חדש", text: "הכפתור העגול במרכז סרגל הניווט פותח שלוש דרכים לתפוס רעיון: כתיבה, הקלטה קולית או תמונה." },
     { icon: "star", title: "מועדפים", text: "כוכב ⭐ על כרטיס פרויקט מעלה אותו לראש מסך הפרויקטים — מה שאתה חוזר אליו, ראשון." },
-    { icon: "notes", title: "פתקים", text: "לשונית \"פתקים\" היא לדברים שרוצים לשמור ולא לבצע. + פותח דף כתיבה שנשמר אוטומטית; לחיצה ארוכה מסמנת פתקים לבחירה מרובה — צביעה, ארכיון או מחיקה לכולם יחד. שורת המיון למעלה, שמות לצבעים, ושורות שמתחילות ב-\"- \" הופכות לרשימת סימון. פתקים לא מגיעים ל-Inbox ולא נספרים כרעיונות פעילים." },
+    { icon: "notes", title: "פתקים", text: "לשונית \"פתקים\" היא לדברים שרוצים לשמור ולא לבצע. + פותח דף כתיבה שנשמר אוטומטית; לחיצה ארוכה מסמנת פתקים לבחירה מרובה — צביעה, ארכיון או מחיקה לכולם יחד. שורת המיון למעלה, שמות לצבעים, ושורות שמתחילות ב-\"- \" הופכות לרשימת סימון. סרגל הכלים העליון נעוץ בזמן גלילה, וכפתורי הכותרת מייבאים/מייצאים פתקים לקובץ ומשנים את גודל הטקסט. פתקים לא מגיעים ל-Inbox ולא נספרים כרעיונות פעילים." },
     { icon: "bulb", title: "AI על הרעיון", text: "בעורך של כל רעיון: שפר ניסוח, הרחב, הפוך למשימות או קבל זוויות נוספות. התוצאה מוצעת — אתה בוחר אם להחליף, להוסיף או לבטל." },
   ];
   const Row = ({ it, last }) => (
