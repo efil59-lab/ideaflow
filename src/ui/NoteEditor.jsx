@@ -24,9 +24,11 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const [showColors, setShowColors] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [focusIdx, setFocusIdx] = useState(-1);   // checklist row to focus after add/remove
   const idRef = useRef(initial?.id || null);
   const creatingRef = useRef(false);
   const taRef = useRef();
+  const inputs = useRef({});
 
   // Hardware back closes the editor (autosave already flushed on unmount)
   // instead of dropping the user out of the notes tab.
@@ -86,16 +88,19 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   // Any way out flushes the pending edit.
   useEffect(() => () => { save(); }, []);
 
-  // "רשימת סימון": turn every non-empty line into a checklist item, or strip the
-  // markers back off if the note is already a list. Autosave picks up the change.
+  // "רשימת סימון": turn every line into a checkbox item, or strip the markers off
+  // if the note is already a list. Autosave picks up the change.
+  const PREFIX = /^\s*(?:[-*]\s+|\[[ xX]\]\s*)/;
   const toggleChecklist = () => {
     const lines = (stateRef.current.text || "").split(/\r?\n/);
-    const ITEM = /^\s*(?:[-*]\s+|\[[ xX]\]\s*)/;
     const filled = lines.filter(l => l.trim());
-    const allItems = filled.length > 0 && filled.every(l => ITEM.test(l));
-    setText(lines.map(l => !l.trim() ? l
-      : allItems ? l.replace(ITEM, "")
-      : ITEM.test(l) ? l : "- " + l).join("\n"));
+    const allItems = filled.length > 0 && filled.every(l => PREFIX.test(l));
+    if (allItems) {                                   // list → plain text
+      setText(lines.map(l => l.replace(PREFIX, "")).join("\n"));
+    } else {                                          // plain text → checkbox list
+      const items = filled.map(l => "[ ] " + l.replace(PREFIX, ""));
+      setText((items.length ? items : ["[ ] "]).join("\n"));
+    }
   };
 
   // The overflow menu. Checklist edits in place; the rest flush a save (so the
@@ -111,6 +116,37 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     onClose?.();
     onAction?.(kind, obj);
   };
+
+  // Checklist mode: on when every non-empty line is an item. Each line stays
+  // plain text ("[ ] label" / "[x] label") so the list view, search and export
+  // all keep working — this is just an interactive way to edit that text.
+  const rawLines = (text || "").split(/\r?\n/);
+  const filledLines = rawLines.filter(l => l.trim());
+  const isChecklist = filledLines.length > 0 && filledLines.every(l => PREFIX.test(l));
+  const PARSE = /^\s*(?:\[([ xX])\]\s?|[-*]\s+)?(.*)$/;
+  const items = rawLines.map((l, i) => {
+    const m = l.match(PARSE);
+    return { i, done: (m?.[1] || "").toLowerCase() === "x", label: m?.[2] ?? l };
+  });
+  const rebuild = arr => setText(arr.join("\n"));
+  const setItemLine = (i, done, label) => {
+    const a = [...rawLines]; a[i] = `[${done ? "x" : " "}] ${label}`; rebuild(a);
+  };
+  const toggleItem = i => setItemLine(i, !items[i].done, items[i].label);
+  const editItem = (i, val) => setItemLine(i, items[i].done, val);
+  const addItem = i => { const a = [...rawLines]; a.splice(i + 1, 0, "[ ] "); rebuild(a); setFocusIdx(i + 1); };
+  const removeItem = i => {
+    if (rawLines.length <= 1) { rebuild(["[ ] "]); setFocusIdx(0); return; }
+    const a = [...rawLines]; a.splice(i, 1); rebuild(a); setFocusIdx(Math.max(0, i - 1));
+  };
+
+  // After add/remove, put the caret in the target row.
+  useEffect(() => {
+    if (focusIdx < 0) return;
+    const el = inputs.current[focusIdx];
+    if (el) { el.focus(); const v = el.value; el.setSelectionRange(v.length, v.length); }
+    setFocusIdx(-1);
+  }, [focusIdx]);
 
   const c = NOTE_COLORS[colorIdx];
   const pageBg = th.pastels[colorIdx] || th.surface;
@@ -136,17 +172,21 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
                 minWidth: 208, background: th.surface, borderRadius: 12,
                 border: `1px solid ${th.border}`, boxShadow: "0 12px 34px rgba(0,0,0,0.3)",
                 overflow: "hidden", direction: "rtl" }}>
-                {MENU.map((m, i) => (
-                  <button key={m.k} onClick={() => doMenu(m.k)}
-                    style={{ display: "flex", alignItems: "center", gap: 12, width: "100%",
-                      background: "transparent", border: "none", cursor: "pointer", fontFamily: FONT,
-                      padding: "12px 15px", fontSize: 14.5, fontWeight: 500,
-                      color: m.danger ? th.red : th.text,
-                      borderTop: i ? `1px solid ${th.border}` : "none" }}>
-                    <span style={{ flex: 1, textAlign: "right" }}>{m.label}</span>
-                    <Icon name={m.icon} size={18} color={m.danger ? th.red : th.secondary} />
-                  </button>
-                ))}
+                {MENU.map((m, i) => {
+                  const active = m.k === "checklist" && isChecklist;
+                  return (
+                    <button key={m.k} onClick={() => doMenu(m.k)}
+                      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%",
+                        background: "transparent", border: "none", cursor: "pointer", fontFamily: FONT,
+                        padding: "12px 15px", fontSize: 14.5, fontWeight: active ? 700 : 500,
+                        color: m.danger ? th.red : active ? th.accentText : th.text,
+                        borderTop: i ? `1px solid ${th.border}` : "none" }}>
+                      <span style={{ flex: 1, textAlign: "right" }}>{m.label}</span>
+                      <Icon name={m.icon} size={18}
+                        color={m.danger ? th.red : active ? th.accentText : th.secondary} />
+                    </button>
+                  );
+                })}
               </div>
             </>
           )}
@@ -174,15 +214,52 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
         </div>
       )}
 
-      {/* The lined page */}
-      <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)}
-        placeholder="כתוב כאן…"
-        style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
-          resize: "none", padding: "6px 16px 16px", fontSize: fs, fontFamily: FONT,
-          direction: "rtl", color: th.text, background: "transparent",
-          lineHeight: lh + "px",
-          backgroundImage: `repeating-linear-gradient(transparent, transparent ${lh - 1}px, ${line} ${lh - 1}px, ${line} ${lh}px)`,
-          backgroundAttachment: "local" }} />
+      {/* The page — a plain lined textarea, or an interactive checklist */}
+      {isChecklist ? (
+        <div data-noswipe style={{ flex: 1, overflowY: "auto", padding: "6px 0 16px", background: pageBg }}>
+          {items.map(it => (
+            <div key={it.i} style={{ display: "flex", alignItems: "center", gap: 11,
+              padding: "0 16px", minHeight: lh, borderBottom: `1px solid ${line}` }}>
+              <button onClick={() => toggleItem(it.i)} title={it.done ? "בטל סימון" : "סמן כבוצע"}
+                style={{ flexShrink: 0, width: 23, height: 23, borderRadius: 6, cursor: "pointer",
+                  border: it.done ? "none" : `2px solid ${th.borderStrong}`,
+                  background: it.done ? th.green : "transparent",
+                  display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {it.done && <Icon name="check" size={15} color="#fff" />}
+              </button>
+              <input ref={el => { inputs.current[it.i] = el; }} value={it.label}
+                onChange={e => editItem(it.i, e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter") { e.preventDefault(); addItem(it.i); }
+                  else if (e.key === "Backspace" && !it.label && e.target.selectionStart === 0) {
+                    e.preventDefault(); removeItem(it.i);
+                  }
+                }}
+                placeholder="פריט…"
+                style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent",
+                  fontSize: fs, fontFamily: FONT, direction: "rtl", padding: "9px 0",
+                  color: it.done ? th.muted : th.text,
+                  textDecoration: it.done ? "line-through" : "none" }} />
+            </div>
+          ))}
+          <button onClick={() => addItem(items.length - 1)}
+            style={{ display: "flex", alignItems: "center", gap: 11, width: "100%",
+              padding: "11px 16px", background: "transparent", border: "none", cursor: "pointer",
+              fontFamily: FONT, fontSize: fs - 1, color: th.muted }}>
+            <span style={{ width: 23, textAlign: "center", fontSize: 22, lineHeight: "20px" }}>+</span>
+            פריט חדש
+          </button>
+        </div>
+      ) : (
+        <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)}
+          placeholder="כתוב כאן…"
+          style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
+            resize: "none", padding: "6px 16px 16px", fontSize: fs, fontFamily: FONT,
+            direction: "rtl", color: th.text, background: "transparent",
+            lineHeight: lh + "px",
+            backgroundImage: `repeating-linear-gradient(transparent, transparent ${lh - 1}px, ${line} ${lh - 1}px, ${line} ${lh}px)`,
+            backgroundAttachment: "local" }} />
+      )}
 
       <div style={{ padding: "7px 14px calc(7px + env(safe-area-inset-bottom))",
         display: "flex", alignItems: "center", gap: 6,
