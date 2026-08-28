@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Icon, IconBtn } from "./Icons";
 import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
+import { autoTitle } from "../data/store";
 
 export default function NoteEditor({ initial, defaultColor = 0, colorNames = [], th, onCreate, onUpdate, onClose }) {
   const [title, setTitle] = useState(initial?.title || "");
@@ -34,11 +35,11 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       if (creatingRef.current) return;
       creatingRef.current = true;
       try {
-        const n = await onCreate({ title: s.title.trim(), text: s.text, colorIdx: s.colorIdx });
+        const n = await onCreate({ title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx });
         idRef.current = n?.id || null;
       } finally { creatingRef.current = false; }
     } else {
-      onUpdate(idRef.current, { title: s.title.trim(), text: s.text, colorIdx: s.colorIdx, html: "" });
+      onUpdate(idRef.current, { title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, html: "" });
     }
     setSaved(true);
   };
@@ -70,7 +71,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
           style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, cursor: "pointer",
             background: c, border: "2px solid rgba(255,255,255,0.65)",
             boxShadow: th.electric ? `0 0 10px ${c}88` : "none" }} />
-        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="כותרת"
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="כותרת (אוטומטית מהמילים הראשונות)"
           style={{ flex: 1, minWidth: 0, border: "none", borderRadius: 9, padding: "9px 12px",
             fontSize: 15, fontWeight: 600, fontFamily: FONT, direction: "rtl",
             background: th.inputBg, color: th.text, outline: "none" }} />

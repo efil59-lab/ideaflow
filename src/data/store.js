@@ -339,6 +339,18 @@ export async function addSharedIdea(ownerUid, data, createdBy) {
   return { id, ...idea };
 }
 
+// A note's automatic title: its first words (first line, cut at a word
+// boundary around 40 chars). Checklist markers are stripped first.
+export function autoTitle(text) {
+  const first = (text || "").trim().split(/\r?\n/)[0]
+    .replace(/^\s*(?:[-*]\s+|\[[ xX]\]\s*)/, "").trim();
+  if (!first) return "";
+  if (first.length <= 40) return first;
+  const cut = first.slice(0, 40);
+  const sp = cut.lastIndexOf(" ");
+  return (sp > 20 ? cut.slice(0, sp) : cut) + "…";
+}
+
 // A note is a permanent reference card, not work to process: status "note"
 // keeps it out of the Inbox, the active counts and the nightly digest, while
 // every other feature (editor, reminders, files, search, trash) still applies.

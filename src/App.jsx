@@ -9,7 +9,7 @@ import {
   markVersionSeen, whatsNewNotSeenYet,
   useMyShares, useSharedWithMe, saveShare, removeShare, shareIdOf,
   addComment, addSharedIdea, queueNotification,
-  useUserDoc, markCommentsSeen, recordPresence, addNote, saveColorNames,
+  useUserDoc, markCommentsSeen, recordPresence, addNote, autoTitle, saveColorNames,
 } from "./data/store";
 import { migrateIfNeeded } from "./data/migrate";
 import { enrichIdea } from "./data/ai";
@@ -440,9 +440,10 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
       return type === "reload";
     } catch { return false; }
   })();
+  // Fresh opens land on the notes screen; a refresh still restores where you were.
   const [tab, setTab] = useState(() => {
-    if (!restoreNav) return "inbox";
-    try { return localStorage.getItem("if_nav_tab") || "inbox"; } catch { return "inbox"; }
+    if (!restoreNav) return "notes";
+    try { return localStorage.getItem("if_nav_tab") || "notes"; } catch { return "notes"; }
   });
   const [openProjectId, setOpenProjectId] = useState(() => {
     if (!restoreNav) return null;
@@ -757,16 +758,12 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     if (data.remindAt && data.remindAt > Date.now()) enablePush(uid);
   };
 
-  // Notes land in the reference lane, never in the Inbox funnel.
+  // Notes land in the reference lane, never in the Inbox funnel. Their title is
+  // simply the first words of the text — predictable, instant, no AI involved.
   const captureNote = async (data) => {
-    const note = await addNote(uid, data);
+    await addNote(uid, { ...data, title: data.title || autoTitle(data.text) });
     toast$("הפתק נשמר");
     setBulbBeat(b => b + 1);
-    if (note?.text && !data.title) {
-      enrichIdea(note.text, []).then(en =>
-        updateIdea(uid, note.id, { title: en.title, tags: en.tags }).catch(() => {})
-      ).catch(() => {});
-    }
   };
 
   const actions = {

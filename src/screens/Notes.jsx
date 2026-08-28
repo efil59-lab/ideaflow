@@ -3,7 +3,7 @@
 // duplicate, share, trash). Nothing here touches the Inbox funnel or counts.
 import { useState, useEffect, useRef } from "react";
 import { Icon, IconBtn } from "../ui/Icons";
-import { Modal, ModalHeader } from "../ui/base";
+import { Modal, ModalHeader, Confirm } from "../ui/base";
 import Checklist, { hasChecklist, parseChecklist, toggleLine } from "../ui/Checklist";
 import NoteEditor from "../ui/NoteEditor";
 import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
@@ -22,6 +22,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [pasteErr, setPasteErr] = useState("");
   const [editing, setEditing] = useState(null);          // note object | "new" | null
   const [menuNote, setMenuNote] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
 
   // The FAB's "פתק" route asks us to open a fresh editor — live event when the
   // tab is already mounted, a stored flag when it had to switch tabs first.
@@ -175,8 +176,16 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
             setMenuNote(null);
           }}
           onShare={() => { actions.share?.(menuNote); setMenuNote(null); }}
-          onDelete={() => { actions.remove?.(menuNote); setMenuNote(null); }}
+          onDelete={() => { setConfirmDel(menuNote); setMenuNote(null); }}
           onClose={() => setMenuNote(null)} />
+      )}
+
+      {confirmDel && (
+        <Confirm title="העברה לפח האשפה" icon="delete"
+          message={`"${(confirmDel.title || confirmDel.text || "הפתק").slice(0, 40)}" יעבור לפח — אפשר לשחזר משם תוך 30 יום.`}
+          confirmLabel="העבר לפח"
+          onConfirm={() => { actions.remove?.(confirmDel); setConfirmDel(null); }}
+          onCancel={() => setConfirmDel(null)} th={th} />
       )}
 
       {editNames && (
@@ -214,7 +223,12 @@ function NoteRow({ note, th, onOpen, onMenu }) {
   };
 
   const items = hasChecklist(note.text) ? parseChecklist(note.text) : null;
-  const body = note.title ? note.text : (note.text || "(מדיה בלבד)");
+  // An auto-title is the body's first words — printing both reads twice.
+  const titleIsEcho = note.title &&
+    (note.text || "").trim().replace(/^\s*(?:[-*]\s+|\[[ xX]\]\s*)/, "")
+      .startsWith(note.title.replace(/…$/, ""));
+  const showTitle = note.title && !titleIsEcho;
+  const body = showTitle ? note.text : (note.text || "(מדיה בלבד)");
   const date = note.createdAt
     ? new Date(note.createdAt).toLocaleDateString("he-IL", { day: "numeric", month: "short" })
     : "";
@@ -230,7 +244,7 @@ function NoteRow({ note, th, onOpen, onMenu }) {
         userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none",
         overflow: "hidden" }}>
       <div style={{ flex: 1, minWidth: 0, padding: "12px 13px" }}>
-        {note.title && (
+        {showTitle && (
           <p style={{ margin: "0 0 2px", fontSize: 14.5, fontWeight: 700, color: th.text,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {note.title}
@@ -241,7 +255,7 @@ function NoteRow({ note, th, onOpen, onMenu }) {
             ☑ {items.filter(i => i.done).length}/{items.length} סומנו
           </p>
         ) : (
-          <p style={{ margin: 0, fontSize: note.title ? 12.5 : 14, color: note.title ? th.secondary : th.text,
+          <p style={{ margin: 0, fontSize: showTitle ? 12.5 : 14, color: showTitle ? th.secondary : th.text,
             lineHeight: 1.5, overflow: "hidden", display: "-webkit-box",
             WebkitLineClamp: 2, WebkitBoxOrient: "vertical", wordBreak: "break-word" }}>
             {body}
