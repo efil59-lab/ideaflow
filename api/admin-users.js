@@ -46,16 +46,31 @@ export default async function handler(req, res) {
 
     const db = admin.firestore();
     const snap = await db.collection("users").get();
+
+    // Identity comes from Firebase Auth, so accounts created before the app
+    // started stamping name/email still show up properly. Auth also knows when
+    // they signed up and last signed in — better than our own stamps.
+    const auth = {};
+    for (let i = 0; i < snap.docs.length; i += 100) {
+      const batch = snap.docs.slice(i, i + 100).map(d => ({ uid: d.id }));
+      try {
+        const got = await admin.auth().getUsers(batch);
+        got.users.forEach(u => { auth[u.uid] = u; });
+      } catch { /* fall back to the Firestore stamp */ }
+    }
+
     const users = await Promise.all(snap.docs.map(async d => {
       const u = d.data() || {};
+      const au = auth[d.id];
       const counts = await countIdeas(db, d.id).catch(() => ({ total: 0, done: 0 }));
+      const ms = t => (t ? new Date(t).getTime() : null);
       return {
         uid: d.id,
-        name: u.name || "",
-        email: u.email || "",
-        photo: u.photo || "",
-        firstSeen: u.firstSeen || null,
-        lastSeen: u.lastSeen || null,
+        name: au?.displayName || u.name || "",
+        email: au?.email || u.email || "",
+        photo: au?.photoURL || u.photo || "",
+        firstSeen: u.firstSeen || ms(au?.metadata?.creationTime) || null,
+        lastSeen: u.lastSeen || ms(au?.metadata?.lastSignInTime) || null,
         version: u.seenVersion || "",
         ideas: counts.total,
         done: counts.done,

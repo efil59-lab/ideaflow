@@ -41,23 +41,35 @@ window.addEventListener("beforeinstallprompt", e => {
 const EXPECTED_SW_VERSION = "5.12-silentok";
 
 let lastUpdateCheck = 0;
-async function reloadIfNewVersion() {
-  if (Date.now() - lastUpdateCheck < 10 * 60e3) return;
+let updateAnnounced = false;
+// Offer the update in a bar rather than reloading underneath the user.
+async function checkForUpdate() {
+  if (updateAnnounced || Date.now() - lastUpdateCheck < 5 * 60e3) return;
   lastUpdateCheck = Date.now();
   try {
-    // Don't yank the page out from under active typing
-    const el = document.activeElement;
-    if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
     const html = await (await fetch("/", { cache: "no-store" })).text();
-    const served = html.match(/assets\/index-([\w-]+)\.js/)?.[1];
+    const tail = html.split("/assets/index-")[1];
+    const served = tail ? tail.split(".js")[0] : null;
     const running = [...document.scripts].map(s => s.src).find(s => s.includes("/assets/index-"));
-    if (served && running && !running.includes(served)) location.reload();
+    if (served && running && !running.includes(served)) {
+      updateAnnounced = true;
+      window.dispatchEvent(new Event("if-update"));
+    }
   } catch { /* offline — try again later */ }
 }
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") reloadIfNewVersion();
+  if (document.visibilityState === "visible") checkForUpdate();
 });
-setTimeout(reloadIfNewVersion, 8000);
+setTimeout(checkForUpdate, 6000);
+
+// Taking the update: refresh the service worker too, then load the new bundle.
+async function applyUpdate() {
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await reg?.update();
+  } catch { /* ignore */ }
+  location.reload();
+}
 
 export default function App() {
   const [user, setUser] = useState(undefined);
@@ -438,6 +450,12 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   const [bulbBeat, setBulbBeat] = useState(0); // header bulb pulses on capture
   const [fabOpen, setFabOpen] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [updateReady, setUpdateReady] = useState(false);
+  useEffect(() => {
+    const on = () => setUpdateReady(true);
+    window.addEventListener("if-update", on);
+    return () => window.removeEventListener("if-update", on);
+  }, []);
 
   // The logo is two controls in one: a tap goes home, a long press (700ms)
   // opens the owner's admin panel.
@@ -930,6 +948,17 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
             </button>
           </div>
         </div>
+
+        {updateReady && (
+          <button onClick={applyUpdate}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              width: "100%", border: "none", cursor: "pointer", fontFamily: FONT,
+              padding: "10px 14px", background: th.cta || th.accent, color: "#fff",
+              fontSize: 13.5, fontWeight: 700, animation: "fadeDown .3s ease-out both" }}>
+            <Icon name="refresh" size={15} color="#fff" />
+            גרסה חדשה זמינה — לחץ לעדכון
+          </button>
+        )}
       </div>
 
       {/* Body */}
