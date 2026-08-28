@@ -8,7 +8,7 @@ import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
 import { autoTitle } from "../data/store";
 import { pushBackLayer } from "./backstack";
 
-export default function NoteEditor({ initial, defaultColor = 0, colorNames = [], th, onCreate, onUpdate, onClose }) {
+export default function NoteEditor({ initial, defaultColor = 0, colorNames = [], scale = 1, th, onCreate, onUpdate, onClose }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [text, setText] = useState(initial?.text || "");
   const [colorIdx, setColorIdx] = useState(initial?.colorIdx ?? defaultColor ?? 0);
@@ -64,6 +64,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const c = NOTE_COLORS[colorIdx];
   const pageBg = th.pastels[colorIdx] || th.surface;
   const line = th.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.09)";
+  const fs = Math.round(16.5 * scale);
+  const lh = Math.round(30 * scale);
   const barBg = th.dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.09)";
   const nameOf = i => (colorNames[i] || "").trim() || NOTE_COLOR_FALLBACK[i];
 
@@ -101,10 +103,10 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)}
         placeholder="כתוב כאן…"
         style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
-          resize: "none", padding: "6px 16px 16px", fontSize: 16.5, fontFamily: FONT,
+          resize: "none", padding: "6px 16px 16px", fontSize: fs, fontFamily: FONT,
           direction: "rtl", color: th.text, background: "transparent",
-          lineHeight: "30px",
-          backgroundImage: `repeating-linear-gradient(transparent, transparent 29px, ${line} 29px, ${line} 30px)`,
+          lineHeight: lh + "px",
+          backgroundImage: `repeating-linear-gradient(transparent, transparent ${lh - 1}px, ${line} ${lh - 1}px, ${line} ${lh}px)`,
           backgroundAttachment: "local" }} />
 
       <div style={{ padding: "7px 14px calc(7px + env(safe-area-inset-bottom))",

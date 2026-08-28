@@ -49,6 +49,17 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [sortBy, setSortBy] = useState(() => {
     try { return localStorage.getItem("if_notes_sortby") || "modified"; } catch { return "modified"; }
   });
+  // Note-text size: 0 normal, 1 big, 2 huge — persisted, applies to rows/cards/editor.
+  const [fontStep, setFontStep] = useState(() => {
+    try { return Number(localStorage.getItem("if_notes_font")) || 0; } catch { return 0; }
+  });
+  const SCALES = [1, 1.2, 1.42];
+  const scale = SCALES[fontStep] || 1;
+  const cycleFont = () => setFontStep(v => {
+    const next = (v + 1) % 3;
+    try { localStorage.setItem("if_notes_font", String(next)); } catch { /* ignore */ }
+    return next;
+  });
   const [showSort, setShowSort] = useState(false);
   const [showArch, setShowArch] = useState(false);
   const [editNames, setEditNames] = useState(false);
@@ -163,7 +174,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   };
 
   const noteProps = n => ({
-    note: n, th, sortBy,
+    note: n, th, sortBy, scale,
     inSel, isSel: inSel && selected.has(n.id),
     onTap: () => inSel ? toggleSel(n.id) : setEditing(n),
     onLong: () => inSel ? toggleSel(n.id) : startSel(n.id),
@@ -225,6 +236,15 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
             <IconBtn name="download" onClick={() => { setShowArch(a => !a); setColor(null); }}
               color={showArch ? th.accent : th.muted} size={17} pad="6px"
               title={showArch ? "חזרה לפתקים" : `ארכיון (${archCount})`} />
+            <button onClick={cycleFont} title="גודל הטקסט"
+              style={{ background: fontStep ? th.accentSoft : "transparent", border: "none",
+                borderRadius: 9, cursor: "pointer", padding: "5px 9px", fontFamily: FONT,
+                color: fontStep ? th.accentText : th.muted, fontWeight: 700,
+                display: "inline-flex", alignItems: "baseline", gap: 1 }}>
+              <span style={{ fontSize: 16 }}>א</span><span style={{ fontSize: 11 }}>א</span>
+            </button>
+            <IconBtn name="download" onClick={() => fileRef.current?.click()} color={th.muted} size={17} pad="6px"
+              title="ייבוא פתקים מקובץ" style={{ transform: "rotate(180deg)" }} />
             <IconBtn name="tag" onClick={() => setEditNames(true)} color={th.muted} size={17} pad="6px"
               title="שמות הצבעים" />
             <IconBtn name={view === "rows" ? "copy" : "notes"}
@@ -277,18 +297,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
           <Icon name="clip" size={15} color={th.accentText} /> הדבק מהלוח כפתק חדש
         </button>
       )}
-      {!showArch && !inSel && (
-        <button onClick={() => fileRef.current?.click()}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-            width: "100%", margin: "0 0 12px", background: "transparent", color: th.secondary,
-            border: `1px dashed ${th.border}`, borderRadius: 12, padding: "9px 0", cursor: "pointer",
-            fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
-          <span style={{ display: "inline-flex", transform: "rotate(180deg)" }}>
-            <Icon name="download" size={15} color={th.secondary} />
-          </span>
-          ייבא פתקים מקובץ
-        </button>
-      )}
+
       {pasteErr && <p style={{ margin: "0 2px 10px", fontSize: 12, color: th.red, direction: "rtl" }}>{pasteErr}</p>}
 
       {pool.length === 0 ? (
@@ -353,7 +362,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
       )}
 
       {editing && (
-        <NoteEditor th={th} colorNames={colorNames}
+        <NoteEditor th={th} colorNames={colorNames} scale={scale}
           initial={editing === "new" ? null : editing}
           defaultColor={color ?? 0}
           onCreate={onCreateNote}
@@ -381,7 +390,7 @@ function fmtStamp(ts) {
 
 // One full-width row per note. Tap opens (or toggles selection); long press
 // starts selection. A selection circle appears while selecting.
-function NoteRow({ note, th, sortBy, inSel, isSel, onTap, onLong }) {
+function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
   const c = NOTE_COLORS[note.colorIdx ?? 0];
   const bg = (note.colorIdx != null && th.pastels[note.colorIdx]) || th.surface;
   const press = usePress(onTap, onLong);
@@ -415,17 +424,17 @@ function NoteRow({ note, th, sortBy, inSel, isSel, onTap, onLong }) {
       )}
       <div style={{ flex: 1, minWidth: 0, padding: "12px 13px" }}>
         {showTitle && (
-          <p style={{ margin: "0 0 2px", fontSize: 14.5, fontWeight: 700, color: th.text,
+          <p style={{ margin: "0 0 2px", fontSize: Math.round(14.5 * scale), fontWeight: 700, color: th.text,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {note.title}
           </p>
         )}
         {items ? (
-          <p style={{ margin: 0, fontSize: 12.5, color: th.secondary }}>
+          <p style={{ margin: 0, fontSize: Math.round(12.5 * scale), color: th.secondary }}>
             ☑ {items.filter(i => i.done).length}/{items.length} סומנו
           </p>
         ) : (
-          <p style={{ margin: 0, fontSize: showTitle ? 12.5 : 14, color: showTitle ? th.secondary : th.text,
+          <p style={{ margin: 0, fontSize: Math.round((showTitle ? 12.5 : 14) * scale), color: showTitle ? th.secondary : th.text,
             lineHeight: 1.5, overflow: "hidden", display: "-webkit-box",
             WebkitLineClamp: 2, WebkitBoxOrient: "vertical", wordBreak: "break-word" }}>
             {body}
@@ -447,7 +456,7 @@ function NoteRow({ note, th, sortBy, inSel, isSel, onTap, onLong }) {
 
 // Compact colour card for the grid view. Checklist items stay tappable in
 // place (outside selection mode) so a shopping list works without opening.
-function NoteCard({ note, th, actions, sortBy, inSel, isSel, onTap, onLong }) {
+function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
   const c = NOTE_COLORS[note.colorIdx ?? 0];
   const bg = (note.colorIdx != null && th.pastels[note.colorIdx]) || th.surface;
   const press = usePress(onTap, onLong);
@@ -472,16 +481,16 @@ function NoteCard({ note, th, actions, sortBy, inSel, isSel, onTap, onLong }) {
         </span>
       )}
       {note.title && (
-        <p style={{ margin: "0 0 5px", fontSize: 13, fontWeight: 700, color: th.text,
+        <p style={{ margin: "0 0 5px", fontSize: Math.round(13 * scale), fontWeight: 700, color: th.text,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {note.title}
         </p>
       )}
       {list ? (
-        <Checklist text={note.text} th={th} compact
+        <Checklist text={note.text} th={th} compact scale={scale}
           onToggle={i => { if (!inSel) actions.update?.(note.id, { text: toggleLine(note.text, i), html: "" }, note); }} />
       ) : (
-        <p style={{ margin: 0, fontSize: 12, color: th.secondary, lineHeight: 1.55,
+        <p style={{ margin: 0, fontSize: Math.round(12 * scale), color: th.secondary, lineHeight: 1.55,
           overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical",
           wordBreak: "break-word" }}>
           {note.text || "(מדיה בלבד)"}

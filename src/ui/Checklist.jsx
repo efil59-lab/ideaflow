@@ -29,7 +29,7 @@ export function toggleLine(text, index) {
   return lines.join("\n");
 }
 
-export default function Checklist({ text, onToggle, th, compact = false }) {
+export default function Checklist({ text, onToggle, th, compact = false, scale = 1 }) {
   const items = parseChecklist(text);
   if (!items.length) return null;
   const left = items.filter(i => !i.done).length;
@@ -47,7 +47,7 @@ export default function Checklist({ text, onToggle, th, compact = false }) {
             display: "flex", alignItems: "center", justifyContent: "center" }}>
             {it.done && <Icon name="check" size={10} color="#fff" />}
           </span>
-          <span style={{ fontSize: compact ? 11.5 : 13.5, lineHeight: 1.5,
+          <span style={{ fontSize: Math.round((compact ? 11.5 : 13.5) * scale), lineHeight: 1.5,
             color: it.done ? th.muted : th.text,
             textDecoration: it.done ? "line-through" : "none" }}>
             {it.label}
