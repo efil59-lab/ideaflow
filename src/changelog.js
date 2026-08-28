@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.36";
+export const APP_VERSION = "5.37";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.37", date: "28 באוגוסט 2026", items: [
+    { icon: "notes", title: "כותרת נכונה לרשימת סימון", text: "פתק שהוא רשימת סימון מציג ברשימה את הפריט הראשון ככותרת (במקום רק \"0/7 סומנו\")." },
+  ] },
   { v: "5.36", date: "28 באוגוסט 2026", items: [
     { icon: "undo", title: "בטל / החזר בכתיבת פתק", text: "בתחתית מסך הכתיבה נוספו כפתורי בטל (undo) והחזר (redo), שנשארים מעל המקלדת." },
   ] },

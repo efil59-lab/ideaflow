@@ -374,6 +374,7 @@ function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
   const press = usePress(onTap, onLong);
 
   const items = hasChecklist(note.text) ? parseChecklist(note.text) : null;
+  const firstLabel = items && items[0] ? (items[0].label || "").trim() : "";
   const titleIsEcho = note.title &&
     (note.text || "").trim().replace(/^\s*(?:[-*]\s+|\[[ xX]\]\s*)/, "")
       .startsWith(note.title.replace(/…$/, ""));
@@ -401,22 +402,32 @@ function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
         </div>
       )}
       <div style={{ flex: 1, minWidth: 0, padding: "12px 13px" }}>
-        {showTitle && (
-          <p style={{ margin: "0 0 2px", fontSize: Math.round(14.5 * scale), fontWeight: 700, color: th.text,
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {note.title}
-          </p>
-        )}
         {items ? (
-          <p style={{ margin: 0, fontSize: Math.round(12.5 * scale), color: th.secondary }}>
-            ☑ {items.filter(i => i.done).length}/{items.length} סומנו
-          </p>
+          <>
+            {(showTitle ? note.title : firstLabel) && (
+              <p style={{ margin: "0 0 3px", fontSize: Math.round(14.5 * scale), fontWeight: 700, color: th.text,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {showTitle ? note.title : firstLabel}
+              </p>
+            )}
+            <p style={{ margin: 0, fontSize: Math.round(12.5 * scale), color: th.secondary }}>
+              ☑ {items.filter(i => i.done).length}/{items.length} סומנו
+            </p>
+          </>
         ) : (
-          <p style={{ margin: 0, fontSize: Math.round((showTitle ? 12.5 : 14) * scale), color: showTitle ? th.secondary : th.text,
-            lineHeight: 1.5, overflow: "hidden", display: "-webkit-box",
-            WebkitLineClamp: 2, WebkitBoxOrient: "vertical", wordBreak: "break-word" }}>
-            {body}
-          </p>
+          <>
+            {showTitle && (
+              <p style={{ margin: "0 0 2px", fontSize: Math.round(14.5 * scale), fontWeight: 700, color: th.text,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {note.title}
+              </p>
+            )}
+            <p style={{ margin: 0, fontSize: Math.round((showTitle ? 12.5 : 14) * scale), color: showTitle ? th.secondary : th.text,
+              lineHeight: 1.5, overflow: "hidden", display: "-webkit-box",
+              WebkitLineClamp: 2, WebkitBoxOrient: "vertical", wordBreak: "break-word" }}>
+              {body}
+            </p>
+          </>
         )}
       </div>
       <div style={{ flexShrink: 0, padding: "12px 10px 12px 13px", display: "flex",
@@ -439,6 +450,12 @@ function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, o
   const bg = (note.colorIdx != null && th.pastels[note.colorIdx]) || th.surface;
   const press = usePress(onTap, onLong);
   const list = hasChecklist(note.text);
+  // On a checklist the Checklist already renders the first item, so hide a title
+  // that merely echoes it — but keep a real, distinct custom title.
+  const titleIsEcho = note.title &&
+    (note.text || "").trim().replace(/^\s*(?:[-*]\s+|\[[ xX]\]\s*)/, "")
+      .startsWith(note.title.replace(/…$/, ""));
+  const showCardTitle = note.title && !(list && titleIsEcho);
 
   return (
     <div {...press}
@@ -458,7 +475,7 @@ function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, o
           {isSel && <Icon name="check" size={11} color="#fff" />}
         </span>
       )}
-      {note.title && (
+      {showCardTitle && (
         <p style={{ margin: "0 0 5px", fontSize: Math.round(13 * scale), fontWeight: 700, color: th.text,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {note.title}
