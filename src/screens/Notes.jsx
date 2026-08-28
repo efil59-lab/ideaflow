@@ -60,6 +60,23 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [pickColor, setPickColor] = useState(false);     // bulk colour picker
   const [confirmDel, setConfirmDel] = useState(null);    // array of notes to trash
 
+  // Reading a note opens a full-screen editor; keep the list exactly where it
+  // was. We snapshot the scroll when it opens (before the textarea autofocus
+  // pulls the page to the top behind the overlay) and restore it on close, so
+  // going back lands on the same item. Covers every path: tap, FAB, back.
+  const scrollRef = useRef(0);
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    if (!wasEditing.current && editing) {
+      scrollRef.current = window.scrollY || document.documentElement.scrollTop || 0;
+    } else if (wasEditing.current && !editing) {
+      const y = scrollRef.current;
+      requestAnimationFrame(() => window.scrollTo(0, y));
+      setTimeout(() => window.scrollTo(0, y), 80);   // re-assert after keyboard/viewport settles
+    }
+    wasEditing.current = !!editing;
+  }, [editing]);
+
   // The FAB's "פתק" route asks us to open a fresh editor.
   useEffect(() => {
     const open = () => setEditing("new");
