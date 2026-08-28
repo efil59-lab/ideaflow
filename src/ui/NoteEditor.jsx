@@ -281,8 +281,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
               padding: "0 16px", minHeight: lh, borderBottom: `1px solid ${line}` }}>
               <button onClick={() => toggleItem(it.i)} title={it.done ? "בטל סימון" : "סמן כבוצע"}
                 style={{ flexShrink: 0, width: 23, height: 23, borderRadius: 6, cursor: "pointer",
-                  border: it.done ? "none" : `2px solid ${th.borderStrong}`,
-                  background: it.done ? th.green : "transparent",
+                  border: it.done ? "none" : `2px solid ${th.dark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)"}`,
+                  background: it.done ? th.green : (th.dark ? "rgba(255,255,255,0.14)" : "#fff"),
                   display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {it.done && <Icon name="check" size={15} color="#fff" />}
               </button>

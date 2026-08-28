@@ -42,8 +42,8 @@ export default function Checklist({ text, onToggle, th, compact = false, scale =
             background: "transparent", border: "none", padding: "3px 0", cursor: "pointer",
             textAlign: "right", font: "inherit" }}>
           <span style={{ flexShrink: 0, width: 15, height: 15, borderRadius: 5, marginTop: 2,
-            border: it.done ? "none" : `1.5px solid ${th.borderStrong}`,
-            background: it.done ? th.green : "transparent",
+            border: it.done ? "none" : `1.5px solid ${th.dark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)"}`,
+            background: it.done ? th.green : (th.dark ? "rgba(255,255,255,0.14)" : "#fff"),
             display: "flex", alignItems: "center", justifyContent: "center" }}>
             {it.done && <Icon name="check" size={10} color="#fff" />}
           </span>
