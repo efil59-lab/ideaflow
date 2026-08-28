@@ -345,6 +345,13 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
           defaultColor={color ?? 0}
           onCreate={onCreateNote}
           onUpdate={(id, patch) => actions.update?.(id, patch, editing === "new" ? null : editing)}
+          onAction={(kind, note) => {
+            if (kind === "share") actions.share?.(note);
+            else if (kind === "remind") actions.remind?.(note);
+            else if (kind === "move") onMoveToProject?.([note]);
+            else if (kind === "archive") actions.update?.(note.id, { archived: !note.archived }, note);
+            else if (kind === "delete") actions.remove?.(note);
+          }}
           onClose={() => setEditing(null)} />
       )}
 

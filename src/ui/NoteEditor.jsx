@@ -8,11 +8,21 @@ import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
 import { autoTitle } from "../data/store";
 import { pushBackLayer } from "./backstack";
 
-export default function NoteEditor({ initial, defaultColor = 0, colorNames = [], scale = 1, th, onCreate, onUpdate, onClose }) {
+const MENU = [
+  { k: "checklist", label: "רשימת סימון", icon: "check" },
+  { k: "share",     label: "שיתוף",        icon: "share" },
+  { k: "remind",    label: "תזכורת",       icon: "bell" },
+  { k: "move",      label: "העבר לפרויקט", icon: "folder" },
+  { k: "archive",   label: "לארכיון",      icon: "download" },
+  { k: "delete",    label: "מחיקה",        icon: "delete", danger: true },
+];
+
+export default function NoteEditor({ initial, defaultColor = 0, colorNames = [], scale = 1, th, onCreate, onUpdate, onAction, onClose }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [text, setText] = useState(initial?.text || "");
   const [colorIdx, setColorIdx] = useState(initial?.colorIdx ?? defaultColor ?? 0);
   const [showColors, setShowColors] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const idRef = useRef(initial?.id || null);
   const creatingRef = useRef(false);
@@ -76,6 +86,32 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   // Any way out flushes the pending edit.
   useEffect(() => () => { save(); }, []);
 
+  // "רשימת סימון": turn every non-empty line into a checklist item, or strip the
+  // markers back off if the note is already a list. Autosave picks up the change.
+  const toggleChecklist = () => {
+    const lines = (stateRef.current.text || "").split(/\r?\n/);
+    const ITEM = /^\s*(?:[-*]\s+|\[[ xX]\]\s*)/;
+    const filled = lines.filter(l => l.trim());
+    const allItems = filled.length > 0 && filled.every(l => ITEM.test(l));
+    setText(lines.map(l => !l.trim() ? l
+      : allItems ? l.replace(ITEM, "")
+      : ITEM.test(l) ? l : "- " + l).join("\n"));
+  };
+
+  // The overflow menu. Checklist edits in place; the rest flush a save (so the
+  // note has an id), leave the editor, then hand the note to the parent action.
+  const doMenu = async kind => {
+    setMenuOpen(false);
+    if (kind === "checklist") { toggleChecklist(); return; }
+    await save();
+    const s = stateRef.current, id = idRef.current;
+    if (!id) { onClose?.(); return; }          // empty new note — nothing to act on
+    const obj = { ...(initial || {}), id, status: "note", noCheck: true,
+      title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx };
+    onClose?.();
+    onAction?.(kind, obj);
+  };
+
   const c = NOTE_COLORS[colorIdx];
   const pageBg = th.pastels[colorIdx] || th.surface;
   const line = th.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.09)";
@@ -88,9 +124,33 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     <div style={{ position: "fixed", inset: 0, zIndex: 700, background: pageBg,
       display: "flex", flexDirection: "column", direction: "rtl", fontFamily: FONT }}>
 
-      {/* Top bar: colour square · title · ✓ done */}
+      {/* Top bar: ⋮ menu · colour square · title · ✓ done */}
       <div style={{ display: "flex", alignItems: "center", gap: 9,
         padding: "10px 12px calc(10px)", background: barBg }}>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <IconBtn name="more" onClick={() => setMenuOpen(o => !o)} color={th.text} size={20} pad="7px" title="אפשרויות" />
+          {menuOpen && (
+            <>
+              <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 5 }} />
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 6,
+                minWidth: 208, background: th.surface, borderRadius: 12,
+                border: `1px solid ${th.border}`, boxShadow: "0 12px 34px rgba(0,0,0,0.3)",
+                overflow: "hidden", direction: "rtl" }}>
+                {MENU.map((m, i) => (
+                  <button key={m.k} onClick={() => doMenu(m.k)}
+                    style={{ display: "flex", alignItems: "center", gap: 12, width: "100%",
+                      background: "transparent", border: "none", cursor: "pointer", fontFamily: FONT,
+                      padding: "12px 15px", fontSize: 14.5, fontWeight: 500,
+                      color: m.danger ? th.red : th.text,
+                      borderTop: i ? `1px solid ${th.border}` : "none" }}>
+                    <span style={{ flex: 1, textAlign: "right" }}>{m.label}</span>
+                    <Icon name={m.icon} size={18} color={m.danger ? th.red : th.secondary} />
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         <button onClick={() => setShowColors(s => !s)} title={nameOf(colorIdx)}
           style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, cursor: "pointer",
             background: c, border: "2px solid rgba(255,255,255,0.65)",
