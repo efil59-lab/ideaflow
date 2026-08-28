@@ -79,9 +79,11 @@ export default function Inbox({ uid, ideas, projects, th, actions, onCapture, my
           </button>
         </div>
       ) : (
-        <IdeaList ideas={inbox} projects={projects} th={th} actions={actions}
-          sortMode={sortMode && !showDone} onReorder={actions.reorder}
-          emptyText={showDone ? "אין רעיונות שבוצעו" : "ה-Inbox ריק"} />
+        <div data-nokbd>
+          <IdeaList ideas={inbox} projects={projects} th={th} actions={actions}
+            sortMode={sortMode && !showDone} onReorder={actions.reorder}
+            emptyText={showDone ? "אין רעיונות שבוצעו" : "ה-Inbox ריק"} />
+        </div>
       )}
 
       {!showDone && !sortMode && recentActive.length > 0 && (
@@ -89,7 +91,9 @@ export default function Inbox({ uid, ideas, projects, th, actions, onCapture, my
           <p style={{ fontSize: 12, fontWeight: 600, color: th.muted, letterSpacing: 0.6, margin: "18px 2px 8px" }}>
             פעילים לאחרונה
           </p>
-          <IdeaList ideas={recentActive} projects={projects} showProject th={th} actions={actions} myShares={myShares} />
+          <div data-nokbd>
+            <IdeaList ideas={recentActive} projects={projects} showProject th={th} actions={actions} myShares={myShares} />
+          </div>
         </>
       )}
     </>

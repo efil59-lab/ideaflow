@@ -100,13 +100,33 @@ export default function CaptureBar({ uid, onCapture, th, placeholder = "מה ע�
   // autoFocus (committed inside that same tap) does raise the Android keyboard.
   useEffect(() => {
     if (!focusOnMount) return;
-    const timers = [0, 70, 200].map(ms => setTimeout(() => {
+    const put = () => {
       const el = taRef.current;
-      if (!el || document.activeElement === el) return;
+      if (!el || document.activeElement === el) return false;
       el.focus();
       try { const n = el.value.length; el.setSelectionRange(n, n); } catch { /* ignore */ }
-    }, ms));
-    return () => timers.forEach(clearTimeout);
+      return document.activeElement === el;
+    };
+    const timers = [0, 70, 200].map(ms => setTimeout(put, ms));
+
+    // Cold launch has no in-page gesture, so Android refuses to raise the
+    // keyboard for the focus above — the caret lands but the keyboard stays
+    // down. The user's first touch on any neutral area IS a gesture, so we
+    // focus inside it and the keyboard comes up. One-shot, expires after 20s,
+    // and never steals a tap meant for a control or an idea ([data-nokbd]).
+    const onFirstTap = e => {
+      if (e.target.closest("button, input, textarea, select, a, [data-nokbd]")) return;
+      put();
+      stop();
+    };
+    const stop = () => {
+      document.removeEventListener("pointerdown", onFirstTap, true);
+      clearTimeout(expire);
+    };
+    document.addEventListener("pointerdown", onFirstTap, true);
+    const expire = setTimeout(stop, 20000);
+
+    return () => { timers.forEach(clearTimeout); stop(); };
   }, [focusOnMount]);
 
   const addMedia = async (file, kind) => {
