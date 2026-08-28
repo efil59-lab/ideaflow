@@ -976,6 +976,14 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
             commentSeen={commentSeen}
             openProjectId={openProjectId} setOpenProjectId={setOpenProjectId} />
         )}
+        {tab === "favs" && (
+          <Projects uid={uid} ideas={ideas} projects={projects} th={th} actions={actions}
+            projActions={projActions} onCapture={capture} favOnly
+            myShares={myShares} sharedWithMe={sharedWithMe}
+            shareActions={shareActions} onSharedCapture={sharedCapture}
+            commentSeen={commentSeen}
+            openProjectId={openProjectId} setOpenProjectId={setOpenProjectId} />
+        )}
         {tab === "search" && (
           <Search ideas={ideas} projects={projects} th={th} actions={actions}
             q={searchQ} setQ={setSearchQ} />
@@ -1029,7 +1037,16 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
             </span>
           </span>
 
-          {/* search sits last so the FAB lands mid-bar */}
+          {/* favourites + search sit after the FAB, so it lands dead centre */}
+          <button onClick={() => { setTab("favs"); setOpenProjectId(null); }}
+            style={{ flex: 1, background: "transparent", border: "none", cursor: "pointer",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+              padding: "5px 0", fontFamily: FONT }}>
+            <Icon name="star" filled={tab === "favs"} size={21}
+              color={tab === "favs" ? th.navActive : th.muted} />
+            <span style={{ fontSize: 10.5, fontWeight: tab === "favs" ? 600 : 400,
+              color: tab === "favs" ? th.navActive : th.muted }}>מועדפים</span>
+          </button>
           <button onClick={() => setTab("search")}
             style={{ flex: 1, background: "transparent", border: "none", cursor: "pointer",
               display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
@@ -1377,6 +1394,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "delete", title: "פח אשפה", text: "מחיקה היא הפיכה: הרעיון עובר לפח (אייקון הפח במסך הפרויקטים) ונשאר שם 30 יום לפני שנמחק לצמיתות." },
     { icon: "sparkle", title: "מראה", text: "בתפריט המשתמש (התמונה למעלה) בוחרים מראה: \"אלקטריק\" הכהה והזוהר (ברירת המחדל), \"זוהר\" הצבעוני או \"רגוע\" המינימלי. בכפתור הירח/שמש עוברים למצב כהה. הבחירה נשמרת במכשיר." },
     { icon: "add", title: "כפתור רעיון חדש", text: "הכפתור העגול במרכז סרגל הניווט פותח שלוש דרכים לתפוס רעיון: כתיבה, הקלטה קולית או תמונה." },
+    { icon: "star", title: "מועדפים", text: "כוכב ⭐ על כרטיס פרויקט מוסיף אותו ללשונית \"מועדפים\" — הפרויקטים שאתה חוזר אליהם, במקום אחד." },
     { icon: "bulb", title: "AI על הרעיון", text: "בעורך של כל רעיון: שפר ניסוח, הרחב, הפוך למשימות או קבל זוויות נוספות. התוצאה מוצעת — אתה בוחר אם להחליף, להוסיף או לבטל." },
   ];
   const Row = ({ it, last }) => (

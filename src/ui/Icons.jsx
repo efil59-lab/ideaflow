@@ -9,6 +9,7 @@ const ICONS = {
   delete: (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>,
   edit:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
   pin:    (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill={c} stroke={c} strokeWidth="0.5"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>,
+  star:   (c,s,f) => <svg width={s} height={s} viewBox="0 0 24 24" fill={f ? c : "none"} stroke={c} {...S}><path d="M12 2.5l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.3l6.5-.9z"/></svg>,
   more:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill={c}><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>,
   share:  (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,
   copy:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
@@ -47,19 +48,19 @@ const ICONS = {
   redo:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>,
 };
 
-export function Icon({ name, size = 20, color = "#6E7787" }) {
+export function Icon({ name, size = 20, color = "#6E7787", filled = false }) {
   const fn = ICONS[name];
   if (!fn) return null;
-  return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, lineHeight: 0 }}>{fn(color, size)}</span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, lineHeight: 0 }}>{fn(color, size, filled)}</span>;
 }
 
-export function IconBtn({ name, onClick, color = "#6E7787", bg = "transparent", size = 20, pad = "6px", disabled = false, title, style = {} }) {
+export function IconBtn({ name, onClick, color = "#6E7787", bg = "transparent", size = 20, pad = "6px", disabled = false, title, style = {}, filled = false }) {
   return (
     <button onClick={onClick} disabled={disabled} title={title}
       style={{ background: bg, border: "none", cursor: disabled ? "default" : "pointer",
         borderRadius: 9, padding: pad, display: "flex", alignItems: "center",
         justifyContent: "center", opacity: disabled ? 0.35 : 1, flexShrink: 0, ...style }}>
-      <Icon name={name} size={size} color={color} />
+      <Icon name={name} size={size} color={color} filled={filled} />
     </button>
   );
 }

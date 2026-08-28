@@ -4,11 +4,15 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.17";
+export const APP_VERSION = "5.18";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.18", date: "28 באוגוסט 2026", items: [
+    { icon: "star", title: "פרויקטים מועדפים", text: "מסמנים פרויקט בכוכב ⭐ במסך הפרויקטים, והוא מופיע בלשונית \"מועדפים\" החדשה בסרגל התחתון — גישה מהירה למה שחשוב עכשיו." },
+    { icon: "refresh", title: "פס עדכון גרסה", text: "כשיוצאת גרסה חדשה יופיע פס בראש המסך — לחיצה עליו מעדכנת מיד. האפליקציה כבר לא מתרעננת מעצמה באמצע העבודה." },
+  ] },
   { v: "5.17", date: "22 ביולי 2026", items: [
     { icon: "sparkle", title: "מראה חדש — אלקטריק ⚡", text: "עיצוב כהה וזוהר: רקע כחול-שחור עמוק, סגול וכחול חשמליים, הילות עדינות במקום מסגרות אפורות. זו ברירת המחדל החדשה — ותמיד אפשר לחזור ל\"רגוע\" או ל\"זוהר\" מתפריט המשתמש." },
     { icon: "add", title: "כפתור רעיון חדש", text: "כפתור עגול ובולט במרכז סרגל הניווט. בלחיצה נפתחות שלוש דרכים לתפוס רעיון: כתיבה, הקלטה או תמונה." },

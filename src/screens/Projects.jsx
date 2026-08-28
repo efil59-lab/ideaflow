@@ -18,7 +18,7 @@ const projSort = (a, b) =>
   || (a.createdAt || 0) - (b.createdAt || 0);
 
 export default function Projects({ uid, ideas, projects, th, actions, projActions, onCapture,
-  openProjectId, setOpenProjectId, commentSeen = {},
+  openProjectId, setOpenProjectId, commentSeen = {}, favOnly = false,
   myShares = {}, sharedWithMe = [], shareActions, onSharedCapture }) {
   const open = projects.find(p => p.id === openProjectId);
   if (openProjectId === "__trash__") {
@@ -39,7 +39,7 @@ export default function Projects({ uid, ideas, projects, th, actions, projAction
         share={myShares[open.id]} shareActions={shareActions}
         onBack={() => setOpenProjectId(null)} />
     : <ProjectsIndex uid={uid} projects={projects} ideas={ideas} th={th} projActions={projActions}
-        myShares={myShares} sharedWithMe={sharedWithMe} commentSeen={commentSeen}
+        myShares={myShares} sharedWithMe={sharedWithMe} commentSeen={commentSeen} favOnly={favOnly}
         onOpen={setOpenProjectId} />;
 }
 
@@ -286,7 +286,9 @@ function ProjectsStats({ projects, ideas, th, onOpen }) {
   );
 }
 
-function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares = {}, sharedWithMe = [], commentSeen = {} }) {
+function ProjectsIndex({ uid, projects: allProjects, ideas, th, projActions, onOpen, myShares = {}, sharedWithMe = [], commentSeen = {}, favOnly = false }) {
+  // The favourites tab is the same index, narrowed to starred projects.
+  const projects = favOnly ? allProjects.filter(p => p.fav) : allProjects;
   const [name, setName] = useState("");
   const [sortMode, setSortMode] = useState(false);
   // "manual" | "active" — persisted so the choice survives future visits.
@@ -322,7 +324,14 @@ function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares
 
   return (
     <>
-      <div style={{ display: "flex", gap: 7, marginBottom: 12 }}>
+      {favOnly && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, direction: "rtl", margin: "2px 2px 12px" }}>
+          <Icon name="star" size={19} color={th.amber} filled />
+          <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: th.text }}>מועדפים</h2>
+        </div>
+      )}
+
+      {!favOnly && <div style={{ display: "flex", gap: 7, marginBottom: 12 }}>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="פרויקט חדש..."
           onKeyDown={e => { if (e.key === "Enter" && name.trim()) { projActions.add(name.trim()); setName(""); } }}
           style={{ flex: 1, border: `1px solid ${th.border}`, borderRadius: 12, padding: "11px 14px",
@@ -343,11 +352,11 @@ function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares
             </span>
           )}
         </button>
-      </div>
+      </div>}
 
-      <ProjectsStats projects={projects} ideas={ideas} th={th} onOpen={onOpen} />
+      {!favOnly && <ProjectsStats projects={projects} ideas={ideas} th={th} onOpen={onOpen} />}
 
-      {projects.length > 1 && (
+      {!favOnly && projects.length > 1 && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, direction: "rtl" }}>
           <span style={{ fontSize: 12, color: th.muted, fontWeight: 600 }}>מיון:</span>
           {[["manual", "ידני"], ["active", "הכי פעילים"]].map(([v, label]) => (
@@ -369,9 +378,13 @@ function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares
       )}
 
       {sorted.length === 0 && (
-        <div style={{ textAlign: "center", padding: "36px 0", color: th.muted }}>
-          <Icon name="folder" size={40} color={th.border} />
-          <p style={{ fontSize: 14, marginTop: 8 }}>צור פרויקט ראשון כדי לארגן רעיונות</p>
+        <div style={{ textAlign: "center", padding: "36px 0", color: th.muted, direction: "rtl" }}>
+          <Icon name={favOnly ? "star" : "folder"} size={40} color={favOnly ? th.amber : th.border} />
+          <p style={{ fontSize: 14, marginTop: 8 }}>
+            {favOnly
+              ? "עוד אין מועדפים — סמנו פרויקט בכוכב ⭐ במסך הפרויקטים והוא יופיע כאן"
+              : "צור פרויקט ראשון כדי לארגן רעיונות"}
+          </p>
         </div>
       )}
 
@@ -395,12 +408,13 @@ function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares
           <ProjectRow key={p.id} p={p} th={th} counts={counts(p)}
             isShared={!!myShares[p.id]} unread={hasUnread(p)}
             onOpen={() => onOpen(p.id)}
-            onPin={() => projActions.update(p.id, { pinned: !p.pinned })} />
+            onPin={() => projActions.update(p.id, { pinned: !p.pinned })}
+            onFav={() => projActions.update(p.id, { fav: !p.fav })} />
         ))
       )}
 
       {/* Projects shared with me by others */}
-      {sharedWithMe.length > 0 && !sortMode && (
+      {!favOnly && sharedWithMe.length > 0 && !sortMode && (
         <>
           <p style={{ fontSize: 12, fontWeight: 600, color: th.muted, letterSpacing: 0.6,
             margin: "18px 2px 8px" }}>
@@ -429,7 +443,7 @@ function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares
   );
 }
 
-function ProjectRow({ p, th, counts, onOpen, onPin, isShared = false, unread = false }) {
+function ProjectRow({ p, th, counts, onOpen, onPin, onFav, isShared = false, unread = false }) {
   return (
     <div onClick={onOpen}
       style={{ display: "flex", alignItems: "center", gap: 11, background: th.surface,
@@ -463,6 +477,9 @@ function ProjectRow({ p, th, counts, onOpen, onPin, isShared = false, unread = f
           {counts.done ? <><span>·</span><span>{counts.done} בוצעו</span></> : null}
         </p>
       </div>
+      <IconBtn name="star" filled={!!p.fav} onClick={e => { e.stopPropagation(); onFav(); }}
+        color={p.fav ? th.amber : th.muted} size={16} pad="6px"
+        title={p.fav ? "הסר ממועדפים" : "הוסף למועדפים"} />
       <IconBtn name="pin" onClick={e => { e.stopPropagation(); onPin(); }}
         color={p.pinned ? th.accent : th.muted} size={16} pad="6px"
         title={p.pinned ? "בטל נעיצה" : "נעץ לראש"} />

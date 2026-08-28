@@ -25,7 +25,7 @@ function demoData() {
   return {
     projects: [
       { id: "p1", name: "טלוויזיה", color: "#2E5BE6", notes: "", pinned: false, createdAt: 1 },
-      { id: "p2", name: "בית", color: "#0E9488", notes: "", pinned: false, createdAt: 2 },
+      { id: "p2", name: "בית", color: "#0E9488", notes: "", pinned: false, fav: true, createdAt: 2 },
     ],
     ideas: [
       { ...base, id: "d1", text: "מדור 'איפה הם היום' — לעקוב אחרי שחקני הסדרות הקלאסיות", title: "מדור איפה הם היום", tags: ["תוכן"], aiProject: "p1", createdAt: now - 3600e3 },
