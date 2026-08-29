@@ -126,7 +126,7 @@ export default function App() {
 
   // A shortcut/share launch opens straight into the dedicated quick-capture
   // screen (mounts on first paint → best chance the keyboard rises).
-  const [captureMode, setCaptureMode] = useState(shortcutLaunch);
+  const [captureMode, setCaptureMode] = useState(shortcutLaunch ? "idea" : noteLaunch ? "note" : false);
 
   // Intake from Android intents (runs once, before any screen mounts):
   // - share_target: /?title=..&text=..&url=..  → becomes the capture draft
@@ -144,8 +144,8 @@ export default function App() {
         localStorage.setItem("if_focus_capture", "1");
         history.replaceState(null, "", location.pathname);
       } else if (p.has("note")) {
-        // "פתק חדש" app shortcut: land on the notes tab with the editor open.
-        sessionStorage.setItem("if_new_note", "1");
+        // "פתק חדש" shortcut: QuickCapture (note mode) already mounts from
+        // noteLaunch — just clear the query so a refresh won't re-trigger it.
         history.replaceState(null, "", location.pathname);
       }
     } catch { /* ignore */ }
@@ -161,7 +161,7 @@ export default function App() {
   // resolving; the screen waits for it only at save time.
   if (captureMode) {
     const cu = (import.meta.env.DEV && isUipreview) ? { uid: "demo" } : user;
-    return <QuickCapture user={cu} th={th} onDone={() => setCaptureMode(false)} />;
+    return <QuickCapture user={cu} th={th} mode={captureMode} onDone={() => setCaptureMode(false)} />;
   }
 
   // Dev-only UI preview (no auth): npm run dev → /?uipreview
@@ -331,8 +331,10 @@ function Login({ th }) {
 // the very first paint — before auth and data load — so an autofocused field
 // exists while the launch tap's activation is still live, giving Android its one
 // chance to raise the soft keyboard. Saves straight to the Inbox.
-function QuickCapture({ user, th, onDone }) {
+function QuickCapture({ user, th, onDone, mode = "idea" }) {
+  const isNote = mode === "note";
   const [text, setText] = useState(() => {
+    if (mode === "note") return "";
     try { return localStorage.getItem("if_draft") || ""; } catch { return ""; }
   });
   const [saving, setSaving] = useState(false);
@@ -365,14 +367,16 @@ function QuickCapture({ user, th, onDone }) {
     try { navigator.virtualKeyboard?.show?.(); } catch { /* unsupported */ }
   };
 
-  // Mirror to the shared draft so nothing is lost if they back out.
+  // Mirror to the shared draft so nothing is lost if they back out (ideas only —
+  // a quick note isn't part of the shared/idea draft).
   useEffect(() => {
+    if (isNote) return;
     const t = setTimeout(() => {
       try { text.trim() ? localStorage.setItem("if_draft", text) : localStorage.removeItem("if_draft"); }
       catch { /* ignore */ }
     }, 300);
     return () => clearTimeout(t);
-  }, [text]);
+  }, [text, isNote]);
 
   const canSave = !!text.trim() && !!user && !saving;
   const save = async () => {
@@ -380,13 +384,17 @@ function QuickCapture({ user, th, onDone }) {
     const t = text.trim();
     setSaving(true);
     try {
-      const idea = await addIdea(user.uid, { text: t, status: "inbox" });
-      try { localStorage.removeItem("if_draft"); } catch { /* ignore */ }
-      if (idea?.text) {
-        enrichIdea(idea.text, [])
-          .then(en => updateIdea(user.uid, idea.id, { title: en.title, tags: en.tags }).catch(() => {}))
-          .catch(() => {});
+      if (isNote) {
+        await addNote(user.uid, { text: t, title: autoTitle(t) });
+      } else {
+        const idea = await addIdea(user.uid, { text: t, status: "inbox" });
+        if (idea?.text) {
+          enrichIdea(idea.text, [])
+            .then(en => updateIdea(user.uid, idea.id, { title: en.title, tags: en.tags }).catch(() => {}))
+            .catch(() => {});
+        }
       }
+      try { localStorage.removeItem("if_draft"); } catch { /* ignore */ }
       setText("");
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1500);
@@ -401,15 +409,15 @@ function QuickCapture({ user, th, onDone }) {
         display: "flex", flexDirection: "column",
         padding: "16px 16px calc(16px + env(safe-area-inset-bottom))" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <Icon name="bulb" size={22} color={th.accent} />
+        <Icon name={isNote ? "notes" : "bulb"} size={22} color={th.accent} />
         <h2 style={{ margin: 0, flex: 1, fontSize: 18, fontWeight: 800, color: th.text, fontFamily: FONT }}>
-          רעיון חדש
+          {isNote ? "פתק חדש" : "רעיון חדש"}
         </h2>
         <button onClick={onDone}
           style={{ display: "inline-flex", alignItems: "center", gap: 5, background: th.surface,
             color: th.secondary, border: `1px solid ${th.border}`, borderRadius: 18,
             padding: "7px 14px", cursor: "pointer", fontSize: 13.5, fontWeight: 600, fontFamily: FONT }}>
-          לאינבוקס
+          {isNote ? "לפתקים" : "לאינבוקס"}
         </button>
       </div>
       <textarea ref={taRef} value={text} onChange={e => setText(e.target.value)} autoFocus
@@ -422,7 +430,7 @@ function QuickCapture({ user, th, onDone }) {
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
         <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, fontFamily: FONT,
           color: savedFlash ? th.green : th.muted }}>
-          {savedFlash ? "נשמר ✓ — אפשר להוסיף עוד" : user ? "יישמר לאינבוקס" : "מתחבר…"}
+          {savedFlash ? "נשמר ✓ — אפשר להוסיף עוד" : user ? (isNote ? "יישמר לפתקים" : "יישמר לאינבוקס") : "מתחבר…"}
         </span>
         <button onClick={save} disabled={!canSave}
           style={{ background: th.cta, color: "#fff", border: "none", borderRadius: 12,
@@ -1538,7 +1546,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "bell", title: "תזכורות", text: "פעמון על כל כרטיס: בעוד שעה / הערב / מחר או זמן מדויק — כולל חזרה קבועה (כל שעה, יום, שבוע, חודש או שנה). ההתראה מגיעה גם כשהאפליקציה סגורה; כפתור \"דחה 15 דק׳\" דוחה ברקע בלי לפתוח את האפליקציה, ולחיצה על גוף ההתראה פותחת בורר לדחייה לזמן אחר (5/15/30 דק׳, שעה, יום או מותאם)." },
     { icon: "notes", title: "רעיון ללא ביצוע", text: "לא כל רעיון הוא משימה. בתפריט הכרטיס (⋯) אפשר לסמן רעיון כ\"הערה\" — ריבוע הסימון נעלם והוא לא ניתן לסימון כבוצע. שימושי למידע, קישורים או תזכורות-רקע. לחיצה נוספת על אותו אייקון מחזירה אותו למשימה רגילה." },
     { icon: "edit", title: "קיצור \"רעיון חדש\"", text: "לחיצה ארוכה על אייקון האפליקציה → \"רעיון\" פותחת מסך כתיבה נקי ומיידי. נגיעה אחת בכל מקום מעלה מקלדת, ובשמירה הרעיון נכנס ישר לאינבוקס." },
-    { icon: "add", title: "קיצור \"פתק חדש\"", text: "לחיצה ארוכה על אייקון האפליקציה → \"פתק\" פותחת ישר את מסך כתיבת הפתק (רשומה בלשונית פתקים)." },
+    { icon: "add", title: "קיצור \"פתק חדש\"", text: "לחיצה ארוכה על אייקון האפליקציה → \"פתק\" (או קישור /?note=1) פותחת ישר מסך כתיבה עם מקלדת, בלי מסך פתיחה. שומרים והכתוב נכנס ללשונית פתקים." },
     { icon: "clip", title: "צירוף קבצים ומדיה", text: "לכל רעיון אפשר לצרף תמונות, הקלטות וקבצים (PDF, מסמכים, גיליונות ועוד) — דרך כפתור המהדק בתיבת התפיסה או מקש \"קובץ\" בעורך. הקובץ מופיע על הכרטיס ונפתח או יורד בלחיצה. עד 10MB לקובץ." },
     { icon: "share", title: "שיתוף מכל אפליקציה", text: "ראית משהו בוואטסאפ או בדפדפן? שתף → IdeaFlow והוא יחכה בתיבת התפיסה, מוכן לעריכה ושמירה." },
     { icon: "export", title: "ייצוא לקלוד", text: "בתפריט של כל פרויקט (וב-Inbox): \"ייצוא לקלוד\" מעתיק את כל הרעיונות הפתוחים כטקסט מוכן להדבקה בצ'אט." },
