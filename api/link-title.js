@@ -77,5 +77,12 @@ export default async function handler(req) {
 }
 
 const UA = "Mozilla/5.0 (compatible; IdeaFlowBot/1.0; +https://ideaflow-lemon.vercel.app)";
-const json = (o, status = 200) =>
-  new Response(JSON.stringify(o), { status, headers: { "Content-Type": "application/json", "Cache-Control": "s-maxage=86400" } });
+// Cache a resolved title for a day; cache a miss for only two minutes, so a
+// temporary block (consent wall, rate limit) can succeed on the next save
+// instead of being pinned to the platform-name fallback for 24h.
+const json = (o, status = 200) => {
+  const secs = o && o.title ? 86400 : 120;
+  return new Response(JSON.stringify(o), {
+    status, headers: { "Content-Type": "application/json", "Cache-Control": `s-maxage=${secs}` },
+  });
+};
