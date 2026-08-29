@@ -40,14 +40,24 @@ export default async function handler(req) {
   const plat = platformOf(host);
   const fallback = { url, title: "", image: "", author: "", platform: plat.p, site: plat.label };
 
+  // Public, reliable oEmbed endpoints — no consent wall, real title + thumbnail.
+  const OEMBED = {
+    tiktok: (u) => `https://www.tiktok.com/oembed?url=${encodeURIComponent(u)}`,
+    youtube: (u) => `https://www.youtube.com/oembed?url=${encodeURIComponent(u)}&format=json`,
+  };
+
   try {
-    // TikTok has a public, reliable oEmbed — use it before scraping.
-    if (plat.p === "tiktok") {
-      const r = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`,
+    if (OEMBED[plat.p]) {
+      const r = await fetch(OEMBED[plat.p](url),
         { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(6000) });
       if (r.ok) {
         const d = await r.json();
-        return json({ ...fallback, title: decode(d.title || ""), image: d.thumbnail_url || "", author: d.author_name || "" });
+        const title = decode(d.title || "");
+        // TikTok's generic "TikTok - Make Your Day" means the URL didn't resolve
+        // to a real post — fall through to a scrape rather than save the filler.
+        if (title && !/^tiktok - make your day$/i.test(title)) {
+          return json({ ...fallback, title, image: d.thumbnail_url || "", author: d.author_name || "" });
+        }
       }
     }
 
