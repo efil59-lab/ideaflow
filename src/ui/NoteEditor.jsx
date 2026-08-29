@@ -267,7 +267,11 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const nameOf = i => (colorNames[i] || "").trim() || NOTE_COLOR_FALLBACK[i];
 
   return createPortal(
-    <div style={{ position: "fixed", left: 0, right: 0, zIndex: 700, background: pageBg,
+    <div style={{ position: "fixed", left: 0, right: 0, zIndex: 700, background: th.bg,
+      // Unified with the idea editor: a clean neutral surface, the note's colour
+      // carried as a spine on the right edge rather than a full pastel page.
+      borderRight: `5px solid ${c}`,
+      boxShadow: th.electric ? `inset -12px 0 24px -18px ${c}` : "none",
       // Track the visual viewport so the footer rides above the keyboard — but
       // only when it reports a sane height (some webviews report 0), else fill.
       top: vpSafe ? vp.top : 0,
@@ -341,7 +345,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
 
       {/* The page — a plain lined textarea, or an interactive checklist */}
       {isChecklist ? (
-        <div data-noswipe style={{ flex: 1, overflowY: "auto", padding: "6px 0 16px", background: pageBg }}>
+        <div data-noswipe style={{ flex: 1, overflowY: "auto", padding: "6px 0 16px", background: th.surface }}>
           {items.map(it => (
             <div key={it.i} style={{ display: "flex", alignItems: "flex-start", gap: 11,
               padding: "0 16px", minHeight: lh, borderBottom: `1px solid ${line}` }}>
@@ -382,11 +386,9 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
         <textarea ref={taRef} value={text} onChange={e => changeText(e.target.value)}
           placeholder={pastePrompt ? 'לחיצה ארוכה כאן ← "הדבק"' : "כתוב כאן…"}
           style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
-            resize: "none", padding: "6px 16px 16px", fontSize: fs, fontFamily: FONT,
-            direction: "rtl", color: th.text, background: "transparent",
-            lineHeight: lh + "px",
-            backgroundImage: `repeating-linear-gradient(transparent, transparent ${lh - 1}px, ${line} ${lh - 1}px, ${line} ${lh}px)`,
-            backgroundAttachment: "local" }} />
+            resize: "none", padding: "12px 16px 16px", fontSize: fs, fontFamily: FONT,
+            direction: "rtl", color: th.text, background: th.surface,
+            lineHeight: lh + "px" }} />
       )}
 
       <input ref={imgRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={addImage} />

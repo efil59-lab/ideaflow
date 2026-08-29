@@ -339,8 +339,9 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
   const isNote = mode === "note";
   // A note writes on a yellow lined page like the real note editor; an idea uses
   // the plain card.
-  const pageBg = isNote ? (th.pastels?.[0] || th.surface) : th.bg;
-  const line = th.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.09)";
+  // Unified with the note editor: a clean neutral ground; the note's colour is a
+  // spine on the right edge, and writing happens on a clean surface card.
+  const noteSpine = (th.pastelBars && th.pastelBars[0]) || "#EAB308";
   const [text, setText] = useState(() => {
     if (mode === "note") return "";
     try { return localStorage.getItem("if_draft") || ""; } catch { return ""; }
@@ -469,7 +470,8 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
 
   return (
     <div onPointerDown={focusFromTap}
-      style={{ position: "fixed", inset: 0, background: pageBg, direction: "rtl", zIndex: 100,
+      style={{ position: "fixed", inset: 0, background: th.bg, direction: "rtl", zIndex: 100,
+        borderRight: isNote ? `5px solid ${noteSpine}` : "none",
         display: "flex", flexDirection: "column",
         padding: "16px 16px calc(16px + env(safe-area-inset-bottom))" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -489,11 +491,9 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
         onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save(); }}
         placeholder="הקש כאן והתחל לכתוב…"
         style={isNote ? {
-          flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
-          resize: "none", padding: "8px 6px 16px", fontSize: 20, lineHeight: "36px", fontFamily: FONT,
-          direction: "rtl", color: th.text, background: "transparent",
-          backgroundImage: `repeating-linear-gradient(transparent, transparent 35px, ${line} 35px, ${line} 36px)`,
-          backgroundAttachment: "local",
+          flex: 1, width: "100%", boxSizing: "border-box", border: `1px solid ${th.border}`,
+          borderRadius: 14, padding: "14px 14px", fontSize: 20, lineHeight: 1.55, fontFamily: FONT,
+          direction: "rtl", color: th.text, background: th.surface, resize: "none", outline: "none",
         } : {
           flex: 1, width: "100%", boxSizing: "border-box", border: `1px solid ${th.border}`,
           borderRadius: 14, padding: 14, fontSize: 17, fontFamily: FONT, direction: "rtl",
