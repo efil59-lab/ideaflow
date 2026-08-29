@@ -490,9 +490,9 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
         placeholder="הקש כאן והתחל לכתוב…"
         style={isNote ? {
           flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
-          resize: "none", padding: "8px 6px 16px", fontSize: 17, lineHeight: "32px", fontFamily: FONT,
+          resize: "none", padding: "8px 6px 16px", fontSize: 20, lineHeight: "36px", fontFamily: FONT,
           direction: "rtl", color: th.text, background: "transparent",
-          backgroundImage: `repeating-linear-gradient(transparent, transparent 31px, ${line} 31px, ${line} 32px)`,
+          backgroundImage: `repeating-linear-gradient(transparent, transparent 35px, ${line} 35px, ${line} 36px)`,
           backgroundAttachment: "local",
         } : {
           flex: 1, width: "100%", boxSizing: "border-box", border: `1px solid ${th.border}`,
