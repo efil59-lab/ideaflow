@@ -1148,7 +1148,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   // ── Tab carousel — the hooks live above the loading gate; here we build the
   // pager (needs the screen renderers) and derive the neighbour tab. TABS is
   // physical right→left (RTL): finger right → the tab to the left (next).
-  const TABS = ["search", "notes", "projects"];
+  const TABS = ["notes", "projects", "search"];
   const tabIndex = TABS.indexOf(tab);
   tabIndexRef.current = tabIndex;
   const goTab = t => { setTab(t); if (t === "projects") setOpenProjectId(null); };
@@ -1323,22 +1323,10 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
         background: th.surface, borderTop: `1px solid ${th.border}` }}>
         <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", alignItems: "center",
           padding: "6px 8px calc(6px + env(safe-area-inset-bottom))" }}>
-          {/* + New note — the single capture action, on the far right (RTL). */}
-          <span style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-            <button onClick={() => fabAction("note")} title="פתק חדש"
-              style={{ width: 46, height: 46, borderRadius: "50%", background: th.cta || th.accent,
-                border: th.electric ? "2px solid rgba(168,85,247,0.55)" : "none", cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: th.electric ? "0 0 18px rgba(168,85,247,0.65)" : "0 4px 14px rgba(0,0,0,0.22)" }}>
-              <Icon name="add" size={24} color="#fff" />
-            </button>
-            <span style={{ fontSize: 10.5, fontWeight: 600, color: th.navActive }}>פתק חדש</span>
-          </span>
-
-          {/* Tabs, right→left: search · notes · projects */}
-          {[{ id: "search", icon: "search", label: "חיפוש" },
-            { id: "notes", icon: "notes", label: "פתקים" },
-            { id: "projects", icon: "folder", label: "פרויקטים" }].map(n => {
+          {/* Tabs, right→left: notes · projects · search */}
+          {[{ id: "notes", icon: "notes", label: "פתקים" },
+            { id: "projects", icon: "folder", label: "פרויקטים" },
+            { id: "search", icon: "search", label: "חיפוש" }].map(n => {
             const active = tab === n.id;
             return (
               <button key={n.id} onClick={() => tabGo(n.id)}
@@ -1351,6 +1339,18 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
               </button>
             );
           })}
+
+          {/* + New note — the single capture action, on the far left (RTL). */}
+          <span style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <button onClick={() => fabAction("note")} title="פתק חדש"
+              style={{ width: 46, height: 46, borderRadius: "50%", background: th.cta || th.accent,
+                border: th.electric ? "2px solid rgba(168,85,247,0.55)" : "none", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: th.electric ? "0 0 18px rgba(168,85,247,0.65)" : "0 4px 14px rgba(0,0,0,0.22)" }}>
+              <Icon name="add" size={24} color="#fff" />
+            </button>
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: th.navActive }}>פתק חדש</span>
+          </span>
         </div>
       </div>
 
