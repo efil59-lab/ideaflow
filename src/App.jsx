@@ -1084,8 +1084,10 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   };
 
   const navItems = [
+    { id: "notes", icon: "notes", label: "פתקים" },
     { id: "inbox", icon: "inbox", label: "Inbox", badge: inboxCount },
     { id: "projects", icon: "folder", label: "פרויקטים" },
+    { id: "search", icon: "search", label: "חיפוש" },
   ];
 
   return (
