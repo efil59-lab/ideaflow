@@ -647,7 +647,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     up: () => {
       clearTimeout(longRef.current);
       if (heldRef.current) { heldRef.current = false; return; }
-      setTab("inbox");
+      setTab("notes");
       setOpenProjectId(null);
     },
     cancel: () => { clearTimeout(longRef.current); heldRef.current = false; },
@@ -866,7 +866,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
       else if (s.shareIdea) setShareIdea(null);
       else if (s.editIdea) setEditIdea(null);
       else if (s.openProjectId) setOpenProjectId(null);
-      else if (s.tab !== "inbox") setTab("inbox");
+      else if (s.tab !== "notes") setTab("notes");
       else handled = false;
 
       if (handled) {
