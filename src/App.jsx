@@ -409,6 +409,30 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
     setSaving(false);
   };
 
+  // A quick note saves itself (no button): create once, then update, as they
+  // type — so nothing is lost even if they just leave.
+  const noteIdRef = useRef(null);
+  const persistNote = async () => {
+    const t = text.trim();
+    if (!isNote || !user || !t) return;
+    try {
+      if (!noteIdRef.current) {
+        const n = await addNote(user.uid, { text: t, title: autoTitle(t), colorIdx: 0 });
+        noteIdRef.current = n?.id || null;
+      } else {
+        await updateIdea(user.uid, noteIdRef.current, { text: t, title: autoTitle(t) });
+      }
+      setSavedFlash(true);
+    } catch { /* offline queues the write */ }
+  };
+  useEffect(() => {
+    if (!isNote || !text.trim()) return;
+    setSavedFlash(false);
+    const timer = setTimeout(persistNote, 700);
+    return () => clearTimeout(timer);
+  }, [text, isNote, user]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const leave = async () => { if (isNote) await persistNote(); onDone(); };
+
   return (
     <div onPointerDown={focusFromTap}
       style={{ position: "fixed", inset: 0, background: pageBg, direction: "rtl", zIndex: 100,
@@ -419,7 +443,7 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
         <h2 style={{ margin: 0, flex: 1, fontSize: 18, fontWeight: 800, color: th.text, fontFamily: FONT }}>
           {isNote ? "פתק חדש" : "רעיון חדש"}
         </h2>
-        <button onClick={onDone}
+        <button onClick={isNote ? leave : onDone}
           style={{ display: "inline-flex", alignItems: "center", gap: 5, background: th.surface,
             color: th.secondary, border: `1px solid ${th.border}`, borderRadius: 18,
             padding: "7px 14px", cursor: "pointer", fontSize: 13.5, fontWeight: 600, fontFamily: FONT }}>
@@ -443,15 +467,23 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
         }} />
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
         <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, fontFamily: FONT,
+          display: "flex", alignItems: "center", gap: 6,
           color: savedFlash ? th.green : th.muted }}>
-          {savedFlash ? "נשמר ✓ — אפשר להוסיף עוד" : user ? (isNote ? "יישמר לפתקים" : "יישמר לאינבוקס") : "מתחבר…"}
+          {isNote ? (
+            <>
+              <Icon name={savedFlash ? "check" : "refresh"} size={13} color={savedFlash ? th.green : th.muted} />
+              {savedFlash ? "נשמר" : user ? "נשמר אוטומטית" : "מתחבר…"}
+            </>
+          ) : (savedFlash ? "נשמר ✓ — אפשר להוסיף עוד" : user ? "יישמר לאינבוקס" : "מתחבר…")}
         </span>
-        <button onClick={save} disabled={!canSave}
-          style={{ background: th.cta, color: "#fff", border: "none", borderRadius: 12,
-            padding: "12px 30px", cursor: canSave ? "pointer" : "default",
-            fontSize: 15.5, fontWeight: 700, fontFamily: FONT, opacity: canSave ? 1 : 0.45 }}>
-          שמור
-        </button>
+        {!isNote && (
+          <button onClick={save} disabled={!canSave}
+            style={{ background: th.cta, color: "#fff", border: "none", borderRadius: 12,
+              padding: "12px 30px", cursor: canSave ? "pointer" : "default",
+              fontSize: 15.5, fontWeight: 700, fontFamily: FONT, opacity: canSave ? 1 : 0.45 }}>
+            שמור
+          </button>
+        )}
       </div>
     </div>
   );

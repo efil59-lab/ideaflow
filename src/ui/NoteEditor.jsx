@@ -53,9 +53,16 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   closeRef.current = onClose;
   useEffect(() => pushBackLayer(() => closeRef.current?.()), []);
 
-  // Opened from a real tap, so this focus raises the keyboard.
+  // Opened from a real tap, so this focus raises the keyboard. Drop the caret at
+  // the END of the text (the left edge in RTL) so it's ready to keep writing —
+  // not at position 0 on the right.
   useEffect(() => {
-    const t = setTimeout(() => taRef.current?.focus(), 90);
+    const t = setTimeout(() => {
+      const el = taRef.current;
+      if (!el) return;
+      el.focus();
+      try { const n = el.value.length; el.setSelectionRange(n, n); } catch { /* ignore */ }
+    }, 90);
     return () => clearTimeout(t);
   }, []);
 
