@@ -21,7 +21,7 @@ const projectsCol = uid => collection(db, "users", uid, "projects");
 function demoData() {
   const now = Date.now();
   const base = { status: "inbox", projectId: null, aiProject: null, pinned: false,
-    colorIdx: null, order: null, images: [], audios: [], files: [], remindAt: null, updatedAt: 0 };
+    colorIdx: null, order: null, images: [], audios: [], files: [], links: [], remindAt: null, updatedAt: 0 };
   return {
     projects: [
       { id: "p1", name: "טלוויזיה", color: "#2E5BE6", notes: "", pinned: false, createdAt: 1 },
@@ -121,7 +121,7 @@ export async function addIdea(uid, data) {
     text: "", html: "", title: "", tags: [],
     status: "inbox", projectId: null, aiProject: null,
     pinned: false, colorIdx: null, order: null, noCheck: false,
-    images: [], audios: [], files: [], remindAt: null, repeat: null, repeatAnchor: null, comments: [],
+    images: [], audios: [], files: [], links: [], remindAt: null, repeat: null, repeatAnchor: null, comments: [],
     createdAt: Date.now(), updatedAt: Date.now(),
     ...data,
   };

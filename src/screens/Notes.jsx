@@ -8,6 +8,7 @@ import { Modal, ModalHeader, Confirm } from "../ui/base";
 import Checklist, { hasChecklist, parseChecklist, toggleLine } from "../ui/Checklist";
 import NoteEditor from "../ui/NoteEditor";
 import ImageStrip from "../ui/ImageStrip";
+import { LinkCard } from "../ui/LinkStrip";
 import { pushBackLayer } from "../ui/backstack";
 import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
 
@@ -583,6 +584,7 @@ function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
           {note.audios?.length > 0 && <Icon name="mic" size={12} color={th.muted} />}
           {note.images?.length > 0 && <Icon name="photo" size={12} color={th.muted} />}
           {note.files?.length > 0 && <Icon name="clip" size={12} color={th.muted} />}
+          {note.links?.length > 0 && <Icon name="link" size={12} color={th.muted} />}
         </span>
       </div>
     </div>
@@ -682,6 +684,11 @@ function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, o
       {note.images?.length > 0 && (
         <div style={{ flexShrink: 0, marginTop: 8 }}>
           <ImageStrip images={note.images} th={th} size={42} />
+        </div>
+      )}
+      {note.links?.length > 0 && (
+        <div style={{ flexShrink: 0, marginTop: 8 }}>
+          <LinkCard link={note.links[0]} th={th} compact />
         </div>
       )}
     </div>

@@ -9,8 +9,10 @@ import { autoTitle } from "../data/store";
 import { pushBackLayer } from "./backstack";
 import ImageStrip from "./ImageStrip";
 import AudioStrip from "./AudioStrip";
+import LinkStrip from "./LinkStrip";
 import { useRecorder } from "./useRecorder";
 import { uploadFile } from "../data/media";
+import { fetchLinkMeta, isSocialUrl } from "../data/link";
 
 // A checklist item field that wraps to as many lines as its text needs (a plain
 // input would clip the tail of a long item). Grows to fit its content.
@@ -44,6 +46,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const [colorIdx, setColorIdx] = useState(initial?.colorIdx ?? defaultColor ?? 0);
   const [images, setImages] = useState(initial?.images || []);
   const [audios, setAudios] = useState(initial?.audios || []);
+  const [links, setLinks] = useState(initial?.links || []);
+  const [fetchingLink, setFetchingLink] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showColors, setShowColors] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -76,8 +80,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
 
   // Autosave: the ref always holds the latest state so the unmount flush and
   // the debounced save read the same truth.
-  const stateRef = useRef({ title, text, colorIdx, images, audios });
-  stateRef.current = { title, text, colorIdx, images, audios };
+  const stateRef = useRef({ title, text, colorIdx, images, audios, links });
+  stateRef.current = { title, text, colorIdx, images, audios, links };
 
   // What's already persisted. A pure read (or the no-op flush on unmount) must
   // NOT rewrite the note — that would bump updatedAt and jump it to the top of
@@ -88,8 +92,10 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     colorIdx: initial?.colorIdx ?? defaultColor ?? 0,
     images: initial?.images || [],
     audios: initial?.audios || [],
+    links: initial?.links || [],
   });
   const mediaKey = a => (a || []).map(x => (typeof x === "string" ? x : x?.url)).join("|");
+  const linkKey = a => (a || []).map(x => x?.url).join("|");
 
   const save = async () => {
     const s = stateRef.current;
@@ -97,20 +103,21 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       && s.text === savedRef.current.text
       && s.colorIdx === savedRef.current.colorIdx
       && mediaKey(s.images) === mediaKey(savedRef.current.images)
-      && mediaKey(s.audios) === mediaKey(savedRef.current.audios);
+      && mediaKey(s.audios) === mediaKey(savedRef.current.audios)
+      && linkKey(s.links) === linkKey(savedRef.current.links);
     if (!idRef.current) {
-      if (!s.title.trim() && !s.text.trim() && !(s.images || []).length && !(s.audios || []).length) return;   // nothing to keep
+      if (!s.title.trim() && !s.text.trim() && !(s.images || []).length && !(s.audios || []).length && !(s.links || []).length) return;   // nothing to keep
       if (creatingRef.current) return;
       creatingRef.current = true;
       try {
-        const n = await onCreate({ title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios });
+        const n = await onCreate({ title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios, links: s.links });
         idRef.current = n?.id || null;
-        savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios };
+        savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios, links: s.links };
       } finally { creatingRef.current = false; }
     } else {
       if (unchanged) return;                            // read-only visit — leave it in place
-      onUpdate(idRef.current, { title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios, html: "" });
-      savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios };
+      onUpdate(idRef.current, { title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios, links: s.links, html: "" });
+      savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios, links: s.links };
     }
     setSaved(true);
   };
@@ -121,7 +128,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     setSaved(false);
     const t = setTimeout(save, 800);
     return () => clearTimeout(t);
-  }, [title, text, colorIdx, images, audios]);
+  }, [title, text, colorIdx, images, audios, links]);
   // Any way out flushes the pending edit.
   useEffect(() => () => { save(); }, []);
 
@@ -192,6 +199,33 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const addImage = async e => {
     const files = [...(e.target.files || [])]; e.target.value = "";
     for (const f of files) await uploadMedia(f, f.name, setImages);
+  };
+
+  // Save a URL as a titled card. The server resolves the title/thumbnail; until
+  // it answers we show the platform name, so the card is never empty.
+  const addLink = async url => {
+    const u = (url || "").trim();
+    if (!u || links.some(l => l.url === u)) return;
+    setFetchingLink(true);
+    try {
+      const meta = await fetchLinkMeta(u);
+      setLinks(p => (p.some(l => l.url === u) ? p : [...p, meta]));
+    } catch { /* ignore */ }
+    setFetchingLink(false);
+  };
+  // Ask for a link by hand (the 🔗 button). Prefill from the clipboard when the
+  // browser allows a silent read.
+  const promptLink = async () => {
+    let clip = "";
+    try { clip = (await navigator.clipboard?.readText?.()) || ""; } catch { /* blocked */ }
+    const suggested = isSocialUrl(clip) ? clip.trim() : "";
+    const url = window.prompt("הדבק קישור (אינסטגרם, טיקטוק, פייסבוק…)", suggested);
+    if (url) addLink(url);
+  };
+  // Pasting a bare URL into the body becomes a card instead of raw text.
+  const onPasteBody = e => {
+    const t = (e.clipboardData?.getData("text") || "").trim();
+    if (isSocialUrl(t) && !text.trim()) { e.preventDefault(); addLink(t); }
   };
 
   // "רשימת סימון": turn every line into a checkbox item, or strip the markers off
@@ -386,6 +420,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
         </div>
       ) : (
         <textarea ref={taRef} value={text} onChange={e => changeText(e.target.value)}
+          onPaste={onPasteBody}
           placeholder={pastePrompt ? 'לחיצה ארוכה כאן ← "הדבק"' : "כתוב כאן…"}
           style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
             resize: "none", padding: "12px 16px 16px", fontSize: fs, fontFamily: FONT,
@@ -394,11 +429,13 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       )}
 
       <input ref={imgRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={addImage} />
-      {(images.length > 0 || audios.length > 0 || uploading || rec.error) && (
+      {(images.length > 0 || audios.length > 0 || links.length > 0 || uploading || fetchingLink || rec.error) && (
         <div style={{ padding: "8px 14px", background: barBg, borderTop: `1px solid ${line}`,
           display: "flex", flexDirection: "column", gap: 8, maxHeight: "40vh", overflowY: "auto" }}>
+          <LinkStrip links={links} th={th} onRemove={i => setLinks(p => p.filter((_, j) => j !== i))} />
           <ImageStrip images={images} th={th} onRemove={i => setImages(p => p.filter((_, j) => j !== i))} />
           <AudioStrip audios={audios} th={th} onRemove={i => setAudios(p => p.filter((_, j) => j !== i))} />
+          {fetchingLink && <p style={{ margin: "2px 2px 0", fontSize: 11.5, color: th.muted, direction: "rtl" }}>טוען קישור…</p>}
           {uploading && <p style={{ margin: "2px 2px 0", fontSize: 11.5, color: th.muted, direction: "rtl" }}>מעלה…</p>}
           {rec.error && <p style={{ margin: "2px 2px 0", fontSize: 11.5, color: th.red, direction: "rtl" }}>{rec.error}</p>}
         </div>
@@ -434,6 +471,13 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
           style={{ background: "transparent", border: "none", borderRadius: 9, padding: "8px",
             cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Icon name="photo" size={20} color={th.text} />
+        </button>
+        <button title="שמור קישור"
+          onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+          onClick={promptLink}
+          style={{ background: "transparent", border: "none", borderRadius: 9, padding: "8px",
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name="link" size={20} color={th.text} />
         </button>
         <span style={{ marginRight: "auto", display: "flex", alignItems: "center", gap: 6,
           fontSize: 11.5, color: th.muted }}>
