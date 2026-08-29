@@ -432,6 +432,14 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
     return () => clearTimeout(timer);
   }, [text, isNote, user]);   // eslint-disable-line react-hooks/exhaustive-deps
   const leave = async () => { if (isNote) await persistNote(); onDone(); };
+  // Save the current note (already autosaved) and start a fresh one.
+  const newNote = async () => {
+    await persistNote();
+    noteIdRef.current = null;   // next keystrokes create a brand-new note
+    setSavedFlash(false);
+    setText("");
+    taRef.current?.focus();
+  };
 
   return (
     <div onPointerDown={focusFromTap}
@@ -476,7 +484,14 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
             </>
           ) : (savedFlash ? "נשמר ✓ — אפשר להוסיף עוד" : user ? "יישמר לאינבוקס" : "מתחבר…")}
         </span>
-        {!isNote && (
+        {isNote ? (
+          <button onClick={newNote} title="פתק חדש"
+            style={{ width: 48, height: 48, borderRadius: "50%", border: "none", cursor: "pointer",
+              background: th.cta || th.accent, display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: th.electric ? "0 0 18px rgba(168,85,247,0.6)" : "0 4px 14px rgba(0,0,0,0.2)" }}>
+            <Icon name="add" size={26} color="#fff" />
+          </button>
+        ) : (
           <button onClick={save} disabled={!canSave}
             style={{ background: th.cta, color: "#fff", border: "none", borderRadius: 12,
               padding: "12px 30px", cursor: canSave ? "pointer" : "default",
