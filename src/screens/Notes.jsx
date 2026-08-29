@@ -271,7 +271,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
 
       {/* The whole toolbar (sort · title · colours) stays pinned under the app
           header while the notes scroll. */}
-      <div style={{ position: "sticky", top: "var(--if-head-h, 56px)", zIndex: 20,
+      <div style={{ position: "sticky", top: 0, zIndex: 20,
         background: th.bg, paddingTop: 8 }}>
       {/* Sort bar — top of the screen, ColorNote style */}
       <button onClick={() => setShowSort(true)}

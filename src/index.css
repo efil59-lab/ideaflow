@@ -9,6 +9,31 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Inner-scroll shell — the window never scrolls; a .if-pane inside does. This
+   is the prerequisite for the tab carousel: with window scrolling, resetting
+   scroll on navigation makes Android's URL bar slide in and resize the viewport
+   mid-transition, which no timing fix can hide. */
+html, body { height: 100%; }
+html, body, #root { overflow: hidden; overflow-x: clip; overscroll-behavior-x: none; }
+#root { height: 100%; }
+.if-app { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.if-main { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+
+/* Paging between tabs. The pager owns the horizontal gesture; touch-action:
+   pan-y leaves vertical scrolling to the browser. */
+.if-pager { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: pan-y; }
+.if-pane {
+  height: 100%; overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain;
+  will-change: transform; backface-visibility: hidden; transform: translateZ(0);
+}
+.if-pane.incoming {
+  position: absolute; inset: 0; overflow: hidden;
+  pointer-events: none; z-index: 2; background: var(--if-bg, transparent);
+}
+.if-pane.incoming[data-dir="1"] { transform: translate3d(-100%, 0, 0); }
+.if-pane.incoming[data-dir="-1"] { transform: translate3d(100%, 0, 0); }
+
 input:focus, textarea:focus, [contenteditable]:focus { outline: none; }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -76,7 +101,6 @@ input:focus, textarea:focus, [contenteditable]:focus { outline: none; }
    the !important overrides exist because this app's layout lives in inline
    style objects, which a plain rule could never beat. */
 .side { display: none; }
-.if-main { display: contents; }
 
 @media (min-width: 720px) and (min-height: 640px) {
   .if-app { display: flex; flex-direction: row; align-items: stretch; }

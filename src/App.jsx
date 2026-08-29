@@ -1,5 +1,5 @@
 // IdeaFlow v5 — capture-first idea manager. Firestore + Storage + woven AI.
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import { auth, googleProvider } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { getTheme, GRAD, GRAD_ELECTRIC, FONT } from "./theme";
@@ -17,6 +17,7 @@ import { exportIdeas } from "./data/export";
 import { enablePush } from "./push";
 import { APP_VERSION, CHANGELOG } from "./changelog";
 import { popBackLayer } from "./ui/backstack";
+import { createPager, tabAfterSettle } from "./ui/swipe";
 import { Icon, IconBtn } from "./ui/Icons";
 import { Modal, ModalHeader, Toast } from "./ui/base";
 import { ShareModal, MoveSheet, ReminderSheet, SnoozeSheet, CommentsSheet } from "./ui/sheets";
@@ -888,6 +889,23 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     };
   }, []);
 
+  // Tab-carousel hooks — declared before the loading gate so hook order is
+  // stable across renders. The pager object is assembled after the gate.
+  const paneRef = useRef(null);
+  const incomingRef = useRef(null);
+  const gestureRef = useRef(null);
+  const paintRef = useRef(null);
+  const swipedRef = useRef(false);
+  const tabIndexRef = useRef(-1);
+  const pagerRef = useRef(null);
+  const [dragDir, setDragDir] = useState(0);
+  useLayoutEffect(() => {
+    const el = paneRef.current;
+    if (el && el.style.transform) { el.style.transition = "none"; el.style.transform = ""; }
+    if (el) el.scrollTop = 0;
+  }, [tab]);
+  useLayoutEffect(() => { if (dragDir) pagerRef.current?.syncIncoming(); }, [dragDir]);
+
   if (migrating || !ideas || !projects) return <Splash th={th} still text={migMsg || "טוען..."} />;
 
   // Capture: save instantly, enrich in the background.
@@ -1083,19 +1101,83 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     } catch { setNotesMsg("קובץ לא תקין — צריך קובץ JSON"); }
   };
 
+  // Bottom nav renders these, then the FAB, then notes + search (below).
   const navItems = [
+    { id: "inbox", icon: "inbox", label: "Inbox", badge: inboxCount },
+    { id: "projects", icon: "folder", label: "פרויקטים" },
+  ];
+  // Desktop side rail shows every tab (no FAB there).
+  const sideNav = [
     { id: "notes", icon: "notes", label: "פתקים" },
     { id: "inbox", icon: "inbox", label: "Inbox", badge: inboxCount },
     { id: "projects", icon: "folder", label: "פרויקטים" },
     { id: "search", icon: "search", label: "חיפוש" },
   ];
 
+  // ── Tab carousel — the hooks live above the loading gate; here we build the
+  // pager (needs the screen renderers) and derive the neighbour tab. TABS is
+  // physical right→left (RTL): finger right → the tab to the left (next).
+  const TABS = ["inbox", "projects", "notes", "search"];
+  const tabIndex = TABS.indexOf(tab);
+  tabIndexRef.current = tabIndex;
+  const goTab = t => { setTab(t); if (t === "projects") setOpenProjectId(null); };
+  const pager = createPager({
+    paneRef, incomingRef, gestureRef, paintRef,
+    canNext: () => tabIndexRef.current >= 0,
+    canPrev: () => tabIndexRef.current >= 0,
+    onDragStart: dir => { swipedRef.current = true; setDragDir(dir); },
+    onSettle: committed => {
+      const target = tabAfterSettle(TABS, tabIndexRef.current, committed);
+      if (target) goTab(target); else pager.snapBack();
+      setDragDir(0);
+    },
+  });
+  pagerRef.current = pager;
+  const neighbourTab = tabAfterSettle(TABS, tabIndex, dragDir);
+  const shellSwipe = tabIndex >= 0 ? {
+    onTouchStart: e => { swipedRef.current = false; pager.onTouchStart(e); },
+    onTouchMove: pager.onTouchMove,
+    onTouchEnd: pager.onTouchEnd,
+    onTouchCancel: pager.onTouchCancel,
+  } : {};
+  // A drag that became a swipe must not also fire the tab button under the thumb.
+  const tabGo = t => { if (!swipedRef.current) goTab(t); };
+
+  // Renders the screen for a given tab (used for the live pane and the preview).
+  const renderTab = t => {
+    if (t === "inbox") return (
+      <Inbox uid={uid} ideas={ideas} projects={projects} th={th} actions={actions} onCapture={capture}
+        myShares={myShares} userName={(user.displayName || "").split(" ")[0]} />
+    );
+    if (t === "projects") return (
+      <Projects uid={uid} ideas={ideas} projects={projects} th={th} actions={actions}
+        projActions={projActions} onCapture={capture}
+        myShares={myShares} sharedWithMe={sharedWithMe}
+        shareActions={shareActions} onSharedCapture={sharedCapture}
+        commentSeen={commentSeen}
+        openProjectId={openProjectId} setOpenProjectId={setOpenProjectId} />
+    );
+    if (t === "notes") return (
+      <Notes uid={uid} ideas={ideas} th={th} actions={actions}
+        onCapture={captureNote}
+        onCreateNote={data => addNote(uid, data)}
+        projects={projects} onMoveToProject={setMoveNotes} noteFont={noteFontStep}
+        colorNames={userDoc.colorNames || []}
+        onSaveNames={names => saveColorNames(uid, names).catch(() => {})} />
+    );
+    if (t === "search") return (
+      <Search ideas={ideas} projects={projects} th={th} actions={actions}
+        q={searchQ} setQ={setSearchQ} />
+    );
+    return null;
+  };
+
   return (
     // The --if-* custom properties hand the JS theme to the desktop side-rail
     // rules in index.css (this app styles everything with inline objects, so
     // the stylesheet has no tokens of its own to read).
-    <div className="if-app" style={{ minHeight: "100vh", background: th.bg, fontFamily: FONT, direction: "rtl",
-      "--if-card": th.surface, "--if-line": th.border, "--if-ink": th.text,
+    <div className="if-app" {...shellSwipe} style={{ background: th.bg, fontFamily: FONT, direction: "rtl",
+      "--if-card": th.surface, "--if-line": th.border, "--if-ink": th.text, "--if-bg": th.bg,
       "--if-muted": th.muted, "--if-accent": th.navActive }}>
       {/* Desktop side rail — display:none below 900px, so phones are untouched.
           First child + RTL row layout is what puts it on the right. */}
@@ -1104,11 +1186,11 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
           <Icon name="bulb" size={26} color={th.accent} />
           <span>IdeaFlow</span>
         </button>
-        {navItems.map(n => {
+        {sideNav.map(n => {
           const active = tab === n.id;
           return (
             <button key={n.id} className={"side-item" + (active ? " on" : "")}
-              onClick={() => { setTab(n.id); if (n.id === "projects") setOpenProjectId(null); }}>
+              onClick={() => goTab(n.id)}>
               <Icon name={n.icon} size={19} color={active ? th.navActive : th.muted} />
               <span>{n.label}</span>
               {n.badge > 0 && <span className="side-badge">{n.badge}</span>}
@@ -1119,7 +1201,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
 
       <div className="if-main">
       {/* Header — vivid look paints it with the signature gradient */}
-      <div ref={headRef} style={{ position: "sticky", top: 0, zIndex: 100,
+      <div ref={headRef} style={{ position: "relative", zIndex: 100, flexShrink: 0,
         background: th.electric
           ? "linear-gradient(180deg,#141A38,#0A0E1F)"
           : th.vivid ? th.grad : th.bg,
@@ -1187,46 +1269,33 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
         )}
       </div>
 
-      {/* Body */}
-      <div className="if-body" style={{ maxWidth: 560, margin: "0 auto", padding: "14px 14px 90px",
-        animation: "fadeUp 0.6s ease-out 0.15s both" }}>
-        {tab === "inbox" && (
-          <Inbox uid={uid} ideas={ideas} projects={projects} th={th} actions={actions} onCapture={capture}
-            myShares={myShares} userName={(user.displayName || "").split(" ")[0]} />
-        )}
-        {tab === "projects" && (
-          <Projects uid={uid} ideas={ideas} projects={projects} th={th} actions={actions}
-            projActions={projActions} onCapture={capture}
-            myShares={myShares} sharedWithMe={sharedWithMe}
-            shareActions={shareActions} onSharedCapture={sharedCapture}
-            commentSeen={commentSeen}
-            openProjectId={openProjectId} setOpenProjectId={setOpenProjectId} />
-        )}
-        {tab === "notes" && (
-          <Notes uid={uid} ideas={ideas} th={th} actions={actions}
-            onCapture={captureNote}
-            onCreateNote={data => addNote(uid, data)}
-            projects={projects} onMoveToProject={setMoveNotes} noteFont={noteFontStep}
-            colorNames={userDoc.colorNames || []}
-            onSaveNames={names => saveColorNames(uid, names).catch(() => {})} />
-        )}
-        {tab === "search" && (
-          <Search ideas={ideas} projects={projects} th={th} actions={actions}
-            q={searchQ} setQ={setSearchQ} />
+      {/* Body — a horizontal carousel of tabs. The live pane scrolls; the
+          incoming pane rides alongside only while a swipe is in progress. */}
+      <div className="if-pager">
+        <div className="if-pane" ref={paneRef}>
+          <div className="if-body" style={{ maxWidth: 560, margin: "0 auto", padding: "14px 14px 20px" }}>
+            {renderTab(tab)}
+          </div>
+        </div>
+        {neighbourTab && (
+          <div className="if-pane incoming" ref={incomingRef} data-dir={dragDir} aria-hidden="true">
+            <div className="if-body" style={{ maxWidth: 560, margin: "0 auto", padding: "14px 14px 20px" }}>
+              {renderTab(neighbourTab)}
+            </div>
+          </div>
         )}
       </div>
       </div>
 
-      {/* Bottom nav */}
-      <div className="if-nav" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
-        background: th.surface, borderTop: `1px solid ${th.border}`,
-        animation: "navUp 0.55s ease-out 0.25s both" }}>
+      {/* Bottom nav — an in-flow flex item at the bottom of the fixed shell. */}
+      <div className="if-nav" style={{ flexShrink: 0, zIndex: 100,
+        background: th.surface, borderTop: `1px solid ${th.border}` }}>
         <div style={{ maxWidth: 560, margin: "0 auto", display: "flex",
           padding: "6px 8px calc(6px + env(safe-area-inset-bottom))" }}>
           {navItems.map(n => {
             const active = tab === n.id;
             return (
-              <button key={n.id} onClick={() => { setTab(n.id); if (n.id === "projects") setOpenProjectId(null); }}
+              <button key={n.id} onClick={() => tabGo(n.id)}
                 style={{ flex: 1, background: "transparent", border: "none", cursor: "pointer",
                   display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
                   padding: "5px 0", position: "relative", fontFamily: FONT }}>
@@ -1265,7 +1334,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
           </span>
 
           {/* favourites + search sit after the FAB, so it lands dead centre */}
-          <button onClick={() => setTab("notes")}
+          <button onClick={() => tabGo("notes")}
             style={{ flex: 1, background: "transparent", border: "none", cursor: "pointer",
               display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
               padding: "5px 0", fontFamily: FONT }}>
@@ -1273,7 +1342,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
             <span style={{ fontSize: 10.5, fontWeight: tab === "notes" ? 600 : 400,
               color: tab === "notes" ? th.navActive : th.muted }}>פתקים</span>
           </button>
-          <button onClick={() => setTab("search")}
+          <button onClick={() => tabGo("search")}
             style={{ flex: 1, background: "transparent", border: "none", cursor: "pointer",
               display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
               padding: "5px 0", fontFamily: FONT }}>
