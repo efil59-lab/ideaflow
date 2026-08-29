@@ -470,9 +470,12 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
   };
 
   return (
+    <div style={{ position: "fixed", inset: 0, background: th.bg, direction: "rtl", zIndex: 100,
+      display: "flex", justifyContent: "center" }}>
     <div onPointerDown={focusFromTap}
-      style={{ position: "fixed", inset: 0, background: th.bg, direction: "rtl", zIndex: 100,
+      style={{ width: "100%", maxWidth: 860, height: "100%",
         borderRight: isNote ? `5px solid ${noteSpine}` : "none",
+        borderLeft: `1px solid ${th.border}`,
         display: "flex", flexDirection: "column",
         padding: "16px 16px calc(16px + env(safe-area-inset-bottom))" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -554,6 +557,7 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
           </button>
         )}
       </div>
+    </div>
     </div>
   );
 }

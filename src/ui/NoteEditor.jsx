@@ -267,16 +267,18 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const nameOf = i => (colorNames[i] || "").trim() || NOTE_COLOR_FALLBACK[i];
 
   return createPortal(
+    // Outer = the full-window ground; on a wide desktop it centres the editor
+    // into a comfortable column instead of stretching edge to edge.
     <div style={{ position: "fixed", left: 0, right: 0, zIndex: 700, background: th.bg,
-      // Unified with the idea editor: a clean neutral surface, the note's colour
-      // carried as a spine on the right edge rather than a full pastel page.
-      borderRight: `5px solid ${c}`,
-      boxShadow: th.electric ? `inset -12px 0 24px -18px ${c}` : "none",
-      // Track the visual viewport so the footer rides above the keyboard — but
-      // only when it reports a sane height (some webviews report 0), else fill.
       top: vpSafe ? vp.top : 0,
       height: vpSafe ? vp.h + "px" : "100dvh",
-      display: "flex", flexDirection: "column", direction: "rtl", fontFamily: FONT }}>
+      display: "flex", justifyContent: "center", direction: "rtl", fontFamily: FONT }}>
+    <div style={{ width: "100%", maxWidth: 860, height: "100%",
+      display: "flex", flexDirection: "column", background: th.surface,
+      // The note's colour is a spine on the column's right edge.
+      borderRight: `5px solid ${c}`,
+      borderLeft: `1px solid ${th.border}`,
+      boxShadow: th.electric ? `0 0 44px rgba(124,58,237,0.18)` : "0 0 40px -12px rgba(0,0,0,0.28)" }}>
 
       {/* Top bar: ⋮ menu · colour square · title · ✓ done */}
       <div style={{ display: "flex", alignItems: "center", gap: 9,
@@ -439,6 +441,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
           {saved ? "נשמר" : "נשמר אוטומטית"}
         </span>
       </div>
+    </div>
     </div>,
     document.body
   );
