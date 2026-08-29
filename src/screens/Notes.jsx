@@ -15,6 +15,9 @@ import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
 // collapsible panel (the palette button in the header) instead of a fixed row.
 const PALETTE = NOTE_COLORS;
 
+// A note is "new" for its first week — a tiny badge marks it.
+const isNewNote = n => n.createdAt && (Date.now() - n.createdAt) < 7 * 864e5;
+
 // The sort menu, ColorNote style.
 const SORTS = [
   ["modified", "לפי זמן שינוי", "time"],
@@ -485,7 +488,13 @@ function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
       </div>
       <div style={{ flexShrink: 0, padding: "12px 10px 12px 13px", display: "flex",
         flexDirection: "column", alignItems: "flex-end", justifyContent: "space-between", gap: 6 }}>
-        <span style={{ fontSize: 11, color: th.muted, whiteSpace: "nowrap" }}>{stamp}</span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+          {isNewNote(note) && (
+            <span style={{ fontSize: 9, fontWeight: 800, color: "#fff", background: th.accent,
+              borderRadius: 6, padding: "1px 6px", letterSpacing: 0.3 }}>חדש</span>
+          )}
+          <span style={{ fontSize: 11, color: th.muted, whiteSpace: "nowrap" }}>{stamp}</span>
+        </div>
         <span style={{ display: "flex", gap: 5 }}>
           {note.pinned && <Icon name="pin" size={12} color={th.accentText} filled />}
           {note.remindAt > Date.now() && <Icon name="bell" size={12} color={th.accentText} />}
@@ -544,6 +553,11 @@ function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, o
         <span style={{ position: "absolute", top: 8, left: 8 }}>
           <Icon name="pin" size={13} color={th.accentText} filled />
         </span>
+      )}
+      {isNewNote(note) && !inSel && (
+        <span style={{ position: "absolute", top: 8, left: note.pinned ? 30 : 8,
+          fontSize: 9, fontWeight: 800, color: "#fff", background: th.accent,
+          borderRadius: 6, padding: "1px 6px", letterSpacing: 0.3 }}>חדש</span>
       )}
       {showCardTitle && (
         <p style={{ margin: "0 0 5px", fontSize: Math.round(13 * scale), fontWeight: 700, color: th.text,
