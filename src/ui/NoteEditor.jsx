@@ -65,15 +65,20 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   closeRef.current = onClose;
   useEffect(() => pushBackLayer(() => closeRef.current?.()), []);
 
-  // Opened from a real tap, so this focus raises the keyboard. Drop the caret at
-  // the END of the text (the left edge in RTL) so it's ready to keep writing —
-  // not at position 0 on the right.
+  // Opened from a real tap, so this focus raises the keyboard. A brand-new note
+  // drops the caret at the END, ready to keep writing. An EXISTING note opens at
+  // the TOP (caret at 0, scrolled up) so a long note — e.g. a shared caption —
+  // is read from its start, not its tail.
   useEffect(() => {
     const t = setTimeout(() => {
       const el = taRef.current;
       if (!el) return;
+      const existing = (initial?.text || "").length > 0;
       el.focus();
-      try { const n = el.value.length; el.setSelectionRange(n, n); } catch { /* ignore */ }
+      try {
+        if (existing) { el.setSelectionRange(0, 0); el.scrollTop = 0; }
+        else { const n = el.value.length; el.setSelectionRange(n, n); }
+      } catch { /* ignore */ }
     }, 90);
     return () => clearTimeout(t);
   }, []);
