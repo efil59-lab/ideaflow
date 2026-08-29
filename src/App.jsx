@@ -26,6 +26,7 @@ import ImageStrip from "./ui/ImageStrip";
 import AudioStrip from "./ui/AudioStrip";
 import { useRecorder } from "./ui/useRecorder";
 import { uploadFile } from "./data/media";
+import { fetchLinkMeta, firstUrl, platformOf } from "./data/link";
 import Inbox from "./screens/Inbox";
 import Projects from "./screens/Projects";
 import Notes from "./screens/Notes";
@@ -103,9 +104,21 @@ export default function App() {
   // raises it for a focus() that lands while the launch tap's activation is
   // still live — so on that path we skip the splash and mount the capture box
   // on the very first paint, before the activation window lapses.
+  // A shared link (from Instagram/TikTok/Facebook/… via the OS share sheet)
+  // is NOT a draft to type into — it becomes a titled note on its own. Detect
+  // it up front so the launch skips the idea-capture screen entirely.
+  const sharedLink = useState(() => {
+    try {
+      const p = new URLSearchParams(location.search);
+      const blob = [p.get("url"), p.get("text"), p.get("title")].filter(Boolean).join(" ");
+      return firstUrl(blob) || "";
+    } catch { return ""; }
+  })[0];
   const shortcutLaunch = useState(() => {
     try {
       const p = new URLSearchParams(location.search);
+      const blob = [p.get("url"), p.get("text"), p.get("title")].filter(Boolean).join(" ");
+      if (firstUrl(blob)) return false;                 // link share → handled as a note, no capture screen
       return p.has("capture") || !!(p.get("title") || p.get("text") || p.get("url"));
     } catch { return false; }
   })[0];
@@ -122,9 +135,9 @@ export default function App() {
 
   // Hold the splash for a minimum beat so the light-up animation is actually
   // seen — cached auth resolves in milliseconds and used to skip right past it.
-  const [bootDone, setBootDone] = useState(shortcutLaunch || noteLaunch);
+  const [bootDone, setBootDone] = useState(shortcutLaunch || noteLaunch || !!sharedLink);
   useEffect(() => {
-    if (shortcutLaunch || noteLaunch) return;
+    if (shortcutLaunch || noteLaunch || sharedLink) return;
     const t = setTimeout(() => setBootDone(true), 1500);
     return () => clearTimeout(t);
   }, [shortcutLaunch, noteLaunch]);
@@ -140,7 +153,13 @@ export default function App() {
     try {
       const p = new URLSearchParams(location.search);
       const shared = [p.get("title"), p.get("text"), p.get("url")].filter(Boolean).join("\n");
-      if (shared) {
+      const url = firstUrl(shared);
+      if (url) {
+        // A shared link: hand it to the Shell, which saves it as an orange,
+        // titled note. Nothing goes into the idea draft.
+        localStorage.setItem("if_shared_link", url);
+        history.replaceState(null, "", location.pathname);
+      } else if (shared) {
         const prev = localStorage.getItem("if_draft");
         localStorage.setItem("if_draft", prev ? prev + "\n" + shared : shared);
         localStorage.setItem("if_focus_capture", "1");
@@ -934,6 +953,34 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // A link shared from Instagram/TikTok/Facebook/… (stashed at intake) becomes a
+  // note on its own: orange, with a titled link card. Runs once, the moment the
+  // Shell has a real user.
+  const sharedLinkRef = useRef(false);
+  useEffect(() => {
+    if (sharedLinkRef.current || !uid || uid === "demo") return;
+    let url = "";
+    try { url = localStorage.getItem("if_shared_link") || ""; } catch { /* ignore */ }
+    if (!url) return;
+    sharedLinkRef.current = true;
+    try { localStorage.removeItem("if_shared_link"); } catch { /* ignore */ }
+    (async () => {
+      toast$("שומר קישור…");
+      let meta;
+      try { meta = await fetchLinkMeta(url); }
+      catch { const pf = platformOf(url); meta = { url, title: pf.label, ...pf }; }
+      await addNote(uid, {
+        title: meta.title || meta.label || "קישור",
+        text: "",
+        colorIdx: 4,               // orange — every link shared into the app
+        links: [meta],
+      });
+      toast$("הקישור נשמר 🔗");
+      setBulbBeat(b => b + 1);
+      setTab("notes");
+    })().catch(() => toast$("לא הצלחתי לשמור את הקישור"));
+  }, [uid]);
 
   if (migrating || !ideas || !projects) return <Splash th={th} still text={migMsg || "טוען..."} />;
 
@@ -1736,7 +1783,7 @@ function Guide({ onClose, onLog, th }) {
   const features = [
     { icon: "add", title: '⭐ קיצור "פתק חדש" למסך הבית', text: 'הדרך המהירה ביותר לתפוס מחשבה: לחיצה ארוכה על אייקון IdeaFlow במסך הבית ← בתפריט שקופץ בחר "פתק" ← גרור אותו למסך הבית. עכשיו יש לך אייקון ייעודי שפותח בנגיעה אחת ישר מסך כתיבת פתק — עם מקלדת, בלי מסך פתיחה. (במחשב אפשר גם קישור לכתובת ‎/?note=1‎.)' },
     { icon: "photo", title: "תמונות והקלטת קול", text: 'במסך כתיבת הפתק: כפתור מיקרופון מקליט קול (נשמר עם נגן להאזנה), וכפתור תמונה מוסיף תמונות — נשמרות קטנות, לחיצה מגדילה למסך מלא ואפשר לדפדף בין כולן. אפשר לבחור כמה תמונות יחד.' },
-    { icon: "link", title: "שמירת קישורים מרשתות", text: 'מצאת סרטון באינסטגרם, טיקטוק, פייסבוק או יוטיוב? העתק את הקישור, ובמסך כתיבת הפתק לחץ על אייקון הקישור (🔗) והדבק — הקישור נשמר ככרטיס נקי עם הכותרת של הסרטון ותמונה ממוזערת, ולחיצה עליו פותחת אותו. אפשר גם פשוט להדביק קישור לתוך פתק ריק והוא יהפוך לכרטיס לבד.' },
+    { icon: "link", title: "שמירת קישורים מרשתות", text: 'מצאת סרטון באינסטגרם, טיקטוק, פייסבוק או יוטיוב? הכי מהיר — מתוך האפליקציה של הרשת לחץ "שתף" ובחר ב-IdeaFlow: הקישור נשמר לבד כפתק כתום עם הכותרת של הסרטון ותמונה ממוזערת, ולחיצה עליו פותח אותו. אפשר גם בעורך הפתק ללחוץ על אייקון הקישור (🔗) ולהדביק, או פשוט להדביק קישור לתוך פתק ריק.' },
     { icon: "check", title: "רשימות סימון", text: 'בתפריט ⋮ ← "רשימת סימון": כל שורה הופכת לפריט עם ריבוע. נגיעה בריבוע מסמנת כבוצע ומעבירה קו חוצה, Enter מוסיף פריט, ולחיצה חוזרת מחזירה לטקסט רגיל.' },
     { icon: "tag", title: "צבעים וסינון", text: 'כל פתק מקבל צבע (ריבוע הצבע בכותרת העורך). כפתור הפלטה בראש רשימת הפתקים פותח סינון לפי צבע, ואפשר לתת לכל צבע שם משלך ("קניות", "עבודה") בתפריט הפרופיל.' },
     { icon: "pin", title: 'הצמדה ותווית "חדש"', text: '⋮ ← "הצמד" מעלה פתק לראש הרשימה. פתק שנוצר בשבוע האחרון מסומן בתווית קטנה "חדש" שנעלמת מעצמה.' },
