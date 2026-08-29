@@ -190,8 +190,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   };
   const rec = useRecorder(blob => uploadMedia(blob, "voice.webm", setAudios));
   const addImage = async e => {
-    const f = e.target.files?.[0]; e.target.value = "";
-    if (f) uploadMedia(f, f.name, setImages);
+    const files = [...(e.target.files || [])]; e.target.value = "";
+    for (const f of files) await uploadMedia(f, f.name, setImages);
   };
 
   // "רשימת סימון": turn every line into a checkbox item, or strip the markers off
@@ -389,7 +389,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
             backgroundAttachment: "local" }} />
       )}
 
-      <input ref={imgRef} type="file" accept="image/*" style={{ display: "none" }} onChange={addImage} />
+      <input ref={imgRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={addImage} />
       {(images.length > 0 || audios.length > 0 || uploading || rec.error) && (
         <div style={{ padding: "8px 14px", background: barBg, borderTop: `1px solid ${line}`,
           display: "flex", flexDirection: "column", gap: 8, maxHeight: "40vh", overflowY: "auto" }}>

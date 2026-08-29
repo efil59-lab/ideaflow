@@ -365,8 +365,8 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
   };
   const rec = useRecorder(blob => uploadMedia(blob, "voice.webm", setAudios));
   const addImage = async e => {
-    const f = e.target.files?.[0]; e.target.value = "";
-    if (f) uploadMedia(f, f.name, setImages);
+    const files = [...(e.target.files || [])]; e.target.value = "";
+    for (const f of files) await uploadMedia(f, f.name, setImages);
   };
 
   // Best-effort auto-focus on first paint (works only where the platform still
@@ -499,7 +499,7 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
           borderRadius: 14, padding: 14, fontSize: 17, fontFamily: FONT, direction: "rtl",
           color: th.text, background: th.surface, lineHeight: 1.6, resize: "none", outline: "none",
         }} />
-      <input ref={imgRef} type="file" accept="image/*" style={{ display: "none" }} onChange={addImage} />
+      <input ref={imgRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={addImage} />
       {isNote && (images.length > 0 || audios.length > 0 || uploading || rec.error) && (
         <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
           <ImageStrip images={images} th={th} onRemove={i => setImages(p => p.filter((_, j) => j !== i))} />
