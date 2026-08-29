@@ -7,6 +7,9 @@ import { Icon, IconBtn } from "./Icons";
 import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
 import { autoTitle } from "../data/store";
 import { pushBackLayer } from "./backstack";
+import ImageStrip from "./ImageStrip";
+import { useDictation } from "./useDictation";
+import { uploadFile } from "../data/media";
 
 // A checklist item field that wraps to as many lines as its text needs (a plain
 // input would clip the tail of a long item). Grows to fit its content.
@@ -34,10 +37,12 @@ const MENU = [
   { k: "delete",    label: "מחיקה",        icon: "delete", danger: true },
 ];
 
-export default function NoteEditor({ initial, defaultColor = 0, colorNames = [], scale = 1, pastePrompt = false, th, onCreate, onUpdate, onAction, onClose }) {
+export default function NoteEditor({ initial, defaultColor = 0, colorNames = [], scale = 1, pastePrompt = false, uid, th, onCreate, onUpdate, onAction, onClose }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [text, setText] = useState(initial?.text || "");
   const [colorIdx, setColorIdx] = useState(initial?.colorIdx ?? defaultColor ?? 0);
+  const [images, setImages] = useState(initial?.images || []);
+  const [uploading, setUploading] = useState(false);
   const [showColors, setShowColors] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -45,6 +50,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const idRef = useRef(initial?.id || null);
   const creatingRef = useRef(false);
   const taRef = useRef();
+  const imgRef = useRef();
   const inputs = useRef({});
 
   // Hardware back closes the editor (autosave already flushed on unmount)
@@ -68,8 +74,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
 
   // Autosave: the ref always holds the latest state so the unmount flush and
   // the debounced save read the same truth.
-  const stateRef = useRef({ title, text, colorIdx });
-  stateRef.current = { title, text, colorIdx };
+  const stateRef = useRef({ title, text, colorIdx, images });
+  stateRef.current = { title, text, colorIdx, images };
 
   // What's already persisted. A pure read (or the no-op flush on unmount) must
   // NOT rewrite the note — that would bump updatedAt and jump it to the top of
@@ -78,26 +84,29 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     title: initial?.title || "",
     text: initial?.text || "",
     colorIdx: initial?.colorIdx ?? defaultColor ?? 0,
+    images: initial?.images || [],
   });
+  const imgsKey = a => (a || []).map(x => (typeof x === "string" ? x : x?.url)).join("|");
 
   const save = async () => {
     const s = stateRef.current;
     const unchanged = s.title === savedRef.current.title
       && s.text === savedRef.current.text
-      && s.colorIdx === savedRef.current.colorIdx;
+      && s.colorIdx === savedRef.current.colorIdx
+      && imgsKey(s.images) === imgsKey(savedRef.current.images);
     if (!idRef.current) {
-      if (!s.title.trim() && !s.text.trim()) return;    // nothing to keep
+      if (!s.title.trim() && !s.text.trim() && !(s.images || []).length) return;   // nothing to keep
       if (creatingRef.current) return;
       creatingRef.current = true;
       try {
-        const n = await onCreate({ title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx });
+        const n = await onCreate({ title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, images: s.images });
         idRef.current = n?.id || null;
-        savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx };
+        savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx, images: s.images };
       } finally { creatingRef.current = false; }
     } else {
       if (unchanged) return;                            // read-only visit — leave it in place
-      onUpdate(idRef.current, { title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, html: "" });
-      savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx };
+      onUpdate(idRef.current, { title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, images: s.images, html: "" });
+      savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx, images: s.images };
     }
     setSaved(true);
   };
@@ -108,7 +117,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     setSaved(false);
     const t = setTimeout(save, 800);
     return () => clearTimeout(t);
-  }, [title, text, colorIdx]);
+  }, [title, text, colorIdx, images]);
   // Any way out flushes the pending edit.
   useEffect(() => () => { save(); }, []);
 
@@ -162,6 +171,19 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     vv.addEventListener("scroll", onR);
     return () => { vv.removeEventListener("resize", onR); vv.removeEventListener("scroll", onR); };
   }, []);
+
+  // Voice dictation appends to the body; image attach uploads and stores a URL.
+  const dict = useDictation(t => changeText((stateRef.current.text ? stateRef.current.text.replace(/\s*$/, "") + " " : "") + t));
+  const addImage = async e => {
+    const f = e.target.files?.[0]; e.target.value = "";
+    if (!f || !uid) return;
+    setUploading(true);
+    try {
+      const img = (import.meta.env.DEV && uid === "demo") ? { url: URL.createObjectURL(f) } : await uploadFile(uid, f);
+      setImages(p => [...p, img]);
+    } catch { /* ignore */ }
+    setUploading(false);
+  };
 
   // "רשימת סימון": turn every line into a checkbox item, or strip the markers off
   // if the note is already a list. Autosave picks up the change.
@@ -358,11 +380,19 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
             backgroundAttachment: "local" }} />
       )}
 
-      {/* Footer: undo / redo (kept above the keyboard by the viewport tracking)
-          plus the autosave status. preventDefault on pointer-down keeps the
-          textarea focused, so tapping an arrow doesn't dismiss the keyboard. */}
-      <div style={{ padding: "5px 10px calc(5px + env(safe-area-inset-bottom))",
-        display: "flex", alignItems: "center", gap: 4, background: barBg,
+      <input ref={imgRef} type="file" accept="image/*" style={{ display: "none" }} onChange={addImage} />
+      {(images.length > 0 || uploading) && (
+        <div style={{ padding: "8px 14px", background: barBg, borderTop: `1px solid ${line}` }}>
+          <ImageStrip images={images} th={th} onRemove={i => setImages(p => p.filter((_, j) => j !== i))} />
+          {uploading && <p style={{ margin: "6px 2px 0", fontSize: 11.5, color: th.muted, direction: "rtl" }}>מעלה תמונה…</p>}
+        </div>
+      )}
+
+      {/* Footer: undo / redo · dictation · image · autosave status. Kept above the
+          keyboard by the viewport tracking; pointer-down preventDefault on the
+          arrows keeps the textarea focused. */}
+      <div style={{ padding: "5px 8px calc(5px + env(safe-area-inset-bottom))",
+        display: "flex", alignItems: "center", gap: 2, background: barBg,
         borderTop: `1px solid ${line}` }}>
         {[["undo", undo, canUndo, "בטל"], ["redo", redo, canRedo, "החזר"]].map(([ic, fn, on, t]) => (
           <button key={ic} title={t} disabled={!on}
@@ -374,6 +404,20 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
             <Icon name={ic} size={21} color={th.text} />
           </button>
         ))}
+        <button title={dict.listening ? "עצור הקלטה" : "הקלטת דיבור"}
+          onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+          onClick={() => { if (!dict.toggle()) alert("הדפדפן במכשיר לא תומך בהקלטת דיבור"); }}
+          style={{ background: dict.listening ? th.red : "transparent", border: "none", borderRadius: 9,
+            padding: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name="mic" size={20} color={dict.listening ? "#fff" : th.text} />
+        </button>
+        <button title="הוסף תמונה"
+          onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+          onClick={() => imgRef.current?.click()}
+          style={{ background: "transparent", border: "none", borderRadius: 9, padding: "8px",
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name="photo" size={20} color={th.text} />
+        </button>
         <span style={{ marginRight: "auto", display: "flex", alignItems: "center", gap: 6,
           fontSize: 11.5, color: th.muted }}>
           <Icon name={saved ? "check" : "refresh"} size={12} color={saved ? th.green : th.muted} />

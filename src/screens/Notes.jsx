@@ -7,6 +7,7 @@ import { Icon, IconBtn } from "../ui/Icons";
 import { Modal, ModalHeader, Confirm } from "../ui/base";
 import Checklist, { hasChecklist, parseChecklist, toggleLine } from "../ui/Checklist";
 import NoteEditor from "../ui/NoteEditor";
+import ImageStrip from "../ui/ImageStrip";
 import { pushBackLayer } from "../ui/backstack";
 import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
 
@@ -383,7 +384,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
       )}
 
       {editing && (
-        <NoteEditor th={th} colorNames={colorNames} scale={scale}
+        <NoteEditor th={th} colorNames={colorNames} scale={scale} uid={uid}
           initial={editing === "new" ? null : editing}
           pastePrompt={editing === "new" && pasteHint}
           defaultColor={color ?? 0}
@@ -581,6 +582,11 @@ function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, o
           </div>
         )}
       </div>
+      {note.images?.length > 0 && (
+        <div style={{ flexShrink: 0, marginTop: 8 }}>
+          <ImageStrip images={note.images} th={th} size={42} />
+        </div>
+      )}
     </div>
   );
 }

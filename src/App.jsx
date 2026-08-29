@@ -21,6 +21,9 @@ import { Icon, IconBtn } from "./ui/Icons";
 import { Modal, ModalHeader, Toast } from "./ui/base";
 import { ShareModal, MoveSheet, ReminderSheet, SnoozeSheet, CommentsSheet } from "./ui/sheets";
 import Editor from "./ui/Editor";
+import ImageStrip from "./ui/ImageStrip";
+import { useDictation } from "./ui/useDictation";
+import { uploadFile } from "./data/media";
 import Inbox from "./screens/Inbox";
 import Projects from "./screens/Projects";
 import Notes from "./screens/Notes";
@@ -343,7 +346,23 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
   });
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [images, setImages] = useState([]);
+  const [uploading, setUploading] = useState(false);
   const taRef = useRef();
+  const imgRef = useRef();
+  const dict = useDictation(t => setText(prev => (prev ? prev.replace(/\s*$/, "") + " " : "") + t));
+  const addImage = async e => {
+    const f = e.target.files?.[0]; e.target.value = "";
+    if (!f || !user) return;
+    setUploading(true);
+    try {
+      const img = (import.meta.env.DEV && user.uid === "demo")
+        ? { url: URL.createObjectURL(f) }
+        : await uploadFile(user.uid, f);
+      setImages(p => [...p, img]);
+    } catch { /* ignore */ }
+    setUploading(false);
+  };
 
   // Best-effort auto-focus on first paint (works only where the platform still
   // honours it). Android generally refuses to raise the soft keyboard without a
@@ -414,23 +433,23 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
   const noteIdRef = useRef(null);
   const persistNote = async () => {
     const t = text.trim();
-    if (!isNote || !user || !t) return;
+    if (!isNote || !user || (!t && !images.length)) return;
     try {
       if (!noteIdRef.current) {
-        const n = await addNote(user.uid, { text: t, title: autoTitle(t), colorIdx: 0 });
+        const n = await addNote(user.uid, { text: t, title: autoTitle(t), colorIdx: 0, images });
         noteIdRef.current = n?.id || null;
       } else {
-        await updateIdea(user.uid, noteIdRef.current, { text: t, title: autoTitle(t) });
+        await updateIdea(user.uid, noteIdRef.current, { text: t, title: autoTitle(t), images });
       }
       setSavedFlash(true);
     } catch { /* offline queues the write */ }
   };
   useEffect(() => {
-    if (!isNote || !text.trim()) return;
+    if (!isNote || (!text.trim() && !images.length)) return;
     setSavedFlash(false);
     const timer = setTimeout(persistNote, 700);
     return () => clearTimeout(timer);
-  }, [text, isNote, user]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [text, images, isNote, user]);   // eslint-disable-line react-hooks/exhaustive-deps
   const leave = async () => { if (isNote) await persistNote(); onDone(); };
   // Save the current note (already autosaved) and start a fresh one.
   const newNote = async () => {
@@ -438,6 +457,7 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
     noteIdRef.current = null;   // next keystrokes create a brand-new note
     setSavedFlash(false);
     setText("");
+    setImages([]);
     taRef.current?.focus();
   };
 
@@ -473,6 +493,14 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
           borderRadius: 14, padding: 14, fontSize: 17, fontFamily: FONT, direction: "rtl",
           color: th.text, background: th.surface, lineHeight: 1.6, resize: "none", outline: "none",
         }} />
+      <input ref={imgRef} type="file" accept="image/*" style={{ display: "none" }} onChange={addImage} />
+      {isNote && (images.length > 0 || uploading) && (
+        <div style={{ marginTop: 10 }}>
+          <ImageStrip images={images} th={th} onRemove={i => setImages(p => p.filter((_, j) => j !== i))} />
+          {uploading && <p style={{ margin: "6px 2px 0", fontSize: 12, color: th.muted, direction: "rtl" }}>מעלה תמונה…</p>}
+        </div>
+      )}
+
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
         <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, fontFamily: FONT,
           display: "flex", alignItems: "center", gap: 6,
@@ -485,12 +513,28 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
           ) : (savedFlash ? "נשמר ✓ — אפשר להוסיף עוד" : user ? "יישמר לאינבוקס" : "מתחבר…")}
         </span>
         {isNote ? (
-          <button onClick={newNote} title="פתק חדש"
-            style={{ width: 48, height: 48, borderRadius: "50%", border: "none", cursor: "pointer",
-              background: th.cta || th.accent, display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: th.electric ? "0 0 18px rgba(168,85,247,0.6)" : "0 4px 14px rgba(0,0,0,0.2)" }}>
-            <Icon name="add" size={26} color="#fff" />
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button onClick={() => { if (!dict.toggle()) alert("הדפדפן במכשיר לא תומך בהקלטת דיבור"); }}
+              title={dict.listening ? "עצור הקלטה" : "הקלטת דיבור"}
+              style={{ width: 44, height: 44, borderRadius: "50%", cursor: "pointer",
+                background: dict.listening ? th.red : th.surface,
+                border: `1px solid ${dict.listening ? th.red : th.border}`,
+                display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="mic" size={20} color={dict.listening ? "#fff" : th.secondary} />
+            </button>
+            <button onClick={() => imgRef.current?.click()} title="הוסף תמונה"
+              style={{ width: 44, height: 44, borderRadius: "50%", cursor: "pointer",
+                background: th.surface, border: `1px solid ${th.border}`,
+                display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="photo" size={20} color={th.secondary} />
+            </button>
+            <button onClick={newNote} title="פתק חדש"
+              style={{ width: 48, height: 48, borderRadius: "50%", border: "none", cursor: "pointer",
+                background: th.cta || th.accent, display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: th.electric ? "0 0 18px rgba(168,85,247,0.6)" : "0 4px 14px rgba(0,0,0,0.2)" }}>
+              <Icon name="add" size={26} color="#fff" />
+            </button>
+          </div>
         ) : (
           <button onClick={save} disabled={!canSave}
             style={{ background: th.cta, color: "#fff", border: "none", borderRadius: 12,
@@ -1617,7 +1661,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "sparkle", title: "מראה", text: "בתפריט המשתמש (התמונה למעלה) בוחרים מראה: \"אלקטריק\" הכהה והזוהר (ברירת המחדל), \"זוהר\" הצבעוני או \"רגוע\" המינימלי. בכפתור הירח/שמש עוברים למצב כהה. הבחירה נשמרת במכשיר." },
     { icon: "add", title: "כפתור רעיון חדש", text: "הכפתור העגול במרכז סרגל הניווט פותח שלוש דרכים לתפוס רעיון: כתיבה, הקלטה קולית או תמונה. בלשונית \"פתקים\" הוא פותח פתק חדש ישירות." },
     { icon: "star", title: "מועדפים", text: "כוכב ⭐ על כרטיס פרויקט מעלה אותו לראש מסך הפרויקטים — מה שאתה חוזר אליו, ראשון." },
-    { icon: "notes", title: "פתקים", text: "לשונית \"פתקים\" היא לדברים שרוצים לשמור ולא לבצע. + פותח דף כתיבה שנשמר אוטומטית; לחיצה ארוכה מסמנת פתקים לבחירה מרובה — צביעה, ארכיון, מחיקה, או העברה לפרויקט קיים (הפתק הופך לרעיון פעיל). שורת המיון למעלה, שמות לצבעים, ושורות שמתחילות ב-\"- \" הופכות לרשימת סימון, וסרגל הכלים נעוץ בזמן גלילה. גודל הטקסט, ייבוא וייצוא פתקים נמצאים בתפריט הפרופיל (תמונת המשתמש). במסך הכתיבה יש תפריט ⋮ בפינה הימנית העליונה: רשימת סימון (כל שורה הופכת לפריט עם ריבוע לסימון + קו חוצה), הצמדה (פתק מוצמד עולה לראש הרשימה), שיתוף, תזכורת, העברה לפרויקט, ארכיון ומחיקה. בתחתית המסך יש בטל/החזר (undo/redo). פתקים לא מגיעים ל-Inbox ולא נספרים כרעיונות פעילים." },
+    { icon: "notes", title: "פתקים", text: "לשונית \"פתקים\" היא לדברים שרוצים לשמור ולא לבצע. + פותח דף כתיבה שנשמר אוטומטית; לחיצה ארוכה מסמנת פתקים לבחירה מרובה — צביעה, ארכיון, מחיקה, או העברה לפרויקט קיים (הפתק הופך לרעיון פעיל). שורת המיון למעלה, שמות לצבעים, ושורות שמתחילות ב-\"- \" הופכות לרשימת סימון, וסרגל הכלים נעוץ בזמן גלילה. גודל הטקסט, ייבוא וייצוא פתקים נמצאים בתפריט הפרופיל (תמונת המשתמש). במסך הכתיבה יש תפריט ⋮ בפינה הימנית העליונה: רשימת סימון (כל שורה הופכת לפריט עם ריבוע לסימון + קו חוצה), הצמדה (פתק מוצמד עולה לראש הרשימה), שיתוף, תזכורת, העברה לפרויקט, ארכיון ומחיקה. בתחתית המסך יש בטל/החזר, מיקרופון להכתבה קולית, והוספת תמונה (נשמרת קטנה, לחיצה עליה מגדילה למסך מלא). פתקים לא מגיעים ל-Inbox ולא נספרים כרעיונות פעילים." },
     { icon: "bulb", title: "AI על הרעיון", text: "בעורך של כל רעיון: שפר ניסוח, הרחב, הפוך למשימות או קבל זוויות נוספות. התוצאה מוצעת — אתה בוחר אם להחליף, להוסיף או לבטל." },
   ];
   const Row = ({ it, last }) => (
