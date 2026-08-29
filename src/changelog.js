@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.68";
+export const APP_VERSION = "5.69";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.69", date: "29 באוגוסט 2026", items: [
+    { icon: "add", title: "פתק חדש בסרגל הצד", text: "נוסף כפתור 'פתק חדש' מודגש בראש סרגל הצד במחשב — פותח עורך פתק בלחיצה." },
+  ] },
   { v: "5.68", date: "29 באוגוסט 2026", items: [
     { icon: "add", title: "סדר ניווט תחתון", text: "מימין לשמאל: פתקים · פרויקטים · חיפוש · פתק חדש (+ בקצה השמאלי)." },
   ] },

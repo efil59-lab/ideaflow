@@ -1213,9 +1213,15 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
       {/* Desktop side rail — display:none below 900px, so phones are untouched.
           First child + RTL row layout is what puts it on the right. */}
       <aside className="side">
-        <button className="side-brand" onClick={() => setTab("inbox")}>
+        <button className="side-brand" onClick={() => goTab("notes")}>
           <Icon name="bulb" size={26} color={th.accent} />
           <span>IdeaFlow</span>
+        </button>
+        <button className="side-item" onClick={() => fabAction("note")}
+          style={{ background: th.cta || th.accent, color: "#fff", marginBottom: 6, fontWeight: 700,
+            boxShadow: th.electric ? "0 0 16px rgba(168,85,247,0.5)" : "none" }}>
+          <Icon name="add" size={19} color="#fff" />
+          <span>פתק חדש</span>
         </button>
         {sideNav.map(n => {
           const active = tab === n.id;
