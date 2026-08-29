@@ -47,6 +47,84 @@ function usePress(onTap, onLong) {
   };
 }
 
+// The notes "motto" — mirrors the projects hero, with notes data. Big count +
+// checklist progress + a colour-distribution bar, then a few glance tiles. Same
+// gradient/electric treatment so the two screens feel like one product.
+function NotesStats({ notesAll, archCount, th, nameOf }) {
+  const active = notesAll.filter(n => !n.archived);
+  if (!active.length) return null;
+
+  let done = 0, total = 0;
+  active.forEach(n => parseChecklist(n.text).forEach(it => { total++; if (it.done) done++; }));
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  const byColor = NOTE_COLORS.map((c, i) => ({ c, i, n: active.filter(x => (x.colorIdx ?? 0) === i).length }))
+    .filter(g => g.n).sort((a, b) => b.n - a.n);
+  const newWk = active.filter(isNewNote).length;
+  const lists = active.filter(n => hasChecklist(n.text)).length;
+
+  const heroInk = (th.electric || th.vivid) ? "#fff" : th.text;
+  const heroSub = (th.electric || th.vivid) ? "rgba(255,255,255,0.72)" : th.muted;
+
+  return (
+    <>
+      <div style={{ position: "relative", overflow: "hidden",
+        background: th.electric
+          ? "linear-gradient(135deg,#1A1040 0%,#101634 55%,#0C1026 100%)"
+          : th.vivid ? th.grad : th.surface,
+        border: th.electric ? "1px solid rgba(168,85,247,0.3)"
+          : th.vivid ? "none" : `1px solid ${th.border}`,
+        boxShadow: th.electric ? "0 0 34px rgba(124,58,237,0.28)" : "none",
+        borderRadius: 18, padding: "16px 16px 14px", marginBottom: 10, direction: "rtl" }}>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <span style={{ width: 44, height: 44, borderRadius: 14, flexShrink: 0,
+            background: th.electric ? "rgba(168,85,247,0.18)"
+              : th.vivid ? "rgba(255,255,255,0.2)" : th.accentSoft,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: th.electric ? "0 0 16px rgba(168,85,247,0.4)" : "none" }}>
+            <Icon name="notes" size={22} color={heroInk} />
+          </span>
+          <span style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
+            <span style={{ fontSize: 38, fontWeight: 800, color: heroInk, letterSpacing: -0.5 }}>{active.length}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 500, color: heroSub, marginTop: 4 }}>פתקים</span>
+          </span>
+          {total > 0 && (
+            <span style={{ marginRight: "auto", textAlign: "left", display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
+              <span style={{ fontSize: 22, fontWeight: 800, color: heroInk }}>{pct}%</span>
+              <span style={{ fontSize: 11, color: heroSub }}>סומנו</span>
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: "flex", height: 9, borderRadius: 99, overflow: "hidden",
+          background: th.electric || th.vivid ? "rgba(255,255,255,0.13)" : th.surface2,
+          border: th.electric || th.vivid ? "none" : `1px solid ${th.border}` }}>
+          {byColor.map(g => (
+            <div key={g.i} title={`${nameOf(g.i)}: ${g.n}`}
+              style={{ width: `${(g.n / active.length) * 100}%`, background: g.c,
+                boxShadow: th.electric ? `0 0 10px ${g.c}` : "none" }} />
+          ))}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 9, fontSize: 12, color: heroSub }}>
+          <span>{total ? `${done}/${total} סומנו` : `${byColor.length} צבעים בשימוש`}</span>
+          {newWk > 0 && <span style={{ marginRight: "auto", color: heroInk, fontWeight: 600 }}>{newWk} חדשים השבוע ›</span>}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, direction: "rtl" }}>
+        {[[active.length, "פעילים"], [lists, "רשימות"], [archCount, "בארכיון"]].map(([n, label]) => (
+          <div key={label} style={{ flex: 1, background: th.surface, borderRadius: 13,
+            border: `1px solid ${th.border}`, padding: "9px 10px", textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{n}</div>
+            <div style={{ fontSize: 11, color: th.muted, marginTop: 1 }}>{label}</div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote,
   projects = [], onMoveToProject, noteFont = 0, colorNames = [], onSaveNames }) {
   const [color, setColor] = useState(null);              // colour filter, null = all
@@ -187,6 +265,10 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
 
   return (
     <>
+      {/* The shared "motto" hero — same shape as the projects screen, with notes
+          data. Scrolls away above the pinned toolbar. */}
+      {!showArch && !inSel && <NotesStats notesAll={notesAll} archCount={archCount} th={th} nameOf={nameOf} />}
+
       {/* The whole toolbar (sort · title · colours) stays pinned under the app
           header while the notes scroll. */}
       <div style={{ position: "sticky", top: "var(--if-head-h, 56px)", zIndex: 20,
