@@ -1148,7 +1148,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   // ── Tab carousel — the hooks live above the loading gate; here we build the
   // pager (needs the screen renderers) and derive the neighbour tab. TABS is
   // physical right→left (RTL): finger right → the tab to the left (next).
-  const TABS = ["projects", "notes", "search"];
+  const TABS = ["search", "notes", "projects"];
   const tabIndex = TABS.indexOf(tab);
   tabIndexRef.current = tabIndex;
   const goTab = t => { setTab(t); if (t === "projects") setOpenProjectId(null); };
@@ -1321,58 +1321,36 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
       {/* Bottom nav — an in-flow flex item at the bottom of the fixed shell. */}
       <div className="if-nav" style={{ flexShrink: 0, zIndex: 100,
         background: th.surface, borderTop: `1px solid ${th.border}` }}>
-        <div style={{ maxWidth: 560, margin: "0 auto", display: "flex",
+        <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", alignItems: "center",
           padding: "6px 8px calc(6px + env(safe-area-inset-bottom))" }}>
-          {navItems.map(n => {
+          {/* + New note — the single capture action, on the far right (RTL). */}
+          <span style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <button onClick={() => fabAction("note")} title="פתק חדש"
+              style={{ width: 46, height: 46, borderRadius: "50%", background: th.cta || th.accent,
+                border: th.electric ? "2px solid rgba(168,85,247,0.55)" : "none", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: th.electric ? "0 0 18px rgba(168,85,247,0.65)" : "0 4px 14px rgba(0,0,0,0.22)" }}>
+              <Icon name="add" size={24} color="#fff" />
+            </button>
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: th.navActive }}>פתק חדש</span>
+          </span>
+
+          {/* Tabs, right→left: search · notes · projects */}
+          {[{ id: "search", icon: "search", label: "חיפוש" },
+            { id: "notes", icon: "notes", label: "פתקים" },
+            { id: "projects", icon: "folder", label: "פרויקטים" }].map(n => {
             const active = tab === n.id;
             return (
               <button key={n.id} onClick={() => tabGo(n.id)}
                 style={{ flex: 1, background: "transparent", border: "none", cursor: "pointer",
                   display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-                  padding: "5px 0", position: "relative", fontFamily: FONT }}>
-                <span style={{ position: "relative" }}>
-                  <Icon name={n.icon} size={21} color={active ? th.navActive : th.muted} />
-                  {n.badge > 0 && (
-                    <span style={{ position: "absolute", top: -4, left: -10, background: th.navActive,
-                      color: "#fff", fontSize: 9.5, fontWeight: 700, borderRadius: 9,
-                      minWidth: 15, height: 15, padding: "0 4px",
-                      display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {n.badge}
-                    </span>
-                  )}
-                </span>
+                  padding: "5px 0", fontFamily: FONT }}>
+                <Icon name={n.icon} size={21} color={active ? th.navActive : th.muted} />
                 <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 400,
                   color: active ? th.navActive : th.muted }}>{n.label}</span>
               </button>
             );
           })}
-          {/* Raised FAB — the app's primary action, mid-bar */}
-          <span style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-            <button onClick={() => fabAction("note")}
-              title="פתק חדש"
-              style={{ width: 52, height: 52, marginTop: -22, borderRadius: "50%",
-                background: th.cta || th.accent,
-                border: th.electric ? "2px solid rgba(168,85,247,0.55)" : `3px solid ${th.surface}`,
-                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: th.electric
-                  ? "0 0 22px rgba(168,85,247,0.75), 0 6px 18px rgba(0,0,0,0.6)"
-                  : "0 6px 18px rgba(0,0,0,0.22)" }}>
-              <Icon name="add" size={27} color="#fff" />
-            </button>
-            <span style={{ fontSize: 10.5, fontWeight: 600, color: th.navActive, marginTop: -2 }}>
-              פתק חדש
-            </span>
-          </span>
-
-          {/* search sits after the FAB */}
-          <button onClick={() => tabGo("search")}
-            style={{ flex: 1, background: "transparent", border: "none", cursor: "pointer",
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-              padding: "5px 0", fontFamily: FONT }}>
-            <Icon name="search" size={21} color={tab === "search" ? th.navActive : th.muted} />
-            <span style={{ fontSize: 10.5, fontWeight: tab === "search" ? 600 : 400,
-              color: tab === "search" ? th.navActive : th.muted }}>חיפוש</span>
-          </button>
         </div>
       </div>
 
