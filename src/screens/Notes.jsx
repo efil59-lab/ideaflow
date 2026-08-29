@@ -10,10 +10,9 @@ import NoteEditor from "../ui/NoteEditor";
 import { pushBackLayer } from "../ui/backstack";
 import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
 
-// Colours offered for new notes / filtering — kept to four so the chips fit one
-// row. The full NOTE_COLORS array stays intact so notes already coloured orange
-// or pink still render their colour.
-const PALETTE = NOTE_COLORS.slice(0, 4);
+// All six colours are offered again now that the filter chips live in a
+// collapsible panel (the palette button in the header) instead of a fixed row.
+const PALETTE = NOTE_COLORS;
 
 // The sort menu, ColorNote style.
 const SORTS = [
@@ -64,6 +63,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [pickColor, setPickColor] = useState(false);     // bulk colour picker
   const [confirmDel, setConfirmDel] = useState(null);    // array of notes to trash
   const [selMenu, setSelMenu] = useState(false);         // "more" menu in the selection bar
+  const [showColorFilter, setShowColorFilter] = useState(false);   // colour chips, toggled by the palette icon
   const [pasteHint, setPasteHint] = useState(false);     // opened via clip but clipboard was blocked
 
   // Reading a note opens a full-screen editor; keep the list exactly where it
@@ -265,6 +265,18 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
           </h2>
           <span style={{ fontSize: 12.5, color: th.muted }}>{showArch ? archCount : notesAll.length - archCount}</span>
           <span style={{ marginRight: "auto", display: "flex", gap: 4, alignItems: "center" }}>
+            {/* Palette: opens the colour filter chips */}
+            <button onClick={() => setShowColorFilter(o => !o)} title="סינון לפי צבע"
+              style={{ background: (showColorFilter || color !== null) ? th.accentSoft : "transparent",
+                border: "none", borderRadius: 9, cursor: "pointer", padding: "6px",
+                display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, width: 17, height: 17 }}>
+                {[0, 1, 3, 4].map(i => (
+                  <span key={i} style={{ background: NOTE_COLORS[i], borderRadius: 2,
+                    outline: color === i ? `1.5px solid ${th.text}` : "none" }} />
+                ))}
+              </span>
+            </button>
             <IconBtn name="folder" onClick={() => { setShowArch(a => !a); setColor(null); }}
               color={showArch ? th.accent : th.muted} size={17} pad="6px"
               title={showArch ? "חזרה לפתקים" : `ארכיון (${archCount})`} />
@@ -282,28 +294,30 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
         </div>
       )}
 
-      {/* Colour filter */}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "0 0 10px", direction: "rtl" }}>
-        <button onClick={() => setColor(null)}
-          style={{ fontSize: 12, fontWeight: 600, fontFamily: FONT, padding: "6px 13px",
-            borderRadius: 18, cursor: "pointer", border: "none",
-            background: color === null ? th.accent : th.surface,
-            color: color === null ? "#fff" : th.secondary }}>
-          הכל
-        </button>
-        {PALETTE.map((c, i) => (
-          <button key={i} onClick={() => setColor(color === i ? null : i)}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6,
-              fontSize: 12, fontWeight: 600, fontFamily: FONT, padding: "6px 12px",
-              borderRadius: 18, cursor: "pointer", opacity: used(i) || color === i ? 1 : 0.45,
-              background: color === i ? `${c}26` : th.surface,
-              color: color === i ? c : th.secondary,
-              border: `1px solid ${color === i ? c : th.border}` }}>
-            <span style={{ width: 9, height: 9, borderRadius: "50%", background: c }} />
-            {nameOf(i)}
+      {/* Colour filter — revealed by the palette icon */}
+      {showColorFilter && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "0 0 10px", direction: "rtl" }}>
+          <button onClick={() => setColor(null)}
+            style={{ fontSize: 12, fontWeight: 600, fontFamily: FONT, padding: "6px 13px",
+              borderRadius: 18, cursor: "pointer", border: "none",
+              background: color === null ? th.accent : th.surface,
+              color: color === null ? "#fff" : th.secondary }}>
+            הכל
           </button>
-        ))}
-      </div>
+          {PALETTE.map((c, i) => (
+            <button key={i} onClick={() => setColor(color === i ? null : i)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6,
+                fontSize: 12, fontWeight: 600, fontFamily: FONT, padding: "6px 12px",
+                borderRadius: 18, cursor: "pointer", opacity: used(i) || color === i ? 1 : 0.45,
+                background: color === i ? `${c}26` : th.surface,
+                color: color === i ? c : th.secondary,
+                border: `1px solid ${color === i ? c : th.border}` }}>
+              <span style={{ width: 9, height: 9, borderRadius: "50%", background: c }} />
+              {nameOf(i)}
+            </button>
+          ))}
+        </div>
+      )}
       </div>{/* /sticky toolbar */}
 
 

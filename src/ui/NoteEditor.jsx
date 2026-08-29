@@ -289,7 +289,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       {showColors && (
         <div style={{ display: "flex", gap: 10, padding: "10px 14px", background: barBg,
           borderTop: `1px solid ${line}` }}>
-          {NOTE_COLORS.slice(0, 4).map((cc, i) => (
+          {NOTE_COLORS.map((cc, i) => (
             <button key={i} onClick={() => { setColorIdx(i); setShowColors(false); }} title={nameOf(i)}
               style={{ width: 30, height: 30, borderRadius: "50%", background: cc, cursor: "pointer",
                 border: i === colorIdx ? "3px solid #fff" : "2px solid rgba(255,255,255,0.35)",
