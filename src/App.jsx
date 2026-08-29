@@ -521,7 +521,7 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
           ) : (savedFlash ? "נשמר ✓ — אפשר להוסיף עוד" : user ? "יישמר לאינבוקס" : "מתחבר…")}
         </span>
         {isNote ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <button onClick={rec.toggle}
               title={rec.recording ? "עצור הקלטה" : "הקלטת קול"}
               style={{ width: 44, height: 44, borderRadius: "50%", cursor: "pointer",
