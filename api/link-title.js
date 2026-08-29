@@ -15,9 +15,18 @@ const HOSTS = [
 
 const platformOf = (host) => HOSTS.find((h) => h.re.test(host)) || { p: "link", label: host };
 
+// Full HTML-entity decode. Instagram/Facebook return og:title with the Hebrew
+// letters and emoji as NUMERIC entities (&#x5db; &#x1f4e9; …); without this the
+// title saved as gibberish. fromCodePoint handles astral emoji (> 0xFFFF).
+const cp = (n) => { try { return String.fromCodePoint(n); } catch { return ""; } };
 const decode = (s = "") =>
-  s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#0?39;/g, "'")
-    .replace(/&#x27;/gi, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").trim();
+  (s || "")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => cp(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => cp(parseInt(d, 10)))
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .trim();
 
 const meta = (html, prop) => {
   // property="og:title" or name="twitter:title", attribute order-independent.
