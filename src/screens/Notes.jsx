@@ -489,6 +489,7 @@ function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
         <span style={{ display: "flex", gap: 5 }}>
           {note.pinned && <Icon name="pin" size={12} color={th.accentText} filled />}
           {note.remindAt > Date.now() && <Icon name="bell" size={12} color={th.accentText} />}
+          {note.audios?.length > 0 && <Icon name="mic" size={12} color={th.muted} />}
           {note.images?.length > 0 && <Icon name="photo" size={12} color={th.muted} />}
           {note.files?.length > 0 && <Icon name="clip" size={12} color={th.muted} />}
         </span>

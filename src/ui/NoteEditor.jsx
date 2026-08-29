@@ -8,7 +8,8 @@ import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
 import { autoTitle } from "../data/store";
 import { pushBackLayer } from "./backstack";
 import ImageStrip from "./ImageStrip";
-import { useDictation } from "./useDictation";
+import AudioStrip from "./AudioStrip";
+import { useRecorder } from "./useRecorder";
 import { uploadFile } from "../data/media";
 
 // A checklist item field that wraps to as many lines as its text needs (a plain
@@ -42,6 +43,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const [text, setText] = useState(initial?.text || "");
   const [colorIdx, setColorIdx] = useState(initial?.colorIdx ?? defaultColor ?? 0);
   const [images, setImages] = useState(initial?.images || []);
+  const [audios, setAudios] = useState(initial?.audios || []);
   const [uploading, setUploading] = useState(false);
   const [showColors, setShowColors] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -74,8 +76,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
 
   // Autosave: the ref always holds the latest state so the unmount flush and
   // the debounced save read the same truth.
-  const stateRef = useRef({ title, text, colorIdx, images });
-  stateRef.current = { title, text, colorIdx, images };
+  const stateRef = useRef({ title, text, colorIdx, images, audios });
+  stateRef.current = { title, text, colorIdx, images, audios };
 
   // What's already persisted. A pure read (or the no-op flush on unmount) must
   // NOT rewrite the note — that would bump updatedAt and jump it to the top of
@@ -85,28 +87,30 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     text: initial?.text || "",
     colorIdx: initial?.colorIdx ?? defaultColor ?? 0,
     images: initial?.images || [],
+    audios: initial?.audios || [],
   });
-  const imgsKey = a => (a || []).map(x => (typeof x === "string" ? x : x?.url)).join("|");
+  const mediaKey = a => (a || []).map(x => (typeof x === "string" ? x : x?.url)).join("|");
 
   const save = async () => {
     const s = stateRef.current;
     const unchanged = s.title === savedRef.current.title
       && s.text === savedRef.current.text
       && s.colorIdx === savedRef.current.colorIdx
-      && imgsKey(s.images) === imgsKey(savedRef.current.images);
+      && mediaKey(s.images) === mediaKey(savedRef.current.images)
+      && mediaKey(s.audios) === mediaKey(savedRef.current.audios);
     if (!idRef.current) {
-      if (!s.title.trim() && !s.text.trim() && !(s.images || []).length) return;   // nothing to keep
+      if (!s.title.trim() && !s.text.trim() && !(s.images || []).length && !(s.audios || []).length) return;   // nothing to keep
       if (creatingRef.current) return;
       creatingRef.current = true;
       try {
-        const n = await onCreate({ title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, images: s.images });
+        const n = await onCreate({ title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios });
         idRef.current = n?.id || null;
-        savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx, images: s.images };
+        savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios };
       } finally { creatingRef.current = false; }
     } else {
       if (unchanged) return;                            // read-only visit — leave it in place
-      onUpdate(idRef.current, { title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, images: s.images, html: "" });
-      savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx, images: s.images };
+      onUpdate(idRef.current, { title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios, html: "" });
+      savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios };
     }
     setSaved(true);
   };
@@ -117,7 +121,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     setSaved(false);
     const t = setTimeout(save, 800);
     return () => clearTimeout(t);
-  }, [title, text, colorIdx, images]);
+  }, [title, text, colorIdx, images, audios]);
   // Any way out flushes the pending edit.
   useEffect(() => () => { save(); }, []);
 
@@ -172,17 +176,22 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     return () => { vv.removeEventListener("resize", onR); vv.removeEventListener("scroll", onR); };
   }, []);
 
-  // Voice dictation appends to the body; image attach uploads and stores a URL.
-  const dict = useDictation(t => changeText((stateRef.current.text ? stateRef.current.text.replace(/\s*$/, "") + " " : "") + t));
-  const addImage = async e => {
-    const f = e.target.files?.[0]; e.target.value = "";
-    if (!f || !uid) return;
+  // Voice recording attaches an audio clip; image attach uploads and stores a URL.
+  const uploadMedia = async (fileOrBlob, name, setter) => {
+    if (!uid) return;
     setUploading(true);
     try {
-      const img = (import.meta.env.DEV && uid === "demo") ? { url: URL.createObjectURL(f) } : await uploadFile(uid, f);
-      setImages(p => [...p, img]);
+      const media = (import.meta.env.DEV && uid === "demo")
+        ? { url: URL.createObjectURL(fileOrBlob) }
+        : await uploadFile(uid, fileOrBlob.name ? fileOrBlob : new File([fileOrBlob], name, { type: fileOrBlob.type }));
+      setter(p => [...p, media]);
     } catch { /* ignore */ }
     setUploading(false);
+  };
+  const rec = useRecorder(blob => uploadMedia(blob, "voice.webm", setAudios));
+  const addImage = async e => {
+    const f = e.target.files?.[0]; e.target.value = "";
+    if (f) uploadMedia(f, f.name, setImages);
   };
 
   // "רשימת סימון": turn every line into a checkbox item, or strip the markers off
@@ -381,10 +390,13 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       )}
 
       <input ref={imgRef} type="file" accept="image/*" style={{ display: "none" }} onChange={addImage} />
-      {(images.length > 0 || uploading) && (
-        <div style={{ padding: "8px 14px", background: barBg, borderTop: `1px solid ${line}` }}>
+      {(images.length > 0 || audios.length > 0 || uploading || rec.error) && (
+        <div style={{ padding: "8px 14px", background: barBg, borderTop: `1px solid ${line}`,
+          display: "flex", flexDirection: "column", gap: 8, maxHeight: "40vh", overflowY: "auto" }}>
           <ImageStrip images={images} th={th} onRemove={i => setImages(p => p.filter((_, j) => j !== i))} />
-          {uploading && <p style={{ margin: "6px 2px 0", fontSize: 11.5, color: th.muted, direction: "rtl" }}>מעלה תמונה…</p>}
+          <AudioStrip audios={audios} th={th} onRemove={i => setAudios(p => p.filter((_, j) => j !== i))} />
+          {uploading && <p style={{ margin: "2px 2px 0", fontSize: 11.5, color: th.muted, direction: "rtl" }}>מעלה…</p>}
+          {rec.error && <p style={{ margin: "2px 2px 0", fontSize: 11.5, color: th.red, direction: "rtl" }}>{rec.error}</p>}
         </div>
       )}
 
@@ -404,12 +416,13 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
             <Icon name={ic} size={21} color={th.text} />
           </button>
         ))}
-        <button title={dict.listening ? "עצור הקלטה" : "הקלטת דיבור"}
+        <button title={rec.recording ? "עצור הקלטה" : "הקלטת קול"}
           onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
-          onClick={() => { if (!dict.toggle()) alert("הדפדפן במכשיר לא תומך בהקלטת דיבור"); }}
-          style={{ background: dict.listening ? th.red : "transparent", border: "none", borderRadius: 9,
-            padding: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon name="mic" size={20} color={dict.listening ? "#fff" : th.text} />
+          onClick={rec.toggle}
+          style={{ background: rec.recording ? th.red : "transparent", border: "none", borderRadius: 9,
+            padding: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            animation: rec.recording ? "blink 1s ease-in-out infinite" : "none" }}>
+          <Icon name="mic" size={20} color={rec.recording ? "#fff" : th.text} />
         </button>
         <button title="הוסף תמונה"
           onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}

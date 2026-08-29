@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.50";
+export const APP_VERSION = "5.51";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.51", date: "29 באוגוסט 2026", items: [
+    { icon: "mic", title: "הקלטת קול בפתק", text: "כפתור המיקרופון מקליט קול (במקום הכתבה, שלא נתמכה מותקנת) — לוחצים, מדברים, לוחצים לעצור, וההקלטה נשמרת בפתק עם נגן להאזנה. הרשאת המיקרופון נתמכת גם באפליקציה מותקנת." },
+  ] },
   { v: "5.50", date: "29 באוגוסט 2026", items: [
     { icon: "mic", title: "הכתבה קולית ותמונות בפתק", text: "במסך כתיבת הפתק נוספו כפתור מיקרופון (הכתבה קולית בעברית — הטקסט נכתב לבד) וכפתור תמונה. התמונה נשמרת קטנה, ולחיצה עליה פותחת אותה במסך מלא." },
   ] },
