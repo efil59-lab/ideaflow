@@ -333,6 +333,10 @@ function Login({ th }) {
 // chance to raise the soft keyboard. Saves straight to the Inbox.
 function QuickCapture({ user, th, onDone, mode = "idea" }) {
   const isNote = mode === "note";
+  // A note writes on a yellow lined page like the real note editor; an idea uses
+  // the plain card.
+  const pageBg = isNote ? (th.pastels?.[0] || th.surface) : th.bg;
+  const line = th.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.09)";
   const [text, setText] = useState(() => {
     if (mode === "note") return "";
     try { return localStorage.getItem("if_draft") || ""; } catch { return ""; }
@@ -385,7 +389,9 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
     setSaving(true);
     try {
       if (isNote) {
-        await addNote(user.uid, { text: t, title: autoTitle(t) });
+        // colorIdx 0 (yellow) matches a normal note, so it sorts with the rest
+        // instead of falling to the bottom under "sort by colour".
+        await addNote(user.uid, { text: t, title: autoTitle(t), colorIdx: 0 });
       } else {
         const idea = await addIdea(user.uid, { text: t, status: "inbox" });
         if (idea?.text) {
@@ -405,7 +411,7 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
 
   return (
     <div onPointerDown={focusFromTap}
-      style={{ position: "fixed", inset: 0, background: th.bg, direction: "rtl", zIndex: 100,
+      style={{ position: "fixed", inset: 0, background: pageBg, direction: "rtl", zIndex: 100,
         display: "flex", flexDirection: "column",
         padding: "16px 16px calc(16px + env(safe-area-inset-bottom))" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -424,9 +430,17 @@ function QuickCapture({ user, th, onDone, mode = "idea" }) {
         inputMode="text" enterKeyHint="done"
         onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save(); }}
         placeholder="הקש כאן והתחל לכתוב…"
-        style={{ flex: 1, width: "100%", boxSizing: "border-box", border: `1px solid ${th.border}`,
+        style={isNote ? {
+          flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
+          resize: "none", padding: "8px 6px 16px", fontSize: 17, lineHeight: "32px", fontFamily: FONT,
+          direction: "rtl", color: th.text, background: "transparent",
+          backgroundImage: `repeating-linear-gradient(transparent, transparent 31px, ${line} 31px, ${line} 32px)`,
+          backgroundAttachment: "local",
+        } : {
+          flex: 1, width: "100%", boxSizing: "border-box", border: `1px solid ${th.border}`,
           borderRadius: 14, padding: 14, fontSize: 17, fontFamily: FONT, direction: "rtl",
-          color: th.text, background: th.surface, lineHeight: 1.6, resize: "none", outline: "none" }} />
+          color: th.text, background: th.surface, lineHeight: 1.6, resize: "none", outline: "none",
+        }} />
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
         <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, fontFamily: FONT,
           color: savedFlash ? th.green : th.muted }}>
