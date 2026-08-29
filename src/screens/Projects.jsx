@@ -322,6 +322,10 @@ function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares
 
   return (
     <>
+      {/* Stats hero on top — parallel to the Notes screen, so a swipe between
+          them lands on the same layout. */}
+      <ProjectsStats projects={projects} ideas={ideas} th={th} onOpen={onOpen} />
+
       <div style={{ display: "flex", gap: 7, marginBottom: 12 }}>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="פרויקט חדש..."
           onKeyDown={e => { if (e.key === "Enter" && name.trim()) { projActions.add(name.trim()); setName(""); } }}
@@ -344,8 +348,6 @@ function ProjectsIndex({ uid, projects, ideas, th, projActions, onOpen, myShares
           )}
         </button>
       </div>
-
-      <ProjectsStats projects={projects} ideas={ideas} th={th} onOpen={onOpen} />
 
       {projects.length > 1 && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, direction: "rtl" }}>
