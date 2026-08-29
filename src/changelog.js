@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.75";
+export const APP_VERSION = "5.76";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.76", date: "29 באוגוסט 2026", items: [
+    { icon: "link", title: "מסך שיתוף קישור", text: "שיתוף קישור מאינסטגרם/טיקטוק/פייסבוק/יוטיוב פותח עכשיו מסך ממוקד ששומר את הקישור כפתק כתום עם כותרת — לא את כל האפליקציה. הפתק מחכה בלשונית פתקים." },
+  ] },
   { v: "5.75", date: "29 באוגוסט 2026", items: [
     { icon: "link", title: "שיתוף קישור ישר לאפליקציה", text: "עכשיו אפשר לשתף סרטון מאינסטגרם/טיקטוק/פייסבוק/יוטיוב ישירות ל-IdeaFlow (כפתור שתף) — הוא נשמר לבד כפתק כתום עם כותרת הסרטון ותמונה ממוזערת. תוקן גם ששיתופים לא נשמרו." },
   ] },

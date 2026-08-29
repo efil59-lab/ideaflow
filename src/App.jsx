@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import { auth, googleProvider } from "./firebase";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { getTheme, GRAD, GRAD_ELECTRIC, FONT } from "./theme";
+import { getTheme, GRAD, GRAD_ELECTRIC, FONT, NOTE_COLORS } from "./theme";
 import {
   useIdeas, useProjects, addIdea, updateIdea, deleteIdea, reorderIdeas,
   addProject, updateProject, deleteProject, reorderProjects, guideNotSeenYet,
@@ -27,6 +27,7 @@ import AudioStrip from "./ui/AudioStrip";
 import { useRecorder } from "./ui/useRecorder";
 import { uploadFile } from "./data/media";
 import { fetchLinkMeta, firstUrl, platformOf } from "./data/link";
+import { LinkCard } from "./ui/LinkStrip";
 import Inbox from "./screens/Inbox";
 import Projects from "./screens/Projects";
 import Notes from "./screens/Notes";
@@ -144,7 +145,8 @@ export default function App() {
 
   // A shortcut/share launch opens straight into the dedicated quick-capture
   // screen (mounts on first paint → best chance the keyboard rises).
-  const [captureMode, setCaptureMode] = useState(shortcutLaunch ? "idea" : noteLaunch ? "note" : false);
+  const [captureMode, setCaptureMode] = useState(
+    shortcutLaunch ? "idea" : noteLaunch ? "note" : sharedLink ? "link" : false);
 
   // Intake from Android intents (runs once, before any screen mounts):
   // - share_target: /?title=..&text=..&url=..  → becomes the capture draft
@@ -155,9 +157,9 @@ export default function App() {
       const shared = [p.get("title"), p.get("text"), p.get("url")].filter(Boolean).join("\n");
       const url = firstUrl(shared);
       if (url) {
-        // A shared link: hand it to the Shell, which saves it as an orange,
-        // titled note. Nothing goes into the idea draft.
-        localStorage.setItem("if_shared_link", url);
+        // A shared link opens the focused link screen (captureMode "link", which
+        // already read the URL from the query). Just clear the query so a
+        // refresh won't re-open it.
         history.replaceState(null, "", location.pathname);
       } else if (shared) {
         const prev = localStorage.getItem("if_draft");
@@ -183,6 +185,10 @@ export default function App() {
   // Quick-capture screen — rendered before every other gate so the text field
   // exists on the first paint of the shortcut launch. `user` may still be
   // resolving; the screen waits for it only at save time.
+  if (captureMode === "link") {
+    const cu = (import.meta.env.DEV && isUipreview) ? { uid: "demo" } : user;
+    return <SharedLinkSave user={cu} url={sharedLink} th={th} onDone={() => setCaptureMode(false)} />;
+  }
   if (captureMode) {
     const cu = (import.meta.env.DEV && isUipreview) ? { uid: "demo" } : user;
     return <QuickCapture user={cu} th={th} mode={captureMode} onDone={() => setCaptureMode(false)} />;
@@ -347,6 +353,81 @@ function Login({ th }) {
         </button>
         {error && <p style={{ margin: "14px 0 0", fontSize: 13, color: th.red }}>{error}</p>}
       </div>
+    </div>
+  );
+}
+
+// Focused screen for a link shared into the app (Instagram/TikTok/Facebook/…).
+// It saves the link as an orange note on its own — fetches the title, shows the
+// card, confirms — instead of dropping the user into the full app. This is the
+// whole share flow: no typing, one save, a clear result.
+function SharedLinkSave({ user, url, th, onDone }) {
+  const [meta, setMeta] = useState(null);
+  const [status, setStatus] = useState("saving");   // saving | saved | error
+  const doneRef = useRef(false);
+
+  useEffect(() => {
+    if (doneRef.current) return;
+    if (!url) { setStatus("error"); return; }
+    if (!user) return;                                // wait for auth, then rerun
+    doneRef.current = true;
+    (async () => {
+      let m;
+      try { m = await fetchLinkMeta(url); }
+      catch { const pf = platformOf(url); m = { url, title: pf.label, ...pf }; }
+      setMeta(m);
+      try {
+        if (!(import.meta.env.DEV && user.uid === "demo")) {
+          await addNote(user.uid, {
+            title: m.title || m.label || "קישור",
+            text: "", colorIdx: 4, links: [m],   // colorIdx 4 = orange
+          });
+        }
+        setStatus("saved");
+      } catch { setStatus("error"); }
+    })();
+  }, [user, url]);
+
+  const pf = platformOf(url || "");
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 700, background: th.bg, direction: "rtl",
+      fontFamily: FONT, display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", padding: "24px", gap: 18 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+        <span style={{ width: 60, height: 60, borderRadius: 18, background: NOTE_COLORS[4],
+          display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: `0 8px 24px ${NOTE_COLORS[4]}66` }}>
+          <Icon name="link" size={30} color="#fff" />
+        </span>
+        <div style={{ fontSize: 19, fontWeight: 800, color: th.text }}>
+          {status === "saved" ? "נשמר לפתקים ✓" : status === "error" ? "לא הצלחתי לשמור" : "שומר קישור…"}
+        </div>
+        <div style={{ fontSize: 13, color: th.muted, fontWeight: 600 }}>
+          {status === "saved" ? "פתק חדש בצבע כתום" : `מ${pf.label}`}
+        </div>
+      </div>
+
+      <div style={{ width: "100%", maxWidth: 460 }}>
+        {meta
+          ? <LinkCard link={meta} th={th} />
+          : <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
+              background: th.dark ? "rgba(255,255,255,0.05)" : "#fff", border: `1px solid ${th.border}`,
+              borderRadius: 12, direction: "rtl" }}>
+              <span style={{ width: 42, height: 42, borderRadius: 8, flexShrink: 0, background: pf.color,
+                display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name="link" size={20} color="#fff" />
+              </span>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 13, color: th.muted,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{url}</div>
+            </div>}
+      </div>
+
+      <button onClick={onDone}
+        style={{ marginTop: 4, width: "100%", maxWidth: 460, border: "none", cursor: "pointer",
+          fontFamily: FONT, fontSize: 15.5, fontWeight: 700, padding: "13px", borderRadius: 14,
+          color: "#fff", background: th.cta || th.accent }}>
+        {status === "saved" ? "פתח את הפתקים" : "פתח את האפליקציה"}
+      </button>
     </div>
   );
 }
@@ -953,34 +1034,6 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-
-  // A link shared from Instagram/TikTok/Facebook/… (stashed at intake) becomes a
-  // note on its own: orange, with a titled link card. Runs once, the moment the
-  // Shell has a real user.
-  const sharedLinkRef = useRef(false);
-  useEffect(() => {
-    if (sharedLinkRef.current || !uid || uid === "demo") return;
-    let url = "";
-    try { url = localStorage.getItem("if_shared_link") || ""; } catch { /* ignore */ }
-    if (!url) return;
-    sharedLinkRef.current = true;
-    try { localStorage.removeItem("if_shared_link"); } catch { /* ignore */ }
-    (async () => {
-      toast$("שומר קישור…");
-      let meta;
-      try { meta = await fetchLinkMeta(url); }
-      catch { const pf = platformOf(url); meta = { url, title: pf.label, ...pf }; }
-      await addNote(uid, {
-        title: meta.title || meta.label || "קישור",
-        text: "",
-        colorIdx: 4,               // orange — every link shared into the app
-        links: [meta],
-      });
-      toast$("הקישור נשמר 🔗");
-      setBulbBeat(b => b + 1);
-      setTab("notes");
-    })().catch(() => toast$("לא הצלחתי לשמור את הקישור"));
-  }, [uid]);
 
   if (migrating || !ideas || !projects) return <Splash th={th} still text={migMsg || "טוען..."} />;
 
