@@ -377,10 +377,13 @@ function SharedLinkSave({ user, url, th, onDone }) {
       catch { const pf = platformOf(url); m = { url, title: pf.label, ...pf }; }
       setMeta(m);
       try {
+        // A real caption (Instagram/TikTok/…) is often a paragraph — keep it in
+        // the BODY too, so it's fully readable and searchable, not just a title.
+        const caption = (m.title && m.title !== m.label) ? m.title : "";
         if (!(import.meta.env.DEV && user.uid === "demo")) {
           await addNote(user.uid, {
             title: m.title || m.label || "קישור",
-            text: "", colorIdx: 4, links: [m],   // colorIdx 4 = orange
+            text: caption, colorIdx: 4, links: [m],   // colorIdx 4 = orange
           });
         }
         setStatus("saved");
