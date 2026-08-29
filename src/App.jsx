@@ -906,6 +906,31 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   }, [tab]);
   useLayoutEffect(() => { if (dragDir) pagerRef.current?.syncIncoming(); }, [dragDir]);
 
+  // Escape closes the topmost overlay — the desktop/standalone equivalent of the
+  // hardware back button (an installed PWA window has no browser Back).
+  useEffect(() => {
+    const onKey = e => {
+      if (e.key !== "Escape") return;
+      const s = uiRef.current;
+      if (popBackLayer()) return;                       // note editor & other back layers
+      else if (s.showGuide) setShowGuide(false);
+      else if (s.showWhatsNew) setShowWhatsNew(false);
+      else if (s.showLog) setShowLog(false);
+      else if (s.showUser) setShowUser(false);
+      else if (s.showAI) setShowAI(false);
+      else if (s.commentsCtx) setCommentsCtx(null);
+      else if (s.remindIdea) setRemindIdea(null);
+      else if (s.snoozeIdea) setSnoozeIdea(null);
+      else if (s.moveNotes) setMoveNotes(null);
+      else if (s.moveIdea) setMoveIdea(null);
+      else if (s.shareIdea) setShareIdea(null);
+      else if (s.editIdea) setEditIdea(null);
+      else if (s.openProjectId) setOpenProjectId(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   if (migrating || !ideas || !projects) return <Splash th={th} still text={migMsg || "טוען..."} />;
 
   // Capture: save instantly, enrich in the background.
@@ -1108,9 +1133,9 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   ];
   // Desktop side rail shows every tab (no FAB there).
   const sideNav = [
-    { id: "notes", icon: "notes", label: "פתקים" },
     { id: "inbox", icon: "inbox", label: "Inbox", badge: inboxCount },
     { id: "projects", icon: "folder", label: "פרויקטים" },
+    { id: "notes", icon: "notes", label: "פתקים" },
     { id: "search", icon: "search", label: "חיפוש" },
   ];
 
