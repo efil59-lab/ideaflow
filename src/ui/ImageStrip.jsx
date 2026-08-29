@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "./Icons";
+import { Confirm } from "./base";
 
 // A row of small image thumbnails. Tapping one opens it full-screen; the
 // optional × removes it (editing surfaces pass onRemove, read-only ones don't).
 export default function ImageStrip({ images = [], onRemove, th, size = 54 }) {
-  const [open, setOpen] = useState(null);   // url being viewed full-screen
+  const [open, setOpen] = useState(null);       // url being viewed full-screen
+  const [confirm, setConfirm] = useState(null); // index pending removal
   if (!images.length) return null;
 
   return (
@@ -20,7 +22,7 @@ export default function ImageStrip({ images = [], onRemove, th, size = 54 }) {
               <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             </button>
             {onRemove && (
-              <button onClick={e => { e.stopPropagation(); onRemove(i); }} title="הסר"
+              <button onClick={e => { e.stopPropagation(); setConfirm(i); }} title="הסר"
                 style={{ position: "absolute", top: -6, left: -6, width: 20, height: 20, borderRadius: "50%",
                   background: th.red, border: "none", cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -44,6 +46,14 @@ export default function ImageStrip({ images = [], onRemove, th, size = 54 }) {
           </button>
         </div>,
         document.body
+      )}
+
+      {confirm !== null && (
+        <Confirm title="מחיקת תמונה" icon="photo"
+          message="התמונה תוסר מהפתק. לא ניתן לשחזר."
+          confirmLabel="מחק תמונה"
+          onConfirm={() => { onRemove(confirm); setConfirm(null); }}
+          onCancel={() => setConfirm(null)} th={th} />
       )}
     </div>
   );
