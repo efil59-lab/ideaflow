@@ -1130,10 +1130,12 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     } catch { setNotesMsg("קובץ לא תקין — צריך קובץ JSON"); }
   };
 
-  // Bottom nav renders these, then the FAB, then notes + search (below).
+  // Bottom nav renders these, then the FAB, then search (below). Notes is the
+  // capture surface now, so the Inbox tab is gone from the bar (still reachable
+  // in the desktop side rail for legacy idea-inbox items).
   const navItems = [
-    { id: "inbox", icon: "inbox", label: "Inbox", badge: inboxCount },
     { id: "projects", icon: "folder", label: "פרויקטים" },
+    { id: "notes", icon: "notes", label: "פתקים" },
   ];
   // Desktop side rail shows every tab (no FAB there).
   const sideNav = [
@@ -1146,7 +1148,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   // ── Tab carousel — the hooks live above the loading gate; here we build the
   // pager (needs the screen renderers) and derive the neighbour tab. TABS is
   // physical right→left (RTL): finger right → the tab to the left (next).
-  const TABS = ["inbox", "projects", "notes", "search"];
+  const TABS = ["projects", "notes", "search"];
   const tabIndex = TABS.indexOf(tab);
   tabIndexRef.current = tabIndex;
   const goTab = t => { setTab(t); if (t === "projects") setOpenProjectId(null); };
@@ -1362,15 +1364,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
             </span>
           </span>
 
-          {/* favourites + search sit after the FAB, so it lands dead centre */}
-          <button onClick={() => tabGo("notes")}
-            style={{ flex: 1, background: "transparent", border: "none", cursor: "pointer",
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-              padding: "5px 0", fontFamily: FONT }}>
-            <Icon name="notes" size={21} color={tab === "notes" ? th.navActive : th.muted} />
-            <span style={{ fontSize: 10.5, fontWeight: tab === "notes" ? 600 : 400,
-              color: tab === "notes" ? th.navActive : th.muted }}>פתקים</span>
-          </button>
+          {/* search sits after the FAB */}
           <button onClick={() => tabGo("search")}
             style={{ flex: 1, background: "transparent", border: "none", cursor: "pointer",
               display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
