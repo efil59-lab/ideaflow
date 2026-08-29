@@ -104,6 +104,11 @@ export default function App() {
       return p.has("capture") || !!(p.get("title") || p.get("text") || p.get("url"));
     } catch { return false; }
   })[0];
+  // The "פתק חדש" shortcut (/?note=1) — skip the splash beat so the note editor
+  // shows as fast as the data allows.
+  const noteLaunch = useState(() => {
+    try { return new URLSearchParams(location.search).has("note"); } catch { return false; }
+  })[0];
   // Read once up front — the intake below strips the query string.
   const isUipreview = useState(() => {
     try { return import.meta.env.DEV && new URLSearchParams(location.search).has("uipreview"); }
@@ -112,12 +117,12 @@ export default function App() {
 
   // Hold the splash for a minimum beat so the light-up animation is actually
   // seen — cached auth resolves in milliseconds and used to skip right past it.
-  const [bootDone, setBootDone] = useState(shortcutLaunch);
+  const [bootDone, setBootDone] = useState(shortcutLaunch || noteLaunch);
   useEffect(() => {
-    if (shortcutLaunch) return;
+    if (shortcutLaunch || noteLaunch) return;
     const t = setTimeout(() => setBootDone(true), 1500);
     return () => clearTimeout(t);
-  }, [shortcutLaunch]);
+  }, [shortcutLaunch, noteLaunch]);
 
   // A shortcut/share launch opens straight into the dedicated quick-capture
   // screen (mounts on first paint → best chance the keyboard rises).
@@ -137,6 +142,10 @@ export default function App() {
         history.replaceState(null, "", location.pathname);
       } else if (p.has("capture")) {
         localStorage.setItem("if_focus_capture", "1");
+        history.replaceState(null, "", location.pathname);
+      } else if (p.has("note")) {
+        // "פתק חדש" app shortcut: land on the notes tab with the editor open.
+        sessionStorage.setItem("if_new_note", "1");
         history.replaceState(null, "", location.pathname);
       }
     } catch { /* ignore */ }
@@ -1529,6 +1538,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "bell", title: "תזכורות", text: "פעמון על כל כרטיס: בעוד שעה / הערב / מחר או זמן מדויק — כולל חזרה קבועה (כל שעה, יום, שבוע, חודש או שנה). ההתראה מגיעה גם כשהאפליקציה סגורה; כפתור \"דחה 15 דק׳\" דוחה ברקע בלי לפתוח את האפליקציה, ולחיצה על גוף ההתראה פותחת בורר לדחייה לזמן אחר (5/15/30 דק׳, שעה, יום או מותאם)." },
     { icon: "notes", title: "רעיון ללא ביצוע", text: "לא כל רעיון הוא משימה. בתפריט הכרטיס (⋯) אפשר לסמן רעיון כ\"הערה\" — ריבוע הסימון נעלם והוא לא ניתן לסימון כבוצע. שימושי למידע, קישורים או תזכורות-רקע. לחיצה נוספת על אותו אייקון מחזירה אותו למשימה רגילה." },
     { icon: "edit", title: "קיצור \"רעיון חדש\"", text: "לחיצה ארוכה על אייקון האפליקציה → \"רעיון\" פותחת מסך כתיבה נקי ומיידי. נגיעה אחת בכל מקום מעלה מקלדת, ובשמירה הרעיון נכנס ישר לאינבוקס." },
+    { icon: "add", title: "קיצור \"פתק חדש\"", text: "לחיצה ארוכה על אייקון האפליקציה → \"פתק\" פותחת ישר את מסך כתיבת הפתק (רשומה בלשונית פתקים)." },
     { icon: "clip", title: "צירוף קבצים ומדיה", text: "לכל רעיון אפשר לצרף תמונות, הקלטות וקבצים (PDF, מסמכים, גיליונות ועוד) — דרך כפתור המהדק בתיבת התפיסה או מקש \"קובץ\" בעורך. הקובץ מופיע על הכרטיס ונפתח או יורד בלחיצה. עד 10MB לקובץ." },
     { icon: "share", title: "שיתוף מכל אפליקציה", text: "ראית משהו בוואטסאפ או בדפדפן? שתף → IdeaFlow והוא יחכה בתיבת התפיסה, מוכן לעריכה ושמירה." },
     { icon: "export", title: "ייצוא לקלוד", text: "בתפריט של כל פרויקט (וב-Inbox): \"ייצוא לקלוד\" מעתיק את כל הרעיונות הפתוחים כטקסט מוכן להדבקה בצ'אט." },

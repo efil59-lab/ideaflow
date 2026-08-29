@@ -11,6 +11,13 @@
   "dir": "rtl",
   "shortcuts": [
     {
+      "name": "פתק חדש",
+      "short_name": "פתק",
+      "description": "פתיחת מסך כתיבת פתק",
+      "url": "/?note=1",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
       "name": "רעיון חדש",
       "short_name": "רעיון",
       "description": "תפיסת רעיון מהירה ל-Inbox",
