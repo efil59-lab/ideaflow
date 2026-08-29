@@ -2,7 +2,7 @@
 // note, + opens a full-screen autosaving editor. Long-press starts multi-select
 // (colour / archive / delete the whole selection); nothing here touches the
 // Inbox funnel or the active counts.
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { Icon, IconBtn } from "../ui/Icons";
 import { Modal, ModalHeader, Confirm } from "../ui/base";
 import Checklist, { hasChecklist, parseChecklist, toggleLine } from "../ui/Checklist";
@@ -509,11 +509,21 @@ function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, o
     (note.text || "").trim().replace(/^\s*(?:[-*]\s+|\[[ xX]\]\s*)/, "")
       .startsWith(note.title.replace(/…$/, ""));
   const showCardTitle = note.title && !(list && titleIsEcho);
+  const items = list ? parseChecklist(note.text) : null;
+
+  // Every grid card is the same square; content that overflows is faded out with
+  // a "המשך…" hint, and tapping the card opens the note.
+  const bodyRef = useRef(null);
+  const [truncated, setTruncated] = useState(false);
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (el) setTruncated(el.scrollHeight > el.clientHeight + 2);
+  }, [note.text, note.title, scale, note.colorIdx, showCardTitle]);
 
   return (
     <div {...press}
       style={{ position: "relative", background: bg, borderRadius: 13, padding: "11px 12px",
-        cursor: "pointer",
+        cursor: "pointer", aspectRatio: "1 / 1", display: "flex", flexDirection: "column",
         border: isSel ? `2px solid ${th.accent}` : `1px solid ${th.border}`,
         borderRight: isSel ? `4px solid ${th.accent}` : `4px solid ${c}`,
         boxShadow: th.electric ? `0 0 12px ${isSel ? th.accent : c}22` : "none",
@@ -535,20 +545,42 @@ function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, o
       )}
       {showCardTitle && (
         <p style={{ margin: "0 0 5px", fontSize: Math.round(13 * scale), fontWeight: 700, color: th.text,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0 }}>
           {note.title}
         </p>
       )}
-      {list ? (
-        <Checklist text={note.text} th={th} compact scale={scale}
-          onToggle={i => { if (!inSel) actions.update?.(note.id, { text: toggleLine(note.text, i), html: "" }, note); }} />
-      ) : (
-        <p style={{ margin: 0, fontSize: Math.round(12 * scale), color: th.secondary, lineHeight: 1.55,
-          overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical",
-          wordBreak: "break-word" }}>
-          {note.text || "(מדיה בלבד)"}
-        </p>
-      )}
+      <div ref={bodyRef} style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative" }}>
+        {items ? (
+          <div>
+            {items.map(it => (
+              <div key={it.i} style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 3 }}>
+                <span style={{ flexShrink: 0, width: 13, height: 13, borderRadius: 4, marginTop: 2,
+                  border: it.done ? "none" : `1.5px solid ${th.dark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)"}`,
+                  background: it.done ? th.green : (th.dark ? "rgba(255,255,255,0.14)" : "#fff"),
+                  display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {it.done && <Icon name="check" size={9} color="#fff" />}
+                </span>
+                <span style={{ fontSize: Math.round(11.5 * scale), lineHeight: 1.4, wordBreak: "break-word",
+                  color: it.done ? th.muted : th.secondary, textDecoration: it.done ? "line-through" : "none" }}>
+                  {it.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ margin: 0, fontSize: Math.round(12 * scale), color: th.secondary, lineHeight: 1.55,
+            whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            {note.text || "(מדיה בלבד)"}
+          </p>
+        )}
+        {truncated && (
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 30,
+            background: `linear-gradient(transparent, ${bg} 70%)`, pointerEvents: "none",
+            display: "flex", alignItems: "flex-end" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: th.accentText }}>המשך…</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
