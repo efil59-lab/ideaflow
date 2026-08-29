@@ -517,7 +517,10 @@ function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
   const titleIsEcho = note.title &&
     (note.text || "").trim().replace(/^\s*(?:[-*]\s+|\[[ xX]\]\s*)/, "")
       .startsWith(note.title.replace(/…$/, ""));
-  const showTitle = note.title && !titleIsEcho;
+  // A shared link puts the same caption in the title and the body, which would
+  // trip the echo test and drop the bold title — but here the bold header is
+  // exactly what we want, so keep it for any note carrying a link.
+  const showTitle = note.title && (!titleIsEcho || note.links?.length > 0);
   const body = showTitle ? note.text : (note.text || "(מדיה בלבד)");
   const stamp = fmtStamp(sortBy === "modified" ? (note.updatedAt || note.createdAt) : note.createdAt);
 
