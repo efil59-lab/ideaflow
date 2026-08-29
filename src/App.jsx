@@ -580,7 +580,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   // Fresh opens land on the notes screen; a refresh still restores where you were.
   const [tab, setTab] = useState(() => {
     if (!restoreNav) return "notes";
-    try { return localStorage.getItem("if_nav_tab") || "notes"; } catch { return "notes"; }
+    try { const t = localStorage.getItem("if_nav_tab") || "notes"; return t === "inbox" ? "notes" : t; } catch { return "notes"; }
   });
   const [openProjectId, setOpenProjectId] = useState(() => {
     if (!restoreNav) return null;
@@ -1137,11 +1137,11 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     { id: "projects", icon: "folder", label: "פרויקטים" },
     { id: "notes", icon: "notes", label: "פתקים" },
   ];
-  // Desktop side rail shows every tab (no FAB there).
+  // Desktop side rail. Inbox is retired from the UI (Notes is the capture
+  // surface); its data is untouched and it can be brought back in one line.
   const sideNav = [
-    { id: "inbox", icon: "inbox", label: "Inbox", badge: inboxCount },
-    { id: "projects", icon: "folder", label: "פרויקטים" },
     { id: "notes", icon: "notes", label: "פתקים" },
+    { id: "projects", icon: "folder", label: "פרויקטים" },
     { id: "search", icon: "search", label: "חיפוש" },
   ];
 
@@ -1348,8 +1348,8 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
           })}
           {/* Raised FAB — the app's primary action, mid-bar */}
           <span style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-            <button onClick={() => tab === "notes" ? fabAction("note") : setFabOpen(true)}
-              title={tab === "notes" ? "פתק חדש" : "רעיון חדש"}
+            <button onClick={() => fabAction("note")}
+              title="פתק חדש"
               style={{ width: 52, height: 52, marginTop: -22, borderRadius: "50%",
                 background: th.cta || th.accent,
                 border: th.electric ? "2px solid rgba(168,85,247,0.55)" : `3px solid ${th.surface}`,
@@ -1360,7 +1360,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
               <Icon name="add" size={27} color="#fff" />
             </button>
             <span style={{ fontSize: 10.5, fontWeight: 600, color: th.navActive, marginTop: -2 }}>
-              {tab === "notes" ? "פתק חדש" : "רעיון חדש"}
+              פתק חדש
             </span>
           </span>
 
