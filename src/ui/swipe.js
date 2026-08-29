@@ -32,11 +32,6 @@ export const COMMIT_RATIO = 0.28;    // fraction of the screen that pages over
 export const FLICK_SPEED = 0.45;     // px/ms — a fast flick pages without a long drag
 export const FLICK_MIN_PX = 48;      // ...but a twitch must never page a screen
 export const SETTLE_MS = 280;
-// The CSS slide lasts SETTLE_MS; the handover fires a little later so a
-// transition whose first frame was delayed by a heavy incoming screen has still
-// finished before the panes swap. Without the buffer the swap can catch the
-// incoming pane a few pixels short of 0, which reads as a click on arrival.
-export const SETTLE_SWAP_MS = SETTLE_MS + 70;
 
 // Where a finished gesture lands, for a strip that is a RING: past אפשרויות
 // comes בית again, and before בית comes אפשרויות. Four tabs is few enough that
@@ -140,7 +135,7 @@ export function createPager({ paneRef, incomingRef, gestureRef, paintRef, canNex
       if (!committed) clear();
       onSettle(committed);
     };
-    const t = setTimeout(run, SETTLE_SWAP_MS);
+    const t = setTimeout(run, SETTLE_MS);
     if (paintRef) { paintRef.timer = t; paintRef.settle = run; }
   };
 
