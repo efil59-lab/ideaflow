@@ -52,7 +52,7 @@ function usePress(onTap, onLong) {
 // The notes "motto" — mirrors the projects hero, with notes data. Big count +
 // checklist progress + a colour-distribution bar, then a few glance tiles. Same
 // gradient/electric treatment so the two screens feel like one product.
-function NotesStats({ notesAll, archCount, th, nameOf }) {
+function NotesStats({ notesAll, archCount, th, nameOf, folderCount = 0, onActive, onFolders, onArchive }) {
   const active = notesAll.filter(n => !n.archived);
   if (!active.length) return null;
 
@@ -115,12 +115,14 @@ function NotesStats({ notesAll, archCount, th, nameOf }) {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12, direction: "rtl" }}>
-        {[[active.length, "פעילים"], [lists, "רשימות"], [archCount, "בארכיון"]].map(([n, label]) => (
-          <div key={label} style={{ flex: 1, background: th.surface, borderRadius: 13,
-            border: `1px solid ${th.border}`, padding: "9px 10px", textAlign: "center" }}>
+        {[[active.length, "פעילים", onActive], [folderCount, "תיקיות", onFolders], [archCount, "ארכיון", onArchive]].map(([n, label, on]) => (
+          <button key={label} onClick={on}
+            style={{ flex: 1, background: th.surface, borderRadius: 13,
+              border: `1px solid ${th.border}`, padding: "9px 10px", textAlign: "center",
+              cursor: "pointer", fontFamily: FONT }}>
             <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{n}</div>
             <div style={{ fontSize: 11, color: th.muted, marginTop: 1 }}>{label}</div>
-          </div>
+          </button>
         ))}
       </div>
     </>
@@ -159,6 +161,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [manageFolder, setManageFolder] = useState(null);     // folder action sheet (rename/delete)
   const [renameFolderObj, setRenameFolderObj] = useState(null);
   const [delFolder, setDelFolder] = useState(null);           // folder pending delete confirmation
+  const [foldersOverview, setFoldersOverview] = useState(false); // stats → folders list
 
   // Reading a note opens a full-screen editor; keep the list exactly where it
   // was. We snapshot the scroll when it opens (before the textarea autofocus
@@ -308,7 +311,13 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
     <>
       {/* The shared "motto" hero — same shape as the projects screen, with notes
           data. Scrolls away above the pinned toolbar. */}
-      {!showArch && !inSel && !validFolder && <NotesStats notesAll={notesAll} archCount={archCount} th={th} nameOf={nameOf} />}
+      {!showArch && !inSel && !validFolder && (
+        <NotesStats notesAll={notesAll} archCount={archCount} th={th} nameOf={nameOf}
+          folderCount={folders.length}
+          onActive={() => { setShowArch(false); chooseFolder(null); }}
+          onFolders={() => (folders.length ? setFoldersOverview(true) : setNewFolderOpen(true))}
+          onArchive={() => { setColor(null); setShowArch(true); }} />
+      )}
 
       {/* The whole toolbar (sort · title · colours) stays pinned under the app
           header while the notes scroll. */}
@@ -611,6 +620,32 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
           confirmLabel="מחק תיקייה"
           onConfirm={() => { deleteFolder(delFolder.id); setDelFolder(null); }}
           onCancel={() => setDelFolder(null)} th={th} />
+      )}
+
+      {foldersOverview && (
+        <Modal onClose={() => setFoldersOverview(false)} maxWidth={340} th={th}>
+          <ModalHeader title="התיקיות שלי" icon="folder" onClose={() => setFoldersOverview(false)} th={th} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 7, direction: "rtl" }}>
+            <button onClick={() => { chooseFolder(null); setShowArch(false); setFoldersOverview(false); }}
+              style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: th.surface2,
+                color: th.text, border: `1px solid ${th.border}`, borderRadius: 12, padding: "12px 14px",
+                cursor: "pointer", fontFamily: FONT, fontSize: 14, fontWeight: 600, textAlign: "right" }}>
+              <Icon name="notes" size={17} color={th.secondary} />
+              <span style={{ flex: 1 }}>פתקים (ללא תיקייה)</span>
+              <span style={{ fontSize: 12.5, color: th.muted, fontWeight: 700 }}>{unfiledCount}</span>
+            </button>
+            {folders.map(f => (
+              <button key={f.id} onClick={() => { chooseFolder(f.id); setShowArch(false); setFoldersOverview(false); }}
+                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: th.surface2,
+                  color: th.text, border: `1px solid ${th.border}`, borderRadius: 12, padding: "12px 14px",
+                  cursor: "pointer", fontFamily: FONT, fontSize: 14, fontWeight: 500, textAlign: "right" }}>
+                <Icon name="folder" size={17} color={th.secondary} />
+                <span style={{ flex: 1 }}>{f.name}</span>
+                <span style={{ fontSize: 12.5, color: th.muted, fontWeight: 700 }}>{folderCount(f.id)}</span>
+              </button>
+            ))}
+          </div>
+        </Modal>
       )}
     </>
   );
