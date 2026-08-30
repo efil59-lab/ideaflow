@@ -264,6 +264,40 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     syncBody();
     return true;
   };
+  // Keep the caret visible inside the editor's own scroll area — otherwise a new
+  // line typed at the bottom hides behind the format bar / keyboard.
+  const scrollCaretIntoView = () => {
+    const el = editRef.current; if (!el) return;
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const box = el.getBoundingClientRect(), m = 14;
+    const nudge = rect => {
+      if (!rect) return;
+      if (rect.bottom > box.bottom - m) el.scrollTop += rect.bottom - box.bottom + m;
+      else if (rect.top < box.top + m) el.scrollTop -= box.top + m - rect.top;
+    };
+    const live = sel.getRangeAt(0);
+    const rect = live.getBoundingClientRect();
+    if (rect && (rect.top || rect.bottom)) { nudge(rect); return; }
+    // Empty rect (a blank new line): measure a temporary marker, then put the
+    // caret back exactly where it was so nothing shifts.
+    const marker = document.createElement("span");
+    try {
+      const r2 = live.cloneRange();
+      r2.insertNode(marker);
+      nudge(marker.getBoundingClientRect());
+    } catch { /* ignore */ }
+    finally {
+      const parent = marker.parentNode;
+      if (parent) {
+        const nr = document.createRange();
+        nr.setStartBefore(marker); nr.collapse(true);
+        parent.removeChild(marker); parent.normalize?.();
+        sel.removeAllRanges(); sel.addRange(nr);
+      }
+    }
+  };
+  const onBodyInput = () => { syncBody(); requestAnimationFrame(scrollCaretIntoView); };
   // Enter inserts a SINGLE line break; the browser's default wraps each line in a
   // block and shows an extra empty line between them.
   const onBodyKeyDown = e => {
@@ -272,6 +306,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       try { document.execCommand("insertLineBreak"); }
       catch { try { document.execCommand("insertHTML", false, "<br>"); } catch { /* ignore */ } }
       syncBody();
+      requestAnimationFrame(scrollCaretIntoView);
     }
   };
   // Run a formatting command on the live selection. css:true emits inline
@@ -673,7 +708,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       ) : (
         <div ref={editRef} contentEditable suppressContentEditableWarning dir="rtl"
           className="if-rich" data-ph={pastePrompt ? 'לחיצה ארוכה כאן ← "הדבק"' : "כתוב כאן…"}
-          onInput={syncBody} onPaste={onPasteBody} onKeyDown={onBodyKeyDown}
+          onInput={onBodyInput} onPaste={onPasteBody} onKeyDown={onBodyKeyDown}
           style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
             overflowY: "auto", padding: "12px 16px 16px", fontSize: fs, fontFamily: FONT,
             direction: "rtl", color: th.text, background: th.surface,
