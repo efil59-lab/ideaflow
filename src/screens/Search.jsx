@@ -32,7 +32,8 @@ export default function Search({ ideas, projects, th, actions, q, setQ }) {
   const results = query
     ? ideas.filter(i =>
         i.status !== "trash" &&
-        (filter === "all" || (filter === "done" ? i.status === "done" : i.status !== "done")) &&
+        // "פעילים" excludes archived notes too — only "הכל" reaches the archive.
+        (filter === "all" || (filter === "done" ? i.status === "done" : (i.status !== "done" && !i.archived))) &&
         ((i.text || "").toLowerCase().includes(query) ||
          (i.title || "").toLowerCase().includes(query) ||
          (i.tags || []).some(t => t.toLowerCase().includes(query))))
