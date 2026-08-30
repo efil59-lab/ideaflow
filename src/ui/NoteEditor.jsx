@@ -242,7 +242,24 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const seededRef = useRef(false);
   const syncBody = () => {
     const el = editRef.current;
-    if (el) { setText(el.innerText); setHtml(el.innerHTML); }
+    if (el) { setText((el.innerText || "").replace(/​/g, "")); setHtml(el.innerHTML); }
+  };
+  // Step the caret OUT of the nearest inline wrapper it matches, so new typing
+  // is no longer styled — without touching the existing styled text. A tiny
+  // zero-width anchor holds the caret in the parent (stripped from the plain text).
+  const escapeInline = matchFn => {
+    const el = editRef.current; if (!el) return false;
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return false;
+    let node = sel.getRangeAt(0).startContainer, hit = null;
+    while (node && node !== el) { if (node.nodeType === 1 && matchFn(node)) { hit = node; break; } node = node.parentNode; }
+    if (!hit || !hit.parentNode) return false;
+    const zw = document.createTextNode("​");
+    hit.parentNode.insertBefore(zw, hit.nextSibling);
+    const r = document.createRange(); r.setStart(zw, 1); r.collapse(true);
+    sel.removeAllRanges(); sel.addRange(r); el.focus();
+    syncBody();
+    return true;
   };
   // Enter inserts a SINGLE line break; the browser's default wraps each line in a
   // block and shows an extra empty line between them.
@@ -326,29 +343,45 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     setHlOpen(false);
     restoreSel();
     if (c) { exec("hiliteColor", c, true); return; }
-    // remove background from the selected, highlighted spans
-    clearInSelection('span[style*="background"], span[style*="BACKGROUND"]', node => {
-      node.style.backgroundColor = "";
-      if (!node.getAttribute("style")) { const p = node.parentNode; while (node.firstChild) p.insertBefore(node.firstChild, node); p.removeChild(node); }
-    });
+    // The X means "no background". With text selected → strip the background off
+    // just that text. With only a caret → stop highlighting from here on by
+    // stepping the caret OUT of the current highlighted span (existing highlights
+    // stay put).
+    const el = editRef.current; if (!el) return;
+    const sel = window.getSelection();
+    const collapsed = !sel || !sel.rangeCount || sel.getRangeAt(0).collapsed;
+    if (!collapsed) {
+      clearInSelection('span[style*="background"], span[style*="BACKGROUND"]', node => {
+        node.style.backgroundColor = "";
+        if (!node.getAttribute("style")) { const p = node.parentNode; while (node.firstChild) p.insertBefore(node.firstChild, node); p.removeChild(node); }
+      });
+      return;
+    }
+    escapeInline(n => n.tagName === "SPAN" && n.style?.backgroundColor && n.style.backgroundColor !== "transparent");
   };
   // Enlarge just the SELECTED word(s), inline — not the whole line like H1/H2.
-  // A second tap REMOVES the sizing so the word returns to the note's own size.
-  const biggerWord = () => {
-    let big = false;
-    try {
-      let n = window.getSelection()?.anchorNode;
-      while (n && n !== editRef.current) {
-        if (n.nodeType === 1 && n.tagName === "FONT" && ["4", "5", "6", "7"].includes(n.getAttribute("size"))) { big = true; break; }
-        n = n.parentNode;
-      }
-    } catch { /* ignore */ }
-    if (big) {
-      // unwrap the <font size> back to the surrounding, original size
-      clearInSelection("font[size]", node => { const p = node.parentNode; while (node.firstChild) p.insertBefore(node.firstChild, node); p.removeChild(node); });
-    } else {
-      exec("fontSize", "5");
+  // With a selection: toggle its size. With only a caret inside enlarged text:
+  // step OUT so new typing returns to the note's own size (existing stays big).
+  const isBigFont = () => {
+    let n = window.getSelection()?.anchorNode;
+    while (n && n !== editRef.current) {
+      if (n.nodeType === 1 && n.tagName === "FONT" && ["4", "5", "6", "7"].includes(n.getAttribute("size"))) return true;
+      n = n.parentNode;
     }
+    return false;
+  };
+  const biggerWord = () => {
+    const sel = window.getSelection();
+    const collapsed = !sel || !sel.rangeCount || sel.getRangeAt(0).collapsed;
+    const big = isBigFont();
+    if (!collapsed) {
+      if (big) clearInSelection("font[size]", node => { const p = node.parentNode; while (node.firstChild) p.insertBefore(node.firstChild, node); p.removeChild(node); });
+      else exec("fontSize", "5");
+      return;
+    }
+    // caret only: stepping out of enlarged text stops it; otherwise start enlarging.
+    if (big) escapeInline(n => n.tagName === "FONT" && ["4", "5", "6", "7"].includes(n.getAttribute("size")));
+    else exec("fontSize", "5");
   };
 
   const FMT = [
