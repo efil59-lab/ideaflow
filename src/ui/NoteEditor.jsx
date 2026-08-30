@@ -308,25 +308,47 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     restoreSel();
     exec("foreColor", c, true);
   };
-  // Highlight colours to choose from (last one clears the highlight).
+  // Clear an inline style from every element intersecting the current selection.
+  // execCommand can't reliably REMOVE a background / font-size, so we do it by
+  // hand on the DOM, then let syncBody read the cleaned HTML back.
+  const clearInSelection = (selector, fn) => {
+    const el = editRef.current; if (!el) return;
+    const sel = window.getSelection();
+    const range = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+    el.querySelectorAll(selector).forEach(node => {
+      if (!range || range.intersectsNode(node)) fn(node);
+    });
+    syncBody();
+  };
+  // Highlight colours to choose from (the X clears the highlight).
   const HL_COLORS = ["#FDE68A", "#BBF7D0", "#BFDBFE", "#FBCFE8", "#FED7AA", "#E9D5FF"];
   const applyHighlight = c => {
     setHlOpen(false);
     restoreSel();
-    exec("hiliteColor", c || "transparent", true);
+    if (c) { exec("hiliteColor", c, true); return; }
+    // remove background from the selected, highlighted spans
+    clearInSelection('span[style*="background"], span[style*="BACKGROUND"]', node => {
+      node.style.backgroundColor = "";
+      if (!node.getAttribute("style")) { const p = node.parentNode; while (node.firstChild) p.insertBefore(node.firstChild, node); p.removeChild(node); }
+    });
   };
   // Enlarge just the SELECTED word(s), inline — not the whole line like H1/H2.
-  // Toggles between large and normal by inspecting the surrounding <font size>.
+  // A second tap REMOVES the sizing so the word returns to the note's own size.
   const biggerWord = () => {
     let big = false;
     try {
       let n = window.getSelection()?.anchorNode;
       while (n && n !== editRef.current) {
-        if (n.nodeType === 1 && n.tagName === "FONT" && ["5", "6", "7"].includes(n.getAttribute("size"))) { big = true; break; }
+        if (n.nodeType === 1 && n.tagName === "FONT" && ["4", "5", "6", "7"].includes(n.getAttribute("size"))) { big = true; break; }
         n = n.parentNode;
       }
     } catch { /* ignore */ }
-    exec("fontSize", big ? "3" : "5");
+    if (big) {
+      // unwrap the <font size> back to the surrounding, original size
+      clearInSelection("font[size]", node => { const p = node.parentNode; while (node.firstChild) p.insertBefore(node.firstChild, node); p.removeChild(node); });
+    } else {
+      exec("fontSize", "5");
+    }
   };
 
   const FMT = [
@@ -572,7 +594,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
           style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
             overflowY: "auto", padding: "12px 16px 16px", fontSize: fs, fontFamily: FONT,
             direction: "rtl", color: th.text, background: th.surface,
-            lineHeight: lh + "px", wordBreak: "break-word" }} />
+            lineHeight: 1.65, wordBreak: "break-word" }} />
       )}
 
       {/* Styled link dialog (replaces the raw browser prompt). */}

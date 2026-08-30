@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.87";
+export const APP_VERSION = "5.88";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.88", date: "30 באוגוסט 2026", items: [
+    { icon: "edit", title: "תיקוני עיצוב טקסט", text: "הסרת רקע (X) עובדת עכשיו, הגדלת מילה (A+) חוזרת בדיוק לגודל המקורי בלחיצה נוספת, ורוחב השורה בעורך צומצם." },
+  ] },
   { v: "5.87", date: "30 באוגוסט 2026", items: [
     { icon: "edit", title: "כיווני עיצוב טקסט", text: "פס העיצוב עבר מתחת לקבצים המצורפים. המרקר פותח עכשיו בחירת צבעי רקע (וניתן לשנות או להסיר). Enter כבר לא יוצר שורה ריקה כפולה." },
   ] },
