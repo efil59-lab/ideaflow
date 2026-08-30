@@ -58,6 +58,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const [linkOpen, setLinkOpen] = useState(false);   // styled link dialog
   const [colorOpen, setColorOpen] = useState(false); // text-colour palette popover
   const [hlOpen, setHlOpen] = useState(false);       // highlight-colour palette popover
+  const [active, setActive] = useState({});          // which format buttons are "on" for the caret
   const [focusIdx, setFocusIdx] = useState(-1);   // checklist row to focus after add/remove
   const idRef = useRef(initial?.id || null);
   const creatingRef = useRef(false);
@@ -384,6 +385,39 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     else exec("fontSize", "5");
   };
 
+  // Reflect the caret's formatting on the toolbar (B lit when bold, etc.).
+  const refreshActive = () => {
+    const el = editRef.current;
+    const sel = window.getSelection();
+    if (!el || !sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return;
+    const st = {};
+    try {
+      st.bold = document.queryCommandState("bold");
+      st.italic = document.queryCommandState("italic");
+      st.under = document.queryCommandState("underline");
+      st.strike = document.queryCommandState("strikeThrough");
+    } catch { /* ignore */ }
+    const block = currentBlockTag();
+    st.h1 = block === "H1"; st.h2 = block === "H2";
+    st.size = isBigFont();
+    let n = sel.anchorNode;
+    while (n && n !== el) {
+      if (n.nodeType === 1) {
+        if (n.style?.color) st.color = true;
+        if (n.style?.backgroundColor && n.style.backgroundColor !== "transparent") st.mark = true;
+      }
+      n = n.parentNode;
+    }
+    setActive(st);
+  };
+  const refreshRef = useRef(refreshActive);
+  refreshRef.current = refreshActive;
+  useEffect(() => {
+    const h = () => refreshRef.current();
+    document.addEventListener("selectionchange", h);
+    return () => document.removeEventListener("selectionchange", h);
+  }, []);
+
   const FMT = [
     { k: "h1", label: "H1", title: "כותרת (שורה שלמה)", on: () => toggleBlock("H1") },
     { k: "h2", label: "H2", title: "כותרת משנה (שורה שלמה)", on: () => toggleBlock("H2") },
@@ -683,20 +717,24 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
         <div data-noswipe style={{ display: "flex", alignItems: "center", gap: 1, padding: "3px 6px",
           background: barBg, borderTop: `1px solid ${line}`, overflowX: "auto", direction: "rtl",
           scrollbarWidth: "none" }}>
-          {FMT.map(f => (
-            <button key={f.k} title={f.title}
-              onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
-              onClick={f.on}
-              style={{ flexShrink: 0, minWidth: 34, height: 33,
-                background: (f.k === "color" && colorOpen) || (f.k === "mark" && hlOpen) ? th.accentSoft : "transparent",
-                border: "none", borderRadius: 8, cursor: "pointer", color: th.text, fontFamily: FONT,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 15, fontWeight: f.bold ? 800 : 600,
-                fontStyle: f.italic ? "italic" : "normal",
-                textDecoration: f.under ? "underline" : f.strike ? "line-through" : "none" }}>
-              {f.icon ? <Icon name={f.icon} size={18} color={th.text} /> : f.label}
-            </button>
-          ))}
+          {FMT.map(f => {
+            const on = active[f.k] || (f.k === "color" && colorOpen) || (f.k === "mark" && hlOpen);
+            return (
+              <button key={f.k} title={f.title}
+                onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+                onClick={f.on}
+                style={{ flexShrink: 0, minWidth: 34, height: 33,
+                  background: on ? (th.accent || th.accentSoft) : "transparent",
+                  border: "none", borderRadius: 8, cursor: "pointer",
+                  color: on ? "#fff" : th.text, fontFamily: FONT,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 15, fontWeight: f.bold ? 800 : 600,
+                  fontStyle: f.italic ? "italic" : "normal",
+                  textDecoration: f.under ? "underline" : f.strike ? "line-through" : "none" }}>
+                {f.icon ? <Icon name={f.icon} size={18} color={on ? "#fff" : th.text} /> : f.label}
+              </button>
+            );
+          })}
         </div>
       )}
 
