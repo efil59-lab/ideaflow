@@ -4,7 +4,7 @@
 // Inbox funnel or the active counts.
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { Icon, IconBtn } from "../ui/Icons";
-import { Modal, ModalHeader, Confirm } from "../ui/base";
+import { Modal, ModalHeader, Confirm, Toast } from "../ui/base";
 import Checklist, { hasChecklist, parseChecklist, toggleLine } from "../ui/Checklist";
 import NoteEditor from "../ui/NoteEditor";
 import ImageStrip from "../ui/ImageStrip";
@@ -164,6 +164,17 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [renameFolderObj, setRenameFolderObj] = useState(null);
   const [delFolder, setDelFolder] = useState(null);           // folder pending delete confirmation
   const [foldersOverview, setFoldersOverview] = useState(false); // stats → folders list
+  const [copied, setCopied] = useState(false);                   // "copied to clipboard" toast
+
+  const copyNote = async note => {
+    const txt = (note.text || note.title || note.links?.[0]?.url || "").trim();
+    if (!txt) return;
+    try { await navigator.clipboard.writeText(txt); }
+    catch { /* clipboard blocked — nothing to do */ }
+    setSelected(null);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  };
 
   // Reading a note opens a full-screen editor; keep the list exactly where it
   // was. We snapshot the scroll when it opens (before the textarea autofocus
@@ -360,12 +371,8 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
           <span style={{ marginRight: "auto", display: "flex", gap: 2, alignItems: "center" }}>
             {selNotes.length === 1 && (
               <>
-                <IconBtn name="copy" onClick={() => {
-                  const n = selNotes[0];
-                  onCapture({ text: n.text, html: n.html || "", colorIdx: n.colorIdx ?? null,
-                    title: n.title ? `${n.title} (עותק)` : "", tags: n.tags || [] });
-                  setSelected(null);
-                }} color={th.secondary} size={22} pad="9px" title="שכפל" />
+                <IconBtn name="copy" onClick={() => copyNote(selNotes[0])}
+                  color={th.secondary} size={22} pad="9px" title="העתק את הטקסט" />
                 <IconBtn name="share" onClick={() => { actions.share?.(selNotes[0]); setSelected(null); }}
                   color={th.secondary} size={22} pad="9px" title="שתף" />
               </>
@@ -665,6 +672,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
           </div>
         </Modal>
       )}
+      {copied && <Toast msg="הועתק ללוח ✓" th={th} />}
     </>
   );
 }
