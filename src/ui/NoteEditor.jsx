@@ -35,7 +35,8 @@ const MENU = [
   { k: "pin",       label: "הצמד",         icon: "pin" },
   { k: "share",     label: "שיתוף",        icon: "share" },
   { k: "remind",    label: "תזכורת",       icon: "bell" },
-  { k: "move",      label: "העבר לפרויקט", icon: "folder" },
+  { k: "folder",    label: "העבר לתיקייה", icon: "folder" },
+  { k: "move",      label: "העבר לפרויקט", icon: "inbox" },
   { k: "archive",   label: "לארכיון",      icon: "download" },
   { k: "delete",    label: "מחיקה",        icon: "delete", danger: true },
 ];

@@ -127,7 +127,8 @@ function NotesStats({ notesAll, archCount, th, nameOf }) {
 }
 
 export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote,
-  projects = [], onMoveToProject, noteFont = 0, colorNames = [], onSaveNames }) {
+  projects = [], onMoveToProject, noteFont = 0, colorNames = [], onSaveNames,
+  folders = [], onSaveFolders }) {
   const [color, setColor] = useState(null);              // colour filter, null = all
   const [view, setView] = useState(() => {
     try { return localStorage.getItem("if_notes_view") === "grid" ? "grid" : "rows"; }
@@ -148,6 +149,16 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [selMenu, setSelMenu] = useState(false);         // "more" menu in the selection bar
   const [showColorFilter, setShowColorFilter] = useState(false);   // colour chips, toggled by the palette icon
   const [pasteHint, setPasteHint] = useState(false);     // opened via clip but clipboard was blocked
+  // Folders: the active folder filters the list; null = the clean "unfiled"
+  // main screen. Filing a note into a folder removes it from that main list.
+  const [activeFolder, setActiveFolder] = useState(() => {
+    try { return localStorage.getItem("if_notes_folder") || null; } catch { return null; }
+  });
+  const [folderPickFor, setFolderPickFor] = useState(null);   // notes awaiting a folder | null
+  const [newFolderOpen, setNewFolderOpen] = useState(false);  // create-folder prompt
+  const [manageFolder, setManageFolder] = useState(null);     // folder action sheet (rename/delete)
+  const [renameFolderObj, setRenameFolderObj] = useState(null);
+  const [delFolder, setDelFolder] = useState(null);           // folder pending delete confirmation
 
   // Reading a note opens a full-screen editor; keep the list exactly where it
   // was. We snapshot the scroll when it opens (before the textarea autofocus
@@ -197,7 +208,14 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
 
   const notesAll = ideas.filter(i => i.status === "note");
   const archCount = notesAll.filter(n => n.archived).length;
+  // A persisted folder that was since deleted falls back to the main list.
+  const validFolder = folders.some(f => f.id === activeFolder) ? activeFolder : null;
+  const folderCount = id => notesAll.filter(n => !n.archived && (n.folderId || null) === id).length;
+  const unfiledCount = folderCount(null);
   let pool = notesAll.filter(n => !!n.archived === showArch);
+  // The archive shows everything; the live list is scoped to the active folder
+  // (null = unfiled), which is what keeps the main screen clean.
+  if (!showArch) pool = pool.filter(n => (n.folderId || null) === validFolder);
   if (color !== null) pool = pool.filter(i => i.colorIdx === color);
   const modified = n => n.updatedAt || n.createdAt || 0;
   const alpha = n => (n.title || n.text || "").trim();
@@ -246,6 +264,32 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
     setSelected(null);
   };
 
+  // ── folders ──────────────────────────────────────────────────────────────
+  const chooseFolder = id => {
+    setActiveFolder(id);
+    try { id ? localStorage.setItem("if_notes_folder", id) : localStorage.removeItem("if_notes_folder"); }
+    catch { /* ignore */ }
+  };
+  const createFolder = name => {
+    const f = { id: "f_" + Date.now(), name: (name || "").trim() || "תיקייה" };
+    onSaveFolders?.([...folders, f]);
+    return f;
+  };
+  const renameFolder = (id, name) =>
+    onSaveFolders?.(folders.map(f => (f.id === id ? { ...f, name: (name || "").trim() || f.name } : f)));
+  const deleteFolder = id => {
+    notesAll.filter(n => n.folderId === id).forEach(n => actions.update?.(n.id, { folderId: null }, n));
+    onSaveFolders?.(folders.filter(f => f.id !== id));
+    if (validFolder === id) chooseFolder(null);
+    setManageFolder(null);
+  };
+  // File a set of notes into a folder (id, or null to unfile), then leave select.
+  const fileInto = (notesList, id) => {
+    notesList.forEach(n => actions.update?.(n.id, { folderId: id }, n));
+    setFolderPickFor(null);
+    setSelected(null);
+  };
+
   const paste = async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -268,7 +312,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
     <>
       {/* The shared "motto" hero — same shape as the projects screen, with notes
           data. Scrolls away above the pinned toolbar. */}
-      {!showArch && !inSel && <NotesStats notesAll={notesAll} archCount={archCount} th={th} nameOf={nameOf} />}
+      {!showArch && !inSel && !validFolder && <NotesStats notesAll={notesAll} archCount={archCount} th={th} nameOf={nameOf} />}
 
       {/* The whole toolbar (sort · title · colours) stays pinned under the app
           header while the notes scroll. */}
@@ -324,7 +368,9 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
                     overflow: "hidden", direction: "rtl" }}>
                     {[
                       { k: "color", label: "צבע לכולם", icon: "tag", on: () => { setSelMenu(false); setPickColor(true); } },
-                      ...(projects.length > 0 ? [{ k: "move", label: "העבר לפרויקט", icon: "folder",
+                      { k: "folder", label: "העבר לתיקייה", icon: "folder",
+                        on: () => { setSelMenu(false); setFolderPickFor(selNotes); } },
+                      ...(projects.length > 0 ? [{ k: "move", label: "העבר לפרויקט", icon: "inbox",
                         on: () => { setSelMenu(false); onMoveToProject?.(selNotes); setSelected(null); } }] : []),
                       { k: "arch", label: showArch ? "שחזר מהארכיון" : "לארכיון", icon: "download",
                         on: () => { setSelMenu(false); bulkArchive(); } },
@@ -347,10 +393,12 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
       ) : (
         <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 2px 12px", direction: "rtl" }}>
           <Icon name={showArch ? "download" : "notes"} size={19} color={th.accent} />
-          <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: th.text }}>
-            {showArch ? "ארכיון" : "פתקים"}
+          <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: th.text,
+            maxWidth: "55vw", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {showArch ? "ארכיון" : validFolder ? folders.find(f => f.id === validFolder)?.name : "פתקים"}
           </h2>
-          <span style={{ fontSize: 12.5, color: th.muted }}>{showArch ? archCount : notesAll.length - archCount}</span>
+          <span style={{ fontSize: 12.5, color: th.muted }}>
+            {showArch ? archCount : validFolder ? folderCount(validFolder) : unfiledCount}</span>
           <span style={{ marginRight: "auto", display: "flex", gap: 4, alignItems: "center" }}>
             {/* Palette: opens the colour filter chips */}
             <button onClick={() => setShowColorFilter(o => !o)} title="סינון לפי צבע"
@@ -378,6 +426,28 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
                 title="הדבק מהלוח כפתק חדש" />
             )}
           </span>
+        </div>
+      )}
+
+      {/* Folder bar — a chip per folder plus the clean unfiled "פתקים" view.
+          Tap filters; long-press a folder to rename/delete; + creates one. */}
+      {!inSel && !showArch && (
+        <div data-noswipe style={{ display: "flex", gap: 7, overflowX: "auto", margin: "0 0 12px",
+          paddingBottom: 3, direction: "rtl", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
+          <FolderChip label="פתקים" icon="notes" count={unfiledCount}
+            active={validFolder === null} onClick={() => chooseFolder(null)} th={th} />
+          {folders.map(f => (
+            <FolderChip key={f.id} label={f.name} icon="folder" count={folderCount(f.id)}
+              active={validFolder === f.id} onClick={() => chooseFolder(f.id)}
+              onLong={() => setManageFolder(f)} th={th} />
+          ))}
+          <button onClick={() => setNewFolderOpen(true)} title="תיקייה חדשה"
+            style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "7px 13px", borderRadius: 18, cursor: "pointer", fontFamily: FONT,
+              fontSize: 12.5, fontWeight: 700, background: "transparent", color: th.accentText,
+              border: `1px dashed ${th.borderStrong || th.border}`, whiteSpace: "nowrap" }}>
+            <Icon name="add" size={14} color={th.accentText} /> תיקייה
+          </button>
         </div>
       )}
 
@@ -413,7 +483,9 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
           <Icon name={showArch ? "download" : "notes"} size={38} color={th.border} />
           <p style={{ fontSize: 14, marginTop: 8 }}>
             {showArch ? "הארכיון ריק"
-              : color === null ? "עוד אין פתקים — לחץ + וכתוב את הראשון" : `אין פתקים בצבע "${nameOf(color)}"`}
+              : color !== null ? `אין פתקים בצבע "${nameOf(color)}"`
+              : validFolder ? "התיקייה ריקה — העבר לכאן פתקים דרך בחירה מרובה או תפריט הפתק"
+              : "עוד אין פתקים — לחץ + וכתוב את הראשון"}
           </p>
         </div>
       ) : view === "rows" ? (
@@ -480,6 +552,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
             if (kind === "share") actions.share?.(note);
             else if (kind === "remind") actions.remind?.(note);
             else if (kind === "move") onMoveToProject?.([note]);
+            else if (kind === "folder") setFolderPickFor([note]);
             else if (kind === "archive") actions.update?.(note.id, { archived: !note.archived }, note);
             else if (kind === "pin") actions.update?.(note.id, { pinned: !note.pinned }, note);
             else if (kind === "delete") setConfirmDel([note]);   // always warn first
@@ -492,7 +565,162 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
           onSave={names => { onSaveNames?.(names); setEditNames(false); }}
           onClose={() => setEditNames(false)} />
       )}
+
+      {/* Pick a folder for one or more notes (or create one on the spot). */}
+      {folderPickFor && (
+        <FolderPicker th={th} folders={folders} count={folderPickFor.length}
+          current={folderPickFor.length === 1 ? (folderPickFor[0].folderId || null) : undefined}
+          onPick={id => fileInto(folderPickFor, id)}
+          onCreate={name => { const f = createFolder(name); fileInto(folderPickFor, f.id); }}
+          onClose={() => setFolderPickFor(null)} />
+      )}
+
+      {newFolderOpen && (
+        <FolderNameModal th={th} title="תיקייה חדשה" confirmLabel="צור"
+          onSave={name => { const f = createFolder(name); setNewFolderOpen(false); chooseFolder(f.id); }}
+          onClose={() => setNewFolderOpen(false)} />
+      )}
+
+      {renameFolderObj && (
+        <FolderNameModal th={th} title="שינוי שם" confirmLabel="שמור" initial={renameFolderObj.name}
+          onSave={name => { renameFolder(renameFolderObj.id, name); setRenameFolderObj(null); }}
+          onClose={() => setRenameFolderObj(null)} />
+      )}
+
+      {manageFolder && (
+        <Modal onClose={() => setManageFolder(null)} maxWidth={320} th={th}>
+          <ModalHeader title={manageFolder.name} icon="folder" onClose={() => setManageFolder(null)} th={th} />
+          {[
+            { k: "rename", label: "שינוי שם", icon: "edit",
+              on: () => { setRenameFolderObj(manageFolder); setManageFolder(null); } },
+            { k: "del", label: "מחיקת תיקייה", icon: "delete", danger: true,
+              on: () => { setDelFolder(manageFolder); setManageFolder(null); } },
+          ].map((m, i) => (
+            <button key={m.k} onClick={m.on}
+              style={{ display: "flex", alignItems: "center", gap: 11, width: "100%",
+                background: th.surface2, color: m.danger ? th.red : th.text,
+                border: `1px solid ${th.border}`, borderRadius: 12, padding: "12px 14px",
+                marginBottom: 7, cursor: "pointer", fontFamily: FONT, fontSize: 14, fontWeight: 500,
+                direction: "rtl", textAlign: "right" }}>
+              <Icon name={m.icon} size={17} color={m.danger ? th.red : th.secondary} />
+              {m.label}
+            </button>
+          ))}
+        </Modal>
+      )}
+
+      {delFolder && (
+        <Confirm title="מחיקת תיקייה" icon="delete"
+          message={`התיקייה "${delFolder.name}" תימחק. הפתקים שבתוכה לא יימחקו — הם יחזרו למסך הפתקים הראשי.`}
+          confirmLabel="מחק תיקייה"
+          onConfirm={() => { deleteFolder(delFolder.id); setDelFolder(null); }}
+          onCancel={() => setDelFolder(null)} th={th} />
+      )}
     </>
+  );
+}
+
+// A pill in the folder bar. Tap filters to the folder; long-press (folders only)
+// opens the rename/delete sheet.
+function FolderChip({ label, icon, count, active, onClick, onLong, th }) {
+  const press = usePress(onClick, onLong || (() => {}));
+  return (
+    <button {...(onLong ? press : { onClick })}
+      style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "7px 13px", borderRadius: 18, cursor: "pointer", fontFamily: FONT,
+        fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", userSelect: "none",
+        WebkitUserSelect: "none", WebkitTouchCallout: "none",
+        background: active ? th.accent : th.surface,
+        color: active ? "#fff" : th.secondary,
+        border: `1px solid ${active ? th.accent : th.border}` }}>
+      <Icon name={icon} size={13} color={active ? "#fff" : th.muted} />
+      {label}
+      {count > 0 && (
+        <span style={{ fontSize: 11, fontWeight: 700, opacity: active ? 0.9 : 0.6 }}>{count}</span>
+      )}
+    </button>
+  );
+}
+
+// Assigns note(s) to a folder: pick an existing one, remove from any folder, or
+// type a new folder name.
+function FolderPicker({ folders, count, current, onPick, onCreate, onClose, th }) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  return (
+    <Modal onClose={onClose} maxWidth={340} th={th}>
+      <ModalHeader title={count > 1 ? `העברת ${count} פתקים לתיקייה` : "העברה לתיקייה"}
+        icon="folder" onClose={onClose} th={th} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 7, direction: "rtl" }}>
+        {folders.map(f => (
+          <button key={f.id} onClick={() => onPick(f.id)}
+            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%",
+              background: current === f.id ? th.accentSoft : th.surface2,
+              color: current === f.id ? th.accentText : th.text,
+              border: `1px solid ${current === f.id ? th.accent : th.border}`,
+              borderRadius: 12, padding: "12px 14px", cursor: "pointer",
+              fontFamily: FONT, fontSize: 14, fontWeight: 500, textAlign: "right" }}>
+            <Icon name="folder" size={17} color={current === f.id ? th.accentText : th.secondary} />
+            <span style={{ flex: 1 }}>{f.name}</span>
+            {current === f.id && <Icon name="check" size={15} color={th.accentText} />}
+          </button>
+        ))}
+        {current != null && current !== undefined && (
+          <button onClick={() => onPick(null)}
+            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%",
+              background: th.surface2, color: th.secondary, border: `1px solid ${th.border}`,
+              borderRadius: 12, padding: "12px 14px", cursor: "pointer",
+              fontFamily: FONT, fontSize: 14, fontWeight: 500, textAlign: "right" }}>
+            <Icon name="close" size={16} color={th.secondary} />
+            <span style={{ flex: 1 }}>הסר מהתיקייה</span>
+          </button>
+        )}
+        {adding ? (
+          <form onSubmit={e => { e.preventDefault(); if (name.trim()) onCreate(name.trim()); }}
+            style={{ display: "flex", gap: 7, marginTop: 2 }}>
+            <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="שם התיקייה"
+              style={{ flex: 1, minWidth: 0, border: `1px solid ${th.border}`, borderRadius: 10,
+                padding: "10px 12px", fontFamily: FONT, fontSize: 14, direction: "rtl",
+                background: th.inputBg, color: th.text, outline: "none" }} />
+            <button type="submit"
+              style={{ border: "none", borderRadius: 10, padding: "0 16px", cursor: "pointer",
+                background: th.cta || th.accent, color: "#fff", fontFamily: FONT, fontWeight: 700 }}>צור</button>
+          </form>
+        ) : (
+          <button onClick={() => setAdding(true)}
+            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", marginTop: 2,
+              background: "transparent", color: th.accentText, border: `1px dashed ${th.borderStrong || th.border}`,
+              borderRadius: 12, padding: "12px 14px", cursor: "pointer",
+              fontFamily: FONT, fontSize: 14, fontWeight: 700, textAlign: "right" }}>
+            <Icon name="add" size={16} color={th.accentText} />
+            <span style={{ flex: 1 }}>תיקייה חדשה</span>
+          </button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// A single-field name prompt for creating or renaming a folder.
+function FolderNameModal({ title, confirmLabel = "שמור", initial = "", onSave, onClose, th }) {
+  const [name, setName] = useState(initial);
+  return (
+    <Modal onClose={onClose} maxWidth={330} th={th}>
+      <ModalHeader title={title} icon="folder" onClose={onClose} th={th} />
+      <form onSubmit={e => { e.preventDefault(); if (name.trim()) onSave(name.trim()); }}
+        style={{ display: "flex", flexDirection: "column", gap: 10, direction: "rtl" }}>
+        <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="שם התיקייה"
+          style={{ border: `1px solid ${th.border}`, borderRadius: 11, padding: "12px 14px",
+            fontFamily: FONT, fontSize: 15, direction: "rtl", background: th.inputBg,
+            color: th.text, outline: "none" }} />
+        <button type="submit" disabled={!name.trim()}
+          style={{ border: "none", borderRadius: 12, padding: "12px", cursor: name.trim() ? "pointer" : "default",
+            background: name.trim() ? (th.cta || th.accent) : th.border, color: "#fff",
+            fontFamily: FONT, fontSize: 15, fontWeight: 700, opacity: name.trim() ? 1 : 0.6 }}>
+          {confirmLabel}
+        </button>
+      </form>
+    </Modal>
   );
 }
 

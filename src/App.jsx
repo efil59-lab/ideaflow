@@ -9,7 +9,7 @@ import {
   markVersionSeen, whatsNewNotSeenYet,
   useMyShares, useSharedWithMe, saveShare, removeShare, shareIdOf,
   addComment, addSharedIdea, queueNotification,
-  useUserDoc, markCommentsSeen, recordPresence, addNote, autoTitle, saveColorNames, importNotes,
+  useUserDoc, markCommentsSeen, recordPresence, addNote, autoTitle, saveColorNames, saveFolders, importNotes,
 } from "./data/store";
 import { migrateIfNeeded } from "./data/migrate";
 import { enrichIdea } from "./data/ai";
@@ -1297,7 +1297,9 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
         onCreateNote={data => addNote(uid, data)}
         projects={projects} onMoveToProject={setMoveNotes} noteFont={noteFontStep}
         colorNames={userDoc.colorNames || []}
-        onSaveNames={names => saveColorNames(uid, names).catch(() => {})} />
+        onSaveNames={names => saveColorNames(uid, names).catch(() => {})}
+        folders={userDoc.folders || []}
+        onSaveFolders={fs => saveFolders(uid, fs).catch(() => {})} />
     );
     if (t === "search") return (
       <Search ideas={ideas} projects={projects} th={th} actions={actions}
@@ -1841,6 +1843,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "photo", title: "תמונות והקלטת קול", text: 'במסך כתיבת הפתק: כפתור מיקרופון מקליט קול (נשמר עם נגן להאזנה), וכפתור תמונה מוסיף תמונות — נשמרות קטנות, לחיצה מגדילה למסך מלא ואפשר לדפדף בין כולן. אפשר לבחור כמה תמונות יחד.' },
     { icon: "link", title: "שמירת קישורים מרשתות", text: 'מצאת סרטון באינסטגרם, טיקטוק, פייסבוק או יוטיוב? הכי מהיר — מתוך האפליקציה של הרשת לחץ "שתף" ובחר ב-IdeaFlow: הקישור נשמר לבד כפתק כתום עם הכותרת של הסרטון ותמונה ממוזערת, ולחיצה עליו פותח אותו. אפשר גם בעורך הפתק ללחוץ על אייקון הקישור (🔗) ולהדביק, או פשוט להדביק קישור לתוך פתק ריק.' },
     { icon: "check", title: "רשימות סימון", text: 'בתפריט ⋮ ← "רשימת סימון": כל שורה הופכת לפריט עם ריבוע. נגיעה בריבוע מסמנת כבוצע ומעבירה קו חוצה, Enter מוסיף פריט, ולחיצה חוזרת מחזירה לטקסט רגיל.' },
+    { icon: "folder", title: "תיקיות לפתקים", text: 'שורת התיקיות בראש מסך הפתקים שומרת על סדר: מסך "פתקים" מראה רק את הפתקים החדשים שעוד לא סידרת, ולכל נושא אפשר לפתוח תיקייה (למשל "מתכונים", "קישורים"). יוצרים תיקייה בכפתור "+ תיקייה", מעבירים פתק דרך תפריט ⋮ ← "העבר לתיקייה" או בבחירה מרובה, ולחיצה ארוכה על תיקייה משנה שם או מוחקת (הפתקים חוזרים למסך הראשי).' },
     { icon: "tag", title: "צבעים וסינון", text: 'כל פתק מקבל צבע (ריבוע הצבע בכותרת העורך). כפתור הפלטה בראש רשימת הפתקים פותח סינון לפי צבע, ואפשר לתת לכל צבע שם משלך ("קניות", "עבודה") בתפריט הפרופיל.' },
     { icon: "pin", title: 'הצמדה ותווית "חדש"', text: '⋮ ← "הצמד" מעלה פתק לראש הרשימה. פתק שנוצר בשבוע האחרון מסומן בתווית קטנה "חדש" שנעלמת מעצמה.' },
     { icon: "bell", title: "תזכורות", text: '⋮ ← "תזכורת": בעוד שעה / הערב / מחר או זמן מדויק, כולל חזרה קבועה. ההתראה מגיעה גם כשהאפליקציה סגורה, ואפשר לדחות אותה.' },

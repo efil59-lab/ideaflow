@@ -21,7 +21,7 @@ const projectsCol = uid => collection(db, "users", uid, "projects");
 function demoData() {
   const now = Date.now();
   const base = { status: "inbox", projectId: null, aiProject: null, pinned: false,
-    colorIdx: null, order: null, images: [], audios: [], files: [], links: [], remindAt: null, updatedAt: 0 };
+    colorIdx: null, folderId: null, order: null, images: [], audios: [], files: [], links: [], remindAt: null, updatedAt: 0 };
   return {
     projects: [
       { id: "p1", name: "טלוויזיה", color: "#2E5BE6", notes: "", pinned: false, createdAt: 1 },
@@ -121,7 +121,7 @@ export async function addIdea(uid, data) {
     text: "", html: "", title: "", tags: [],
     status: "inbox", projectId: null, aiProject: null,
     pinned: false, colorIdx: null, order: null, noCheck: false,
-    images: [], audios: [], files: [], links: [], remindAt: null, repeat: null, repeatAnchor: null, comments: [],
+    images: [], audios: [], files: [], links: [], folderId: null, remindAt: null, repeat: null, repeatAnchor: null, comments: [],
     createdAt: Date.now(), updatedAt: Date.now(),
     ...data,
   };
@@ -387,6 +387,13 @@ export async function addNote(uid, data) {
 export async function saveColorNames(uid, names) {
   if (import.meta.env.DEV && uid === "demo") return;
   await setDoc(doc(db, "users", uid), { colorNames: names }, { merge: true });
+}
+
+// Named folders for the notes tab, e.g. [{ id, name }]. A note references one by
+// folderId (null = unfiled, shown on the main notes screen).
+export async function saveFolders(uid, folders) {
+  if (import.meta.env.DEV && uid === "demo") return;
+  await setDoc(doc(db, "users", uid), { folders }, { merge: true });
 }
 
 // Stamp who this is and when they were last here, so the owner's admin panel
