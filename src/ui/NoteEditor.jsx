@@ -677,7 +677,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
           style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
             overflowY: "auto", padding: "12px 16px 16px", fontSize: fs, fontFamily: FONT,
             direction: "rtl", color: th.text, background: th.surface,
-            lineHeight: 1.65, wordBreak: "break-word" }} />
+            lineHeight: 1.45, wordBreak: "break-word" }} />
       )}
 
       {/* Styled link dialog (replaces the raw browser prompt). */}
