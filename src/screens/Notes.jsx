@@ -150,10 +150,9 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [showColorFilter, setShowColorFilter] = useState(false);   // colour chips, toggled by the palette icon
   const [pasteHint, setPasteHint] = useState(false);     // opened via clip but clipboard was blocked
   // Folders: the active folder filters the list; null = the clean "unfiled"
-  // main screen. Filing a note into a folder removes it from that main list.
-  const [activeFolder, setActiveFolder] = useState(() => {
-    try { return localStorage.getItem("if_notes_folder") || null; } catch { return null; }
-  });
+  // main screen. Entering the app always starts here on the general view — the
+  // last-open folder is not remembered across launches (by request).
+  const [activeFolder, setActiveFolder] = useState(null);
   const [folderPickFor, setFolderPickFor] = useState(null);   // notes awaiting a folder | null
   const [newFolderOpen, setNewFolderOpen] = useState(false);  // create-folder prompt
   const [manageFolder, setManageFolder] = useState(null);     // folder action sheet (rename/delete)
@@ -265,11 +264,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   };
 
   // ── folders ──────────────────────────────────────────────────────────────
-  const chooseFolder = id => {
-    setActiveFolder(id);
-    try { id ? localStorage.setItem("if_notes_folder", id) : localStorage.removeItem("if_notes_folder"); }
-    catch { /* ignore */ }
-  };
+  const chooseFolder = id => setActiveFolder(id);
   const createFolder = name => {
     const f = { id: "f_" + Date.now(), name: (name || "").trim() || "תיקייה" };
     onSaveFolders?.([...folders, f]);
