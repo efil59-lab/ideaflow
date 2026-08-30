@@ -57,6 +57,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const [saved, setSaved] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);   // styled link dialog
   const [colorOpen, setColorOpen] = useState(false); // text-colour palette popover
+  const [hlOpen, setHlOpen] = useState(false);       // highlight-colour palette popover
   const [focusIdx, setFocusIdx] = useState(-1);   // checklist row to focus after add/remove
   const idRef = useRef(initial?.id || null);
   const creatingRef = useRef(false);
@@ -243,6 +244,16 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     const el = editRef.current;
     if (el) { setText(el.innerText); setHtml(el.innerHTML); }
   };
+  // Enter inserts a SINGLE line break; the browser's default wraps each line in a
+  // block and shows an extra empty line between them.
+  const onBodyKeyDown = e => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      try { document.execCommand("insertLineBreak"); }
+      catch { try { document.execCommand("insertHTML", false, "<br>"); } catch { /* ignore */ } }
+      syncBody();
+    }
+  };
   // Run a formatting command on the live selection. css:true emits inline
   // <span style> (foreColor/hiliteColor) instead of legacy <font> tags.
   const exec = (cmd, val, css = false) => {
@@ -297,14 +308,13 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     restoreSel();
     exec("foreColor", c, true);
   };
-  const HL_COLOR = th.dark ? "rgba(250,204,21,0.4)" : "#FDE68A";
-  const isHighlighted = () => {
-    try {
-      const c = document.queryCommandValue("hiliteColor") || document.queryCommandValue("backColor");
-      return c && c !== "transparent" && c !== "rgba(0, 0, 0, 0)" && !/^rgb\(255, 255, 255\)$/.test(c);
-    } catch { return false; }
+  // Highlight colours to choose from (last one clears the highlight).
+  const HL_COLORS = ["#FDE68A", "#BBF7D0", "#BFDBFE", "#FBCFE8", "#FED7AA", "#E9D5FF"];
+  const applyHighlight = c => {
+    setHlOpen(false);
+    restoreSel();
+    exec("hiliteColor", c || "transparent", true);
   };
-  const toggleHighlight = () => exec("hiliteColor", isHighlighted() ? "transparent" : HL_COLOR, true);
   // Enlarge just the SELECTED word(s), inline — not the whole line like H1/H2.
   // Toggles between large and normal by inspecting the surrounding <font size>.
   const biggerWord = () => {
@@ -323,8 +333,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     { k: "h1", label: "H1", title: "כותרת (שורה שלמה)", on: () => toggleBlock("H1") },
     { k: "h2", label: "H2", title: "כותרת משנה (שורה שלמה)", on: () => toggleBlock("H2") },
     { k: "size", label: "A⁺", title: "הגדל מילה", on: biggerWord },
-    { k: "color", icon: "palette", title: "צבע טקסט", on: () => { saveSel(); setColorOpen(o => !o); } },
-    { k: "mark", icon: "marker", title: "הדגשה (מרקר)", on: toggleHighlight },
+    { k: "color", icon: "palette", title: "צבע טקסט", on: () => { saveSel(); setHlOpen(false); setColorOpen(o => !o); } },
+    { k: "mark", icon: "marker", title: "צבע רקע (מרקר)", on: () => { saveSel(); setColorOpen(false); setHlOpen(o => !o); } },
     { k: "link", icon: "link", title: "קישור לטקסט", on: () => { saveSel(); setLinkOpen(true); } },
     { k: "bold", label: "B", bold: true, title: "מודגש", on: () => exec("bold") },
     { k: "italic", label: "I", italic: true, title: "נטוי", on: () => exec("italic") },
@@ -558,46 +568,11 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       ) : (
         <div ref={editRef} contentEditable suppressContentEditableWarning dir="rtl"
           className="if-rich" data-ph={pastePrompt ? 'לחיצה ארוכה כאן ← "הדבק"' : "כתוב כאן…"}
-          onInput={syncBody} onPaste={onPasteBody}
+          onInput={syncBody} onPaste={onPasteBody} onKeyDown={onBodyKeyDown}
           style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
             overflowY: "auto", padding: "12px 16px 16px", fontSize: fs, fontFamily: FONT,
             direction: "rtl", color: th.text, background: th.surface,
             lineHeight: lh + "px", wordBreak: "break-word" }} />
-      )}
-
-      {/* Text-colour palette — a small popover above the format bar. */}
-      {!isChecklist && colorOpen && (
-        <div data-noswipe style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 12px",
-          background: barBg, borderTop: `1px solid ${line}`, direction: "rtl", flexWrap: "wrap" }}>
-          {TEXT_COLORS.map(c => (
-            <button key={c} title="צבע" onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
-              onClick={() => applyColor(c)}
-              style={{ width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer",
-                border: `2px solid ${th.surface}`, boxShadow: `0 0 0 1px ${th.border}` }} />
-          ))}
-        </div>
-      )}
-
-      {/* Text-formatting bar — one subtle row above the media bar. */}
-      {!isChecklist && (
-        <div data-noswipe style={{ display: "flex", alignItems: "center", gap: 1, padding: "3px 6px",
-          background: barBg, borderTop: `1px solid ${line}`, overflowX: "auto", direction: "rtl",
-          scrollbarWidth: "none" }}>
-          {FMT.map(f => (
-            <button key={f.k} title={f.title}
-              onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
-              onClick={f.on}
-              style={{ flexShrink: 0, minWidth: 34, height: 33,
-                background: (f.k === "color" && colorOpen) ? th.accentSoft : "transparent", border: "none",
-                borderRadius: 8, cursor: "pointer", color: th.text, fontFamily: FONT,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 15, fontWeight: f.bold ? 800 : 600,
-                fontStyle: f.italic ? "italic" : "normal",
-                textDecoration: f.under ? "underline" : f.strike ? "line-through" : "none" }}>
-              {f.icon ? <Icon name={f.icon} size={18} color={th.text} /> : f.label}
-            </button>
-          ))}
-        </div>
       )}
 
       {/* Styled link dialog (replaces the raw browser prompt). */}
@@ -615,6 +590,58 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
           {fetchingLink && <p style={{ margin: "2px 2px 0", fontSize: 11.5, color: th.muted, direction: "rtl" }}>טוען קישור…</p>}
           {uploading && <p style={{ margin: "2px 2px 0", fontSize: 11.5, color: th.muted, direction: "rtl" }}>מעלה…</p>}
           {rec.error && <p style={{ margin: "2px 2px 0", fontSize: 11.5, color: th.red, direction: "rtl" }}>{rec.error}</p>}
+        </div>
+      )}
+
+      {/* Colour / highlight palettes — shown above the format bar when open. */}
+      {!isChecklist && colorOpen && (
+        <div data-noswipe style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 12px",
+          background: barBg, borderTop: `1px solid ${line}`, direction: "rtl", flexWrap: "wrap" }}>
+          {TEXT_COLORS.map(c => (
+            <button key={c} title="צבע" onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+              onClick={() => applyColor(c)}
+              style={{ width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer",
+                border: `2px solid ${th.surface}`, boxShadow: `0 0 0 1px ${th.border}` }} />
+          ))}
+        </div>
+      )}
+      {!isChecklist && hlOpen && (
+        <div data-noswipe style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 12px",
+          background: barBg, borderTop: `1px solid ${line}`, direction: "rtl", flexWrap: "wrap" }}>
+          {HL_COLORS.map(c => (
+            <button key={c} title="רקע" onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+              onClick={() => applyHighlight(c)}
+              style={{ width: 26, height: 26, borderRadius: 7, background: c, cursor: "pointer",
+                border: `2px solid ${th.surface}`, boxShadow: `0 0 0 1px ${th.border}` }} />
+          ))}
+          <button title="הסר רקע" onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+            onClick={() => applyHighlight(null)}
+            style={{ width: 26, height: 26, borderRadius: 7, background: "transparent", cursor: "pointer",
+              border: `1px solid ${th.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="close" size={14} color={th.muted} />
+          </button>
+        </div>
+      )}
+
+      {/* Text-formatting bar — one subtle row, below the attachments. */}
+      {!isChecklist && (
+        <div data-noswipe style={{ display: "flex", alignItems: "center", gap: 1, padding: "3px 6px",
+          background: barBg, borderTop: `1px solid ${line}`, overflowX: "auto", direction: "rtl",
+          scrollbarWidth: "none" }}>
+          {FMT.map(f => (
+            <button key={f.k} title={f.title}
+              onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+              onClick={f.on}
+              style={{ flexShrink: 0, minWidth: 34, height: 33,
+                background: (f.k === "color" && colorOpen) || (f.k === "mark" && hlOpen) ? th.accentSoft : "transparent",
+                border: "none", borderRadius: 8, cursor: "pointer", color: th.text, fontFamily: FONT,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 15, fontWeight: f.bold ? 800 : 600,
+                fontStyle: f.italic ? "italic" : "normal",
+                textDecoration: f.under ? "underline" : f.strike ? "line-through" : "none" }}>
+              {f.icon ? <Icon name={f.icon} size={18} color={th.text} /> : f.label}
+            </button>
+          ))}
         </div>
       )}
 
