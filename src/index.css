@@ -36,6 +36,14 @@ html, body, #root { overflow: hidden; overflow-x: clip; overscroll-behavior-x: n
 
 input:focus, textarea:focus, [contenteditable]:focus { outline: none; }
 
+/* Rich note body (editor) + read-only rendering in the list. */
+.if-rich:empty:before { content: attr(data-ph); color: #9AA3AF; pointer-events: none; }
+.if-rich h1 { font-size: 1.4em; font-weight: 800; margin: .3em 0; }
+.if-rich h2 { font-size: 1.2em; font-weight: 700; margin: .3em 0; }
+.if-rich a, .if-rich-view a { color: #2563EB; text-decoration: underline; }
+.if-rich-view h1, .if-rich-view h2 { font-size: 1em; font-weight: 800; margin: 0; display: block; }
+.if-rich-view { line-height: inherit; }
+
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-thumb { background: #C9CFD9; border-radius: 4px; }
 

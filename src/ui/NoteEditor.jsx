@@ -13,6 +13,7 @@ import LinkStrip from "./LinkStrip";
 import { useRecorder } from "./useRecorder";
 import { uploadFile } from "../data/media";
 import { fetchLinkMeta, isSocialUrl } from "../data/link";
+import { htmlFromText } from "./richtext";
 
 // A checklist item field that wraps to as many lines as its text needs (a plain
 // input would clip the tail of a long item). Grows to fit its content.
@@ -44,6 +45,7 @@ const MENU = [
 export default function NoteEditor({ initial, defaultColor = 0, colorNames = [], scale = 1, pastePrompt = false, uid, th, onCreate, onUpdate, onAction, onClose }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [text, setText] = useState(initial?.text || "");
+  const [html, setHtml] = useState(initial?.html || "");   // formatted body (rich text)
   const [colorIdx, setColorIdx] = useState(initial?.colorIdx ?? defaultColor ?? 0);
   const [images, setImages] = useState(initial?.images || []);
   const [audios, setAudios] = useState(initial?.audios || []);
@@ -57,6 +59,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const idRef = useRef(initial?.id || null);
   const creatingRef = useRef(false);
   const taRef = useRef();
+  const editRef = useRef(null);   // the contentEditable rich body (text mode)
   const imgRef = useRef();
   const inputs = useRef({});
 
@@ -86,8 +89,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
 
   // Autosave: the ref always holds the latest state so the unmount flush and
   // the debounced save read the same truth.
-  const stateRef = useRef({ title, text, colorIdx, images, audios, links });
-  stateRef.current = { title, text, colorIdx, images, audios, links };
+  const stateRef = useRef({ title, text, html, colorIdx, images, audios, links });
+  stateRef.current = { title, text, html, colorIdx, images, audios, links };
 
   // What's already persisted. A pure read (or the no-op flush on unmount) must
   // NOT rewrite the note — that would bump updatedAt and jump it to the top of
@@ -99,6 +102,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     images: initial?.images || [],
     audios: initial?.audios || [],
     links: initial?.links || [],
+    html: initial?.html || "",
   });
   const mediaKey = a => (a || []).map(x => (typeof x === "string" ? x : x?.url)).join("|");
   const linkKey = a => (a || []).map(x => x?.url).join("|");
@@ -110,20 +114,21 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       && s.colorIdx === savedRef.current.colorIdx
       && mediaKey(s.images) === mediaKey(savedRef.current.images)
       && mediaKey(s.audios) === mediaKey(savedRef.current.audios)
-      && linkKey(s.links) === linkKey(savedRef.current.links);
+      && linkKey(s.links) === linkKey(savedRef.current.links)
+      && s.html === savedRef.current.html;
     if (!idRef.current) {
       if (!s.title.trim() && !s.text.trim() && !(s.images || []).length && !(s.audios || []).length && !(s.links || []).length) return;   // nothing to keep
       if (creatingRef.current) return;
       creatingRef.current = true;
       try {
-        const n = await onCreate({ title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios, links: s.links });
+        const n = await onCreate({ title: s.title.trim() || autoTitle(s.text), text: s.text, html: s.html, colorIdx: s.colorIdx, images: s.images, audios: s.audios, links: s.links });
         idRef.current = n?.id || null;
-        savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios, links: s.links };
+        savedRef.current = { title: s.title, text: s.text, html: s.html, colorIdx: s.colorIdx, images: s.images, audios: s.audios, links: s.links };
       } finally { creatingRef.current = false; }
     } else {
       if (unchanged) return;                            // read-only visit — leave it in place
-      onUpdate(idRef.current, { title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios, links: s.links, html: "" });
-      savedRef.current = { title: s.title, text: s.text, colorIdx: s.colorIdx, images: s.images, audios: s.audios, links: s.links };
+      onUpdate(idRef.current, { title: s.title.trim() || autoTitle(s.text), text: s.text, html: s.html, colorIdx: s.colorIdx, images: s.images, audios: s.audios, links: s.links });
+      savedRef.current = { title: s.title, text: s.text, html: s.html, colorIdx: s.colorIdx, images: s.images, audios: s.audios, links: s.links };
     }
     setSaved(true);
   };
@@ -134,7 +139,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     setSaved(false);
     const t = setTimeout(save, 800);
     return () => clearTimeout(t);
-  }, [title, text, colorIdx, images, audios, links]);
+  }, [title, text, html, colorIdx, images, audios, links]);
   // Any way out flushes the pending edit.
   useEffect(() => () => { save(); }, []);
 
@@ -229,15 +234,100 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     if (url) addLink(url);
   };
   // Pasting a bare URL into the body becomes a card instead of raw text.
+  // ── rich body (contentEditable) ──────────────────────────────────────────
+  const seededRef = useRef(false);
+  const syncBody = () => {
+    const el = editRef.current;
+    if (el) { setText(el.innerText); setHtml(el.innerHTML); }
+  };
+  // Callback ref: seed the editor once from the note's HTML (or plain text), and
+  // drop the caret at the top for an existing note / the end for a new one.
+  const seedBody = el => {
+    if (!el) { seededRef.current = false; editRef.current = null; return; }
+    editRef.current = el;
+    if (seededRef.current) return;
+    seededRef.current = true;
+    el.innerHTML = html || htmlFromText(text) || "";
+    const existing = !!(initial?.text || initial?.html);
+    setTimeout(() => {
+      try {
+        el.focus();
+        const r = document.createRange(), sel = window.getSelection();
+        r.selectNodeContents(el); r.collapse(existing);   // true = start, false = end
+        sel.removeAllRanges(); sel.addRange(r);
+        el.scrollTop = 0;
+      } catch { /* ignore */ }
+    }, 90);
+  };
+  const exec = (cmd, val) => {
+    const el = editRef.current; if (!el) return;
+    el.focus();
+    try { document.execCommand(cmd, false, val); } catch { /* ignore */ }
+    syncBody();
+  };
+  const currentBlockTag = () => {
+    try {
+      let n = window.getSelection()?.anchorNode;
+      while (n && n !== editRef.current) {
+        if (n.nodeType === 1 && /^H[123]$/.test(n.tagName)) return n.tagName;
+        n = n.parentNode;
+      }
+    } catch { /* ignore */ }
+    return "";
+  };
+  const toggleBlock = tag => {
+    const el = editRef.current; if (!el) return;
+    el.focus();
+    const on = currentBlockTag() === tag.toUpperCase();
+    try { document.execCommand("formatBlock", false, on ? "div" : tag); } catch { /* ignore */ }
+    syncBody();
+  };
+  const addTextLink = () => {
+    const el = editRef.current; if (!el) return;
+    el.focus();
+    const url = window.prompt("כתובת קישור (https://…)");
+    if (url) { try { document.execCommand("createLink", false, url.trim()); } catch { /* ignore */ } syncBody(); }
+  };
+  const HL_COLOR = th.dark ? "rgba(250,204,21,0.4)" : "#FDE68A";
+  const isHighlighted = () => {
+    try {
+      const c = document.queryCommandValue("hiliteColor") || document.queryCommandValue("backColor");
+      return c && c !== "transparent" && c !== "rgba(0, 0, 0, 0)" && !/^rgb\(255, 255, 255\)$/.test(c);
+    } catch { return false; }
+  };
+  const toggleHighlight = () => {
+    const el = editRef.current; if (!el) return;
+    el.focus();
+    try { document.execCommand("hiliteColor", false, isHighlighted() ? "transparent" : HL_COLOR); }
+    catch { /* ignore */ }
+    syncBody();
+  };
+  const FMT = [
+    { k: "h1", label: "H1", title: "כותרת גדולה", on: () => toggleBlock("H1") },
+    { k: "h2", label: "H2", title: "כותרת", on: () => toggleBlock("H2") },
+    { k: "link", icon: "link", title: "קישור", on: addTextLink },
+    { k: "mark", icon: "edit", title: "הדגשה", on: toggleHighlight },
+    { k: "bold", label: "B", bold: true, title: "מודגש", on: () => exec("bold") },
+    { k: "italic", label: "I", italic: true, title: "נטוי", on: () => exec("italic") },
+    { k: "under", label: "U", under: true, title: "קו תחתון", on: () => exec("underline") },
+    { k: "strike", label: "S", strike: true, title: "קו חוצה", on: () => exec("strikeThrough") },
+  ];
+
   const onPasteBody = e => {
     const t = (e.clipboardData?.getData("text") || "").trim();
-    if (isSocialUrl(t) && !text.trim()) { e.preventDefault(); addLink(t); }
+    if (isSocialUrl(t) && !text.trim()) { e.preventDefault(); addLink(t); return; }
+    // Plain-text paste — keep foreign fonts/colours out of the note.
+    e.preventDefault();
+    try { document.execCommand("insertText", false, e.clipboardData?.getData("text") || ""); } catch { /* ignore */ }
+    syncBody();
   };
 
   // "רשימת סימון": turn every line into a checkbox item, or strip the markers off
   // if the note is already a list. Autosave picks up the change.
   const PREFIX = /^\s*(?:[-*]\s+|\[[ xX]\]\s*)/;
   const toggleChecklist = () => {
+    setHtml("");                       // a checklist is plain; drop any rich formatting
+    seededRef.current = false;         // re-seed the body from text on the way back
     const lines = (stateRef.current.text || "").split(/\r?\n/);
     const filled = lines.filter(l => l.trim());
     const allItems = filled.length > 0 && filled.every(l => PREFIX.test(l));
@@ -425,13 +515,34 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
           </button>
         </div>
       ) : (
-        <textarea ref={taRef} value={text} onChange={e => changeText(e.target.value)}
-          onPaste={onPasteBody}
-          placeholder={pastePrompt ? 'לחיצה ארוכה כאן ← "הדבק"' : "כתוב כאן…"}
+        <div ref={seedBody} contentEditable suppressContentEditableWarning dir="rtl"
+          className="if-rich" data-ph={pastePrompt ? 'לחיצה ארוכה כאן ← "הדבק"' : "כתוב כאן…"}
+          onInput={syncBody} onPaste={onPasteBody}
           style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
-            resize: "none", padding: "12px 16px 16px", fontSize: fs, fontFamily: FONT,
+            overflowY: "auto", padding: "12px 16px 16px", fontSize: fs, fontFamily: FONT,
             direction: "rtl", color: th.text, background: th.surface,
-            lineHeight: lh + "px" }} />
+            lineHeight: lh + "px", wordBreak: "break-word" }} />
+      )}
+
+      {/* Text-formatting bar — one subtle row above the media bar. */}
+      {!isChecklist && (
+        <div data-noswipe style={{ display: "flex", alignItems: "center", gap: 1, padding: "3px 6px",
+          background: barBg, borderTop: `1px solid ${line}`, overflowX: "auto", direction: "rtl",
+          scrollbarWidth: "none" }}>
+          {FMT.map(f => (
+            <button key={f.k} title={f.title}
+              onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+              onClick={f.on}
+              style={{ flexShrink: 0, minWidth: 34, height: 33, background: "transparent", border: "none",
+                borderRadius: 8, cursor: "pointer", color: th.text, fontFamily: FONT,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 15, fontWeight: f.bold ? 800 : 600,
+                fontStyle: f.italic ? "italic" : "normal",
+                textDecoration: f.under ? "underline" : f.strike ? "line-through" : "none" }}>
+              {f.icon ? <Icon name={f.icon} size={18} color={th.text} /> : f.label}
+            </button>
+          ))}
+        </div>
       )}
 
       <input ref={imgRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={addImage} />
@@ -453,7 +564,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       <div style={{ padding: "5px 8px calc(5px + env(safe-area-inset-bottom))",
         display: "flex", alignItems: "center", gap: 2, background: barBg,
         borderTop: `1px solid ${line}` }}>
-        {[["undo", undo, canUndo, "בטל"], ["redo", redo, canRedo, "החזר"]].map(([ic, fn, on, t]) => (
+        {[["undo", isChecklist ? undo : () => exec("undo"), isChecklist ? canUndo : true, "בטל"],
+          ["redo", isChecklist ? redo : () => exec("redo"), isChecklist ? canRedo : true, "החזר"]].map(([ic, fn, on, t]) => (
           <button key={ic} title={t} disabled={!on}
             onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
             onClick={fn}

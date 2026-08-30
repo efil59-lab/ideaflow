@@ -9,6 +9,7 @@ import Checklist, { hasChecklist, parseChecklist, toggleLine } from "../ui/Check
 import NoteEditor from "../ui/NoteEditor";
 import ImageStrip from "../ui/ImageStrip";
 import { LinkCard } from "../ui/LinkStrip";
+import { safeHtml, hasRich } from "../ui/richtext";
 import { pushBackLayer } from "../ui/backstack";
 import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
 
@@ -794,10 +795,12 @@ function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
                 {note.title}
               </p>
             )}
-            <p style={{ margin: 0, fontSize: Math.round((showTitle ? 12.5 : 14) * scale), color: showTitle ? th.secondary : th.text,
-              lineHeight: 1.5, overflow: "hidden", display: "-webkit-box",
-              WebkitLineClamp: 2, WebkitBoxOrient: "vertical", wordBreak: "break-word" }}>
-              {body}
+            <p className={hasRich(note.html) ? "if-rich-view" : undefined}
+              style={{ margin: 0, fontSize: Math.round((showTitle ? 12.5 : 14) * scale), color: showTitle ? th.secondary : th.text,
+                lineHeight: 1.5, overflow: "hidden", display: "-webkit-box",
+                WebkitLineClamp: 2, WebkitBoxOrient: "vertical", wordBreak: "break-word" }}
+              {...(hasRich(note.html) ? { dangerouslySetInnerHTML: { __html: safeHtml(note.html) } } : {})}>
+              {hasRich(note.html) ? undefined : body}
             </p>
           </>
         )}
@@ -901,9 +904,11 @@ function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, o
             ))}
           </div>
         ) : (
-          <p style={{ margin: 0, fontSize: Math.round(12 * scale), color: th.secondary, lineHeight: 1.55,
-            whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-            {note.text || "(מדיה בלבד)"}
+          <p className={hasRich(note.html) ? "if-rich-view" : undefined}
+            style={{ margin: 0, fontSize: Math.round(12 * scale), color: th.secondary, lineHeight: 1.55,
+              whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+            {...(hasRich(note.html) ? { dangerouslySetInnerHTML: { __html: safeHtml(note.html) } } : {})}>
+            {hasRich(note.html) ? undefined : (note.text || "(מדיה בלבד)")}
           </p>
         )}
         {truncated && (
