@@ -620,12 +620,19 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   );
 }
 
-// A pill in the folder bar. Tap filters to the folder; long-press (folders only)
-// opens the rename/delete sheet.
+// A pill in the folder bar. Tap filters to the folder AND slides the strip so
+// the tapped chip centres — revealing the next folder that was off-screen.
+// Long-press (folders only) opens the rename/delete sheet.
 function FolderChip({ label, icon, count, active, onClick, onLong, th }) {
-  const press = usePress(onClick, onLong || (() => {}));
+  const ref = useRef(null);
+  const activate = () => {
+    onClick?.();
+    try { ref.current?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); }
+    catch { /* older engines */ }
+  };
+  const press = usePress(activate, onLong || (() => {}));
   return (
-    <button {...(onLong ? press : { onClick })}
+    <button ref={ref} {...(onLong ? press : { onClick: activate })}
       style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6,
         padding: "7px 13px", borderRadius: 18, cursor: "pointer", fontFamily: FONT,
         fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", userSelect: "none",

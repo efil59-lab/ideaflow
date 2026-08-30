@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.81";
+export const APP_VERSION = "5.82";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.82", date: "30 באוגוסט 2026", items: [
+    { icon: "folder", title: "שורת התיקיות נגללת ללחיצה", text: "לחיצה על תיקייה מרכזת אותה בשורה ומגלה את התיקייה הבאה שהייתה מחוץ למסך." },
+  ] },
   { v: "5.81", date: "30 באוגוסט 2026", items: [
     { icon: "folder", title: "תיקיות בפתקים", text: "אפשר עכשיו לארגן פתקים בתיקיות. מסך הפתקים הראשי נשאר נקי עם הפתקים החדשים שעוד לא סודרו, וכל נושא מקבל תיקייה משלו. יוצרים בכפתור \"+ תיקייה\", מעבירים דרך תפריט הפתק או בחירה מרובה." },
   ] },
