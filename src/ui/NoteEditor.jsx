@@ -55,11 +55,14 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const [showColors, setShowColors] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);   // styled link dialog
+  const [colorOpen, setColorOpen] = useState(false); // text-colour palette popover
   const [focusIdx, setFocusIdx] = useState(-1);   // checklist row to focus after add/remove
   const idRef = useRef(initial?.id || null);
   const creatingRef = useRef(false);
   const taRef = useRef();
   const editRef = useRef(null);   // the contentEditable rich body (text mode)
+  const savedRange = useRef(null); // selection stashed while a dialog/popover is open
   const imgRef = useRef();
   const inputs = useRef({});
 
@@ -240,29 +243,16 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     const el = editRef.current;
     if (el) { setText(el.innerText); setHtml(el.innerHTML); }
   };
-  // Callback ref: seed the editor once from the note's HTML (or plain text), and
-  // drop the caret at the top for an existing note / the end for a new one.
-  const seedBody = el => {
-    if (!el) { seededRef.current = false; editRef.current = null; return; }
-    editRef.current = el;
-    if (seededRef.current) return;
-    seededRef.current = true;
-    el.innerHTML = html || htmlFromText(text) || "";
-    const existing = !!(initial?.text || initial?.html);
-    setTimeout(() => {
-      try {
-        el.focus();
-        const r = document.createRange(), sel = window.getSelection();
-        r.selectNodeContents(el); r.collapse(existing);   // true = start, false = end
-        sel.removeAllRanges(); sel.addRange(r);
-        el.scrollTop = 0;
-      } catch { /* ignore */ }
-    }, 90);
-  };
-  const exec = (cmd, val) => {
+  // Run a formatting command on the live selection. css:true emits inline
+  // <span style> (foreColor/hiliteColor) instead of legacy <font> tags.
+  const exec = (cmd, val, css = false) => {
     const el = editRef.current; if (!el) return;
     el.focus();
-    try { document.execCommand(cmd, false, val); } catch { /* ignore */ }
+    try {
+      if (css) document.execCommand("styleWithCSS", false, true);
+      document.execCommand(cmd, false, val);
+      if (css) document.execCommand("styleWithCSS", false, false);
+    } catch { /* ignore */ }
     syncBody();
   };
   const currentBlockTag = () => {
@@ -282,11 +272,30 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     try { document.execCommand("formatBlock", false, on ? "div" : tag); } catch { /* ignore */ }
     syncBody();
   };
-  const addTextLink = () => {
+
+  // A dialog/popover steals focus and clears the selection; stash it first and
+  // put it back before applying the command.
+  const saveSel = () => {
+    try { const s = window.getSelection(); if (s && s.rangeCount) savedRange.current = s.getRangeAt(0).cloneRange(); }
+    catch { /* ignore */ }
+  };
+  const restoreSel = () => {
     const el = editRef.current; if (!el) return;
     el.focus();
-    const url = window.prompt("כתובת קישור (https://…)");
-    if (url) { try { document.execCommand("createLink", false, url.trim()); } catch { /* ignore */ } syncBody(); }
+    try { const s = window.getSelection(); s.removeAllRanges(); if (savedRange.current) s.addRange(savedRange.current); }
+    catch { /* ignore */ }
+  };
+  const applyLink = url => {
+    setLinkOpen(false);
+    restoreSel();
+    if (url && url.trim()) { try { document.execCommand("createLink", false, url.trim()); } catch { /* ignore */ } }
+    syncBody();
+  };
+  const TEXT_COLORS = ["#EF4444", "#F97316", "#EAB308", "#22C55E", "#3B82F6", "#A855F7", th.dark ? "#F3F4F6" : "#111827"];
+  const applyColor = c => {
+    setColorOpen(false);
+    restoreSel();
+    exec("foreColor", c, true);
   };
   const HL_COLOR = th.dark ? "rgba(250,204,21,0.4)" : "#FDE68A";
   const isHighlighted = () => {
@@ -295,18 +304,28 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
       return c && c !== "transparent" && c !== "rgba(0, 0, 0, 0)" && !/^rgb\(255, 255, 255\)$/.test(c);
     } catch { return false; }
   };
-  const toggleHighlight = () => {
-    const el = editRef.current; if (!el) return;
-    el.focus();
-    try { document.execCommand("hiliteColor", false, isHighlighted() ? "transparent" : HL_COLOR); }
-    catch { /* ignore */ }
-    syncBody();
+  const toggleHighlight = () => exec("hiliteColor", isHighlighted() ? "transparent" : HL_COLOR, true);
+  // Enlarge just the SELECTED word(s), inline — not the whole line like H1/H2.
+  // Toggles between large and normal by inspecting the surrounding <font size>.
+  const biggerWord = () => {
+    let big = false;
+    try {
+      let n = window.getSelection()?.anchorNode;
+      while (n && n !== editRef.current) {
+        if (n.nodeType === 1 && n.tagName === "FONT" && ["5", "6", "7"].includes(n.getAttribute("size"))) { big = true; break; }
+        n = n.parentNode;
+      }
+    } catch { /* ignore */ }
+    exec("fontSize", big ? "3" : "5");
   };
+
   const FMT = [
-    { k: "h1", label: "H1", title: "כותרת גדולה", on: () => toggleBlock("H1") },
-    { k: "h2", label: "H2", title: "כותרת", on: () => toggleBlock("H2") },
-    { k: "link", icon: "link", title: "קישור", on: addTextLink },
-    { k: "mark", icon: "edit", title: "הדגשה", on: toggleHighlight },
+    { k: "h1", label: "H1", title: "כותרת (שורה שלמה)", on: () => toggleBlock("H1") },
+    { k: "h2", label: "H2", title: "כותרת משנה (שורה שלמה)", on: () => toggleBlock("H2") },
+    { k: "size", label: "A⁺", title: "הגדל מילה", on: biggerWord },
+    { k: "color", icon: "palette", title: "צבע טקסט", on: () => { saveSel(); setColorOpen(o => !o); } },
+    { k: "mark", icon: "marker", title: "הדגשה (מרקר)", on: toggleHighlight },
+    { k: "link", icon: "link", title: "קישור לטקסט", on: () => { saveSel(); setLinkOpen(true); } },
     { k: "bold", label: "B", bold: true, title: "מודגש", on: () => exec("bold") },
     { k: "italic", label: "I", italic: true, title: "נטוי", on: () => exec("italic") },
     { k: "under", label: "U", under: true, title: "קו תחתון", on: () => exec("underline") },
@@ -359,6 +378,28 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const rawLines = (text || "").split(/\r?\n/);
   const filledLines = rawLines.filter(l => l.trim());
   const isChecklist = filledLines.length > 0 && filledLines.every(l => PREFIX.test(l));
+
+  // Seed the rich body ONCE when the text-mode editor mounts (a stable ref, so
+  // React never re-runs this on keystrokes — that was resetting the caret).
+  // Caret at the top for an existing note, at the end for a new one.
+  useEffect(() => {
+    const el = editRef.current;
+    if (isChecklist || !el || seededRef.current) return;
+    seededRef.current = true;
+    el.innerHTML = html || htmlFromText(text) || "";
+    const existing = !!(initial?.text || initial?.html);
+    const t = setTimeout(() => {
+      try {
+        el.focus();
+        const r = document.createRange(), sel = window.getSelection();
+        r.selectNodeContents(el); r.collapse(existing);
+        sel.removeAllRanges(); sel.addRange(r);
+        el.scrollTop = 0;
+      } catch { /* ignore */ }
+    }, 90);
+    return () => clearTimeout(t);
+  }, [isChecklist]);
+
   const PARSE = /^\s*(?:\[([ xX])\]\s?|[-*]\s+)?(.*)$/;
   const items = rawLines.map((l, i) => {
     const m = l.match(PARSE);
@@ -515,13 +556,26 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
           </button>
         </div>
       ) : (
-        <div ref={seedBody} contentEditable suppressContentEditableWarning dir="rtl"
+        <div ref={editRef} contentEditable suppressContentEditableWarning dir="rtl"
           className="if-rich" data-ph={pastePrompt ? 'לחיצה ארוכה כאן ← "הדבק"' : "כתוב כאן…"}
           onInput={syncBody} onPaste={onPasteBody}
           style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", outline: "none",
             overflowY: "auto", padding: "12px 16px 16px", fontSize: fs, fontFamily: FONT,
             direction: "rtl", color: th.text, background: th.surface,
             lineHeight: lh + "px", wordBreak: "break-word" }} />
+      )}
+
+      {/* Text-colour palette — a small popover above the format bar. */}
+      {!isChecklist && colorOpen && (
+        <div data-noswipe style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 12px",
+          background: barBg, borderTop: `1px solid ${line}`, direction: "rtl", flexWrap: "wrap" }}>
+          {TEXT_COLORS.map(c => (
+            <button key={c} title="צבע" onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+              onClick={() => applyColor(c)}
+              style={{ width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer",
+                border: `2px solid ${th.surface}`, boxShadow: `0 0 0 1px ${th.border}` }} />
+          ))}
+        </div>
       )}
 
       {/* Text-formatting bar — one subtle row above the media bar. */}
@@ -533,7 +587,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
             <button key={f.k} title={f.title}
               onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
               onClick={f.on}
-              style={{ flexShrink: 0, minWidth: 34, height: 33, background: "transparent", border: "none",
+              style={{ flexShrink: 0, minWidth: 34, height: 33,
+                background: (f.k === "color" && colorOpen) ? th.accentSoft : "transparent", border: "none",
                 borderRadius: 8, cursor: "pointer", color: th.text, fontFamily: FONT,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 15, fontWeight: f.bold ? 800 : 600,
@@ -543,6 +598,11 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
             </button>
           ))}
         </div>
+      )}
+
+      {/* Styled link dialog (replaces the raw browser prompt). */}
+      {linkOpen && (
+        <LinkDialog th={th} onCancel={() => setLinkOpen(false)} onConfirm={applyLink} />
       )}
 
       <input ref={imgRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={addImage} />
@@ -604,6 +664,46 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
         </span>
       </div>
     </div>
+    </div>,
+    document.body
+  );
+}
+
+// Styled URL prompt for the inline-link button (replaces window.prompt).
+function LinkDialog({ th, onCancel, onConfirm }) {
+  const [url, setUrl] = useState("");
+  return createPortal(
+    <div onClick={onCancel} style={{ position: "fixed", inset: 0, zIndex: 800, background: "rgba(0,0,0,0.45)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20, direction: "rtl" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 360, background: th.surface,
+        borderRadius: 16, padding: 18, boxShadow: "0 20px 60px rgba(0,0,0,0.4)", fontFamily: FONT }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+          <span style={{ width: 34, height: 34, borderRadius: 10, background: th.accentSoft,
+            display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="link" size={18} color={th.accentText} />
+          </span>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: th.text }}>הוספת קישור</h3>
+        </div>
+        <form onSubmit={e => { e.preventDefault(); onConfirm(url); }}>
+          <input autoFocus value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" inputMode="url"
+            style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${th.border}`, borderRadius: 11,
+              padding: "12px 14px", fontSize: 15, fontFamily: FONT, direction: "ltr", textAlign: "left",
+              background: th.inputBg, color: th.text, outline: "none" }} />
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <button type="button" onClick={onCancel}
+              style={{ flex: 1, border: `1px solid ${th.border}`, borderRadius: 11, padding: "11px",
+                cursor: "pointer", background: th.surface2, color: th.text, fontFamily: FONT, fontSize: 14.5, fontWeight: 600 }}>
+              ביטול
+            </button>
+            <button type="submit" disabled={!url.trim()}
+              style={{ flex: 1, border: "none", borderRadius: 11, padding: "11px", cursor: url.trim() ? "pointer" : "default",
+                background: url.trim() ? (th.cta || th.accent) : th.border, color: "#fff",
+                fontFamily: FONT, fontSize: 14.5, fontWeight: 700, opacity: url.trim() ? 1 : 0.6 }}>
+              הוסף
+            </button>
+          </div>
+        </form>
+      </div>
     </div>,
     document.body
   );

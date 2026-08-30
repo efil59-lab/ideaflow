@@ -45,6 +45,8 @@ const ICONS = {
   download:(c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
   file:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
   link:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
+  marker: (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L16 5"/></svg>,
+  palette:(c,s) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} {...S}><circle cx="13.5" cy="6.5" r="1.3" fill={c}/><circle cx="17.5" cy="10.5" r="1.3" fill={c}/><circle cx="8.5" cy="7.5" r="1.3" fill={c}/><circle cx="6.5" cy="12.5" r="1.3" fill={c}/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.4 0 2.3-1.1 2.3-2.3 0-.5-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2H17c2.8 0 5-2.2 5-5C22 5.8 17.5 2 12 2z"/></svg>,
   undo:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>,
   redo:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>,
 };

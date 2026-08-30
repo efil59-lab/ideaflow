@@ -34,5 +34,5 @@ export function htmlFromText(text) {
 
 // Does this note carry real formatting (worth rendering as HTML in the list)?
 export function hasRich(html) {
-  return !!html && /<(b|strong|i|em|u|s|strike|h1|h2|h3|mark|a|span)\b/i.test(html);
+  return !!html && /<(b|strong|i|em|u|s|strike|h1|h2|h3|mark|a|span|font)\b/i.test(html);
 }
