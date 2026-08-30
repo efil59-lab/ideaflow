@@ -65,6 +65,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const taRef = useRef();
   const editRef = useRef(null);   // the contentEditable rich body (text mode)
   const savedRange = useRef(null); // selection stashed while a dialog/popover is open
+  const refreshRef = useRef(null); // latest toolbar-active refresher
   const imgRef = useRef();
   const inputs = useRef({});
 
@@ -244,6 +245,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const syncBody = () => {
     const el = editRef.current;
     if (el) { setText((el.innerText || "").replace(/​/g, "")); setHtml(el.innerHTML); }
+    refreshRef.current && refreshRef.current();   // keep the toolbar's active state fresh
   };
   // Step the caret OUT of the nearest inline wrapper it matches, so new typing
   // is no longer styled — without touching the existing styled text. A tiny
@@ -324,7 +326,22 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const applyColor = c => {
     setColorOpen(false);
     restoreSel();
-    exec("foreColor", c, true);
+    if (c) { exec("foreColor", c, true); return; }
+    // X: remove text colour (selection → strip it; caret → stop from here on).
+    const el = editRef.current; if (!el) return;
+    const sel = window.getSelection();
+    const collapsed = !sel || !sel.rangeCount || sel.getRangeAt(0).collapsed;
+    if (!collapsed) {
+      clearInSelection("span, font[color]", node => {
+        if (node.tagName === "FONT") { node.removeAttribute("color"); return; }
+        if (node.style?.color) {
+          node.style.color = "";
+          if (!node.getAttribute("style")) { const p = node.parentNode; while (node.firstChild) p.insertBefore(node.firstChild, node); p.removeChild(node); }
+        }
+      });
+    } else {
+      escapeInline(n => (n.tagName === "SPAN" && n.style?.color) || (n.tagName === "FONT" && n.getAttribute("color")));
+    }
   };
   // Clear an inline style from every element intersecting the current selection.
   // execCommand can't reliably REMOVE a background / font-size, so we do it by
@@ -410,7 +427,6 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     }
     setActive(st);
   };
-  const refreshRef = useRef(refreshActive);
   refreshRef.current = refreshActive;
   useEffect(() => {
     const h = () => refreshRef.current();
@@ -692,6 +708,12 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
               style={{ width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer",
                 border: `2px solid ${th.surface}`, boxShadow: `0 0 0 1px ${th.border}` }} />
           ))}
+          <button title="הסר צבע" onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+            onClick={() => applyColor(null)}
+            style={{ width: 26, height: 26, borderRadius: "50%", background: "transparent", cursor: "pointer",
+              border: `1px solid ${th.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="close" size={14} color={th.muted} />
+          </button>
         </div>
       )}
       {!isChecklist && hlOpen && (
