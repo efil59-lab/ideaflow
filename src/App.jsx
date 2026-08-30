@@ -885,7 +885,8 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     if (!ideas || purgedRef.current) return;
     purgedRef.current = true;
     const cutoff = Date.now() - 30 * 86400e3;
-    ideas.filter(i => i.status === "trash" && (i.deletedAt || 0) < cutoff)
+    ideas.filter(i => (i.deletedAt || 0) > 0 && i.deletedAt < cutoff
+        && (i.status === "trash" || (i.status === "note" && i.archived)))
       .forEach(i => deleteIdea(uid, i).catch(() => {}));
   }, [ideas, uid]);
 
@@ -1854,7 +1855,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "search", title: "חיפוש", text: 'חיפוש בכל הפתקים והפרויקטים — כותרות, טקסט ותגיות.' },
     { icon: "chat", title: "שיתוף פרויקט", text: 'בתפריט פרויקט ← שיתוף ← הוסף כתובות Gmail. המוזמנים רואים, מגיבים ומוסיפים משלהם, ואתה מקבל התראה על כל תגובה.' },
     { icon: "download", title: "גיבוי פתקים", text: 'בתפריט הפרופיל (תמונת המשתמש): ייצוא כל הפתקים לקובץ וייבוא בחזרה. שם גם קובעים את גודל הטקסט בפתקים.' },
-    { icon: "delete", title: "מחיקה הפיכה", text: 'כל מחיקה מבקשת אישור, עוברת לפח ונשארת שם 30 יום לפני מחיקה לצמיתות.' },
+    { icon: "delete", title: "מחיקה הפיכה", text: 'מחיקת פתק מעבירה אותו לארכיון של הפתקים עם ספירה לאחור — 30 יום, ואז מחיקה אוטומטית. עד אז אפשר לשחזר. פתק שהעברת לארכיון במפורש ("לארכיון") נשמר לתמיד. בארכיון יש מחיקה גורפת ("סמן הכל") למחיקה לצמיתות.' },
     { icon: "sparkle", title: "מראה ומצב כהה", text: 'בתפריט המשתמש בוחרים מראה: "אלקטריק" הכהה (ברירת מחדל), "זוהר" הצבעוני או "רגוע". כפתור הירח/שמש עובר בין בהיר לכהה.' },
     { icon: "edit", title: "בטל/החזר וחזרה במחשב", text: 'בתחתית עורך הפתק יש בטל (↶) והחזר (↷). במחשב אפשר גם ללחוץ Escape כדי לסגור פתק ולחזור.' },
   ];

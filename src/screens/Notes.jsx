@@ -19,6 +19,8 @@ const PALETTE = NOTE_COLORS;
 
 // A note is "new" for its first week — a tiny badge marks it.
 const isNewNote = n => n.createdAt && (Date.now() - n.createdAt) < 7 * 864e5;
+// Days until a deleted (archived-with-timestamp) note is purged for good.
+const daysToPurge = n => (n.deletedAt ? Math.max(0, Math.ceil((n.deletedAt + 30 * 864e5 - Date.now()) / 864e5)) : null);
 
 // The sort menu, ColorNote style.
 const SORTS = [
@@ -253,7 +255,8 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
     setSelected(null);
   };
   const bulkArchive = () => {
-    selNotes.forEach(n => actions.update?.(n.id, { archived: !showArch }, n));
+    // Restoring from the archive also clears any pending-delete countdown.
+    selNotes.forEach(n => actions.update?.(n.id, showArch ? { archived: false, deletedAt: null } : { archived: true }, n));
     setSelected(null);
   };
   const bulkPin = () => {
@@ -261,8 +264,12 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
     selNotes.forEach(n => actions.update?.(n.id, { pinned: pin }, n));
     setSelected(null);
   };
+  const selectAll = () => setSelected(new Set(pool.map(n => n.id)));
   const doDelete = list => {
-    list.forEach(n => actions.remove?.(n));
+    // Deleting a note sends it to the notes ARCHIVE with a 30-day countdown;
+    // deleting from inside the archive removes it for good.
+    if (showArch) list.forEach(n => actions.destroy?.(n));
+    else list.forEach(n => actions.update?.(n.id, { archived: true, deletedAt: Date.now(), pinned: false, remindAt: null }, n));
     setConfirmDel(null);
     setSelected(null);
   };
@@ -343,6 +350,13 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
           <span style={{ fontSize: 14, fontWeight: 700, color: th.text, margin: "0 4px" }}>
             {selNotes.length} נבחרו
           </span>
+          {selNotes.length < pool.length && (
+            <button onClick={selectAll}
+              style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: FONT,
+                fontSize: 12.5, fontWeight: 700, color: th.accentText, padding: "4px 6px" }}>
+              סמן הכל
+            </button>
+          )}
           <span style={{ marginRight: "auto", display: "flex", gap: 2, alignItems: "center" }}>
             {selNotes.length === 1 && (
               <>
@@ -537,11 +551,15 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
       )}
 
       {confirmDel && (
-        <Confirm title="העברה לפח האשפה" icon="delete"
-          message={confirmDel.length === 1
-            ? `"${(confirmDel[0].title || confirmDel[0].text || "הפתק").slice(0, 40)}" יעבור לפח — אפשר לשחזר משם תוך 30 יום.`
-            : `${confirmDel.length} פתקים יעברו לפח — אפשר לשחזר משם תוך 30 יום.`}
-          confirmLabel="העבר לפח"
+        <Confirm title={showArch ? "מחיקה לצמיתות" : "מחיקת פתק"} icon="delete"
+          message={showArch
+            ? (confirmDel.length === 1
+                ? `"${(confirmDel[0].title || confirmDel[0].text || "הפתק").slice(0, 40)}" יימחק לצמיתות — לא ניתן לשחזר.`
+                : `${confirmDel.length} פתקים יימחקו לצמיתות — לא ניתן לשחזר.`)
+            : (confirmDel.length === 1
+                ? `"${(confirmDel[0].title || confirmDel[0].text || "הפתק").slice(0, 40)}" יעבור לארכיון ויימחק אוטומטית בעוד 30 יום. אפשר לשחזר עד אז.`
+                : `${confirmDel.length} פתקים יעברו לארכיון ויימחקו אוטומטית בעוד 30 יום.`)}
+          confirmLabel={showArch ? "מחק לצמיתות" : "העבר לארכיון"}
           onConfirm={() => doDelete(confirmDel)}
           onCancel={() => setConfirmDel(null)} th={th} />
       )}
@@ -558,7 +576,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
             else if (kind === "remind") actions.remind?.(note);
             else if (kind === "move") onMoveToProject?.([note]);
             else if (kind === "folder") setFolderPickFor([note]);
-            else if (kind === "archive") actions.update?.(note.id, { archived: !note.archived }, note);
+            else if (kind === "archive") actions.update?.(note.id, note.archived ? { archived: false, deletedAt: null } : { archived: true }, note);
             else if (kind === "pin") actions.update?.(note.id, { pinned: !note.pinned }, note);
             else if (kind === "delete") setConfirmDel([note]);   // always warn first
           }}
@@ -843,7 +861,12 @@ function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
       <div style={{ flexShrink: 0, padding: "12px 10px 12px 13px", display: "flex",
         flexDirection: "column", alignItems: "flex-end", justifyContent: "space-between", gap: 6 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
-          {isNewNote(note) && (
+          {note.deletedAt ? (
+            <span style={{ fontSize: 9, fontWeight: 800, color: "#fff", background: th.red,
+              borderRadius: 6, padding: "1px 6px", letterSpacing: 0.2, whiteSpace: "nowrap" }}>
+              יימחק בעוד {daysToPurge(note)} י׳
+            </span>
+          ) : isNewNote(note) && (
             <span style={{ fontSize: 9, fontWeight: 800, color: "#fff", background: th.accent,
               borderRadius: 6, padding: "1px 6px", letterSpacing: 0.3 }}>חדש</span>
           )}

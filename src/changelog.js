@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "5.93";
+export const APP_VERSION = "5.94";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "5.94", date: "30 באוגוסט 2026", items: [
+    { icon: "delete", title: "מחיקת פתק → ארכיון (30 יום)", text: "מחיקת פתק מעבירה אותו עכשיו לארכיון של הפתקים עם ספירה לאחור של 30 יום ואז מחיקה אוטומטית (במקום לפח של הפרויקטים). פתקים שהעברת לארכיון במפורש נשמרים לתמיד. בארכיון נוספה מחיקה גורפת עם \"סמן הכל\"." },
+  ] },
   { v: "5.93", date: "30 באוגוסט 2026", items: [
     { icon: "notes", title: "סטטיסטיקה לחיצה", text: "האריחים בכרטיס הסטטיסטיקה בראש הפתקים לחיצים עכשיו: פעילים מחזיר לרשימה, תיקיות פותח את רשימת התיקיות, וארכיון פותח את הארכיב." },
   ] },
