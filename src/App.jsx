@@ -146,7 +146,7 @@ export default function App() {
   // A shortcut/share launch opens straight into the dedicated quick-capture
   // screen (mounts on first paint → best chance the keyboard rises).
   const [captureMode, setCaptureMode] = useState(
-    shortcutLaunch ? "idea" : noteLaunch ? "note" : sharedLink ? "link" : false);
+    shortcutLaunch ? "idea" : sharedLink ? "link" : false);
 
   // Intake from Android intents (runs once, before any screen mounts):
   // - share_target: /?title=..&text=..&url=..  → becomes the capture draft
@@ -170,8 +170,9 @@ export default function App() {
         localStorage.setItem("if_focus_capture", "1");
         history.replaceState(null, "", location.pathname);
       } else if (p.has("note")) {
-        // "פתק חדש" shortcut: QuickCapture (note mode) already mounts from
-        // noteLaunch — just clear the query so a refresh won't re-trigger it.
+        // "פתק חדש" shortcut: open the FULL note editor on the Notes tab (same
+        // options as a note opened inside the app), not the stripped quick screen.
+        try { sessionStorage.setItem("if_new_note", "1"); } catch { /* ignore */ }
         history.replaceState(null, "", location.pathname);
       }
     } catch { /* ignore */ }
@@ -683,7 +684,10 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   // Fresh opens land on the notes screen; a refresh still restores where you were.
   const [tab, setTab] = useState(() => {
     if (!restoreNav) return "notes";
-    try { const t = localStorage.getItem("if_nav_tab") || "notes"; return t === "inbox" ? "notes" : t; } catch { return "notes"; }
+    try {
+      if (sessionStorage.getItem("if_new_note") === "1") return "notes";   // note shortcut → land on Notes
+      const t = localStorage.getItem("if_nav_tab") || "notes"; return t === "inbox" ? "notes" : t;
+    } catch { return "notes"; }
   });
   const [openProjectId, setOpenProjectId] = useState(() => {
     if (!restoreNav) return null;
