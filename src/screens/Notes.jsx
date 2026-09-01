@@ -133,7 +133,7 @@ function NotesStats({ notesAll, archCount, th, nameOf, folderCount = 0, onActive
 
 export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote,
   projects = [], onMoveToProject, noteFont = 0, colorNames = [], onSaveNames,
-  folders = [], onSaveFolders }) {
+  folders = [], onSaveFolders, desktop = false, deskFolder, onDeskFolder }) {
   const [color, setColor] = useState(null);              // colour filter, null = all
   const [view, setView] = useState(() => {
     try { return localStorage.getItem("if_notes_view") === "grid" ? "grid" : "rows"; }
@@ -156,8 +156,10 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [pasteHint, setPasteHint] = useState(false);     // opened via clip but clipboard was blocked
   // Folders: the active folder filters the list; null = the clean "unfiled"
   // main screen. Entering the app always starts here on the general view — the
-  // last-open folder is not remembered across launches (by request).
-  const [activeFolder, setActiveFolder] = useState(null);
+  // last-open folder is not remembered across launches (by request). On the
+  // desktop site the folder is controlled from the sidebar (deskFolder).
+  const [activeFolderState, setActiveFolderState] = useState(null);
+  const activeFolder = desktop ? (deskFolder ?? null) : activeFolderState;
   const [folderPickFor, setFolderPickFor] = useState(null);   // notes awaiting a folder | null
   const [newFolderOpen, setNewFolderOpen] = useState(false);  // create-folder prompt
   const [manageFolder, setManageFolder] = useState(null);     // folder action sheet (rename/delete)
@@ -286,7 +288,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   };
 
   // ── folders ──────────────────────────────────────────────────────────────
-  const chooseFolder = id => setActiveFolder(id);
+  const chooseFolder = id => desktop ? onDeskFolder?.(id) : setActiveFolderState(id);
   const createFolder = name => {
     const f = { id: "f_" + Date.now(), name: (name || "").trim() || "תיקייה" };
     onSaveFolders?.([...folders, f]);
@@ -456,8 +458,9 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
       )}
 
       {/* Folder bar — a chip per folder plus the clean unfiled "פתקים" view.
-          Tap filters; long-press a folder to rename/delete; + creates one. */}
-      {!inSel && !showArch && (
+          Tap filters; long-press a folder to rename/delete; + creates one.
+          Hidden on the desktop site, where folders live in the sidebar. */}
+      {!inSel && !showArch && !desktop && (
         <div data-noswipe style={{ display: "flex", gap: 7, overflowX: "auto", margin: "0 0 12px",
           paddingBottom: 3, direction: "rtl", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
           <FolderChip label="פתקים" icon="notes" count={unfiledCount}
@@ -519,7 +522,9 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
           {pool.map(n => <NoteRow key={n.id} {...noteProps(n)} />)}
         </div>
       ) : (
-        <div data-nokbd style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, direction: "rtl" }}>
+        <div data-nokbd style={{ display: "grid",
+          gridTemplateColumns: desktop ? "repeat(auto-fill, minmax(230px, 1fr))" : "1fr 1fr",
+          gap: desktop ? 15 : 9, direction: "rtl" }}>
           {pool.map(n => <NoteCard key={n.id} {...noteProps(n)} actions={actions} />)}
         </div>
       )}

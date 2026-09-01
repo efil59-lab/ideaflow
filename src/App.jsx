@@ -28,6 +28,8 @@ import { useRecorder } from "./ui/useRecorder";
 import { uploadFile } from "./data/media";
 import { fetchLinkMeta, firstUrl, platformOf } from "./data/link";
 import { LinkCard } from "./ui/LinkStrip";
+import { useIsDesktop } from "./ui/useIsDesktop";
+import DesktopSite from "./DesktopSite";
 import Inbox from "./screens/Inbox";
 import Projects from "./screens/Projects";
 import Notes from "./screens/Notes";
@@ -1011,6 +1013,8 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   const tabIndexRef = useRef(-1);
   const pagerRef = useRef(null);
   const [dragDir, setDragDir] = useState(0);
+  const isDesktop = useIsDesktop();                 // ≥1100px → the desktop site
+  const [deskFolder, setDeskFolder] = useState(null); // folder shown on the desktop sidebar
   useLayoutEffect(() => {
     const el = paneRef.current;
     if (el && el.style.transform) { el.style.transition = "none"; el.style.transform = ""; }
@@ -1283,7 +1287,8 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   const tabGo = t => { if (!swipedRef.current) goTab(t); };
 
   // Renders the screen for a given tab (used for the live pane and the preview).
-  const renderTab = t => {
+  // df/setDf: on the desktop site the folder is controlled from the sidebar.
+  const renderTab = (t, df, setDf) => {
     if (t === "inbox") return (
       <Inbox uid={uid} ideas={ideas} projects={projects} th={th} actions={actions} onCapture={capture}
         myShares={myShares} userName={(user.displayName || "").split(" ")[0]} />
@@ -1304,7 +1309,8 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
         colorNames={userDoc.colorNames || []}
         onSaveNames={names => saveColorNames(uid, names).catch(() => {})}
         folders={userDoc.folders || []}
-        onSaveFolders={fs => saveFolders(uid, fs).catch(() => {})} />
+        onSaveFolders={fs => saveFolders(uid, fs).catch(() => {})}
+        desktop={isDesktop} deskFolder={isDesktop ? df : undefined} onDeskFolder={setDf} />
     );
     if (t === "search") return (
       <Search ideas={ideas} projects={projects} th={th} actions={actions}
@@ -1313,7 +1319,18 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     return null;
   };
 
+  // Wide screens get the full desktop site; the phone/tablet shell is untouched.
+  const desktopCtx = {
+    th, dark, setDark, user, onProfile: () => setShowUser(true), onAI: () => setShowAI(true),
+    tab, goTab, inMotion, folders: userDoc.folders || [], deskFolder, setDeskFolder,
+    onCreateFolder: name => saveFolders(uid, [...(userDoc.folders || []), { id: "f_" + Date.now(), name }]).catch(() => {}),
+    ideas, renderTab, fabNote: () => fabAction("note"), version: APP_VERSION,
+  };
+
   return (
+    <>
+    {isDesktop && <DesktopSite ctx={desktopCtx} />}
+    {!isDesktop && (
     // The --if-* custom properties hand the JS theme to the desktop side-rail
     // rules in index.css (this app styles everything with inline objects, so
     // the stylesheet has no tokens of its own to read).
@@ -1469,6 +1486,8 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
           </span>
         </div>
       </div>
+      </div>
+    )}
 
       {fabOpen && (
         <Modal onClose={() => setFabOpen(false)} maxWidth={340} th={th}>
@@ -1656,7 +1675,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
 
       {/* Install banner waits politely while the guide (or any modal) is open */}
       <InstallBanner th={th} hidden={showGuide || showWhatsNew || showLog || showAI || showUser || !!editIdea || !!remindIdea || !!moveIdea || !!shareIdea || !!commentsCtx} />
-    </div>
+    </>
   );
 }
 
