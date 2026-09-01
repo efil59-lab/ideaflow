@@ -513,8 +513,24 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     setMenuOpen(false);
     if (kind === "checklist") { toggleChecklist(); return; }
     await save();
-    const s = stateRef.current, id = idRef.current;
-    if (!id) return;                           // empty new note — nothing to act on yet; stay in the editor
+    let id = idRef.current;
+    if (!id) {
+      // A reminder needs a note to hang on. On a brand-new note create it now
+      // (even empty) so the bell always responds; other actions just wait for
+      // content rather than acting on nothing.
+      if (kind === "remind" && onCreate && !creatingRef.current) {
+        creatingRef.current = true;
+        try {
+          const s0 = stateRef.current;
+          const n = await onCreate({ title: s0.title.trim() || autoTitle(s0.text) || "פתק", text: s0.text,
+            html: s0.html, colorIdx: s0.colorIdx, images: s0.images, audios: s0.audios, links: s0.links });
+          idRef.current = n?.id || null; id = idRef.current;
+          savedRef.current = { title: s0.title, text: s0.text, html: s0.html, colorIdx: s0.colorIdx, images: s0.images, audios: s0.audios, links: s0.links };
+        } finally { creatingRef.current = false; }
+      }
+      if (!id) return;                         // still nothing — stay in the editor
+    }
+    const s = stateRef.current;
     const obj = { ...(initial || {}), id, status: "note", noCheck: true,
       title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx };
     onClose?.();
