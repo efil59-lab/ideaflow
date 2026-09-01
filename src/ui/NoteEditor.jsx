@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { Icon, IconBtn } from "./Icons";
+import { Toast } from "./base";
 import { FONT, NOTE_COLORS, NOTE_COLOR_FALLBACK } from "../theme";
 import { autoTitle } from "../data/store";
 import { pushBackLayer } from "./backstack";
@@ -57,6 +58,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const [linkOpen, setLinkOpen] = useState(false);   // styled link dialog
   const [colorOpen, setColorOpen] = useState(false); // text-colour palette popover
   const [hlOpen, setHlOpen] = useState(false);       // highlight-colour palette popover
+  const [hint, setHint] = useState(null);            // brief toast (e.g. reminder on an empty note)
   const [active, setActive] = useState({});          // which format buttons are "on" for the caret
   const [focusIdx, setFocusIdx] = useState(-1);   // checklist row to focus after add/remove
   const idRef = useRef(initial?.id || null);
@@ -513,24 +515,13 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     setMenuOpen(false);
     if (kind === "checklist") { toggleChecklist(); return; }
     await save();
-    let id = idRef.current;
+    const s = stateRef.current, id = idRef.current;
     if (!id) {
-      // A reminder needs a note to hang on. On a brand-new note create it now
-      // (even empty) so the bell always responds; other actions just wait for
-      // content rather than acting on nothing.
-      if (kind === "remind" && onCreate && !creatingRef.current) {
-        creatingRef.current = true;
-        try {
-          const s0 = stateRef.current;
-          const n = await onCreate({ title: s0.title.trim() || autoTitle(s0.text) || "פתק", text: s0.text,
-            html: s0.html, colorIdx: s0.colorIdx, images: s0.images, audios: s0.audios, links: s0.links });
-          idRef.current = n?.id || null; id = idRef.current;
-          savedRef.current = { title: s0.title, text: s0.text, html: s0.html, colorIdx: s0.colorIdx, images: s0.images, audios: s0.audios, links: s0.links };
-        } finally { creatingRef.current = false; }
-      }
-      if (!id) return;                         // still nothing — stay in the editor
+      // Nothing written yet — a reminder has nothing to attach to. Say so and
+      // stay in the editor instead of creating an empty note.
+      if (kind === "remind") { setHint("כתוב משהו כדי להוסיף תזכורת"); setTimeout(() => setHint(null), 2000); }
+      return;
     }
-    const s = stateRef.current;
     const obj = { ...(initial || {}), id, status: "note", noCheck: true,
       title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx };
     onClose?.();
@@ -863,6 +854,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
         </span>
       </div>
     </div>
+    {hint && <Toast msg={hint} th={th} />}
     </div>,
     document.body
   );
