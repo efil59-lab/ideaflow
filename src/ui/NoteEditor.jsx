@@ -35,7 +35,6 @@ const MENU = [
   { k: "checklist", label: "רשימת סימון", icon: "check" },
   { k: "pin",       label: "הצמד",         icon: "pin" },
   { k: "share",     label: "שיתוף",        icon: "share" },
-  { k: "remind",    label: "תזכורת",       icon: "bell" },
   { k: "folder",    label: "העבר לתיקייה", icon: "folder" },
   { k: "move",      label: "העבר לפרויקט", icon: "inbox" },
   { k: "archive",   label: "לארכיון",      icon: "download" },
@@ -515,7 +514,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     if (kind === "checklist") { toggleChecklist(); return; }
     await save();
     const s = stateRef.current, id = idRef.current;
-    if (!id) { onClose?.(); return; }          // empty new note — nothing to act on
+    if (!id) return;                           // empty new note — nothing to act on yet; stay in the editor
     const obj = { ...(initial || {}), id, status: "note", noCheck: true,
       title: s.title.trim() || autoTitle(s.text), text: s.text, colorIdx: s.colorIdx };
     onClose?.();
@@ -833,6 +832,13 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
           style={{ background: "transparent", border: "none", borderRadius: 9, padding: "8px",
             cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Icon name="link" size={20} color={th.text} />
+        </button>
+        <button title={initial?.remindAt > Date.now() ? "שנה תזכורת" : "הוסף תזכורת"}
+          onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+          onClick={() => doMenu("remind")}
+          style={{ background: "transparent", border: "none", borderRadius: 9, padding: "8px",
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name="bell" size={20} color={initial?.remindAt > Date.now() ? th.accentText : th.text} />
         </button>
         <span style={{ marginRight: "auto", display: "flex", alignItems: "center", gap: 6,
           fontSize: 11.5, color: th.muted }}>
