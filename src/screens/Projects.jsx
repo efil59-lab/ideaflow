@@ -18,7 +18,7 @@ const projSort = (a, b) =>
   || (a.createdAt || 0) - (b.createdAt || 0);
 
 export default function Projects({ uid, ideas, projects, th, actions, projActions, onCapture,
-  openProjectId, setOpenProjectId, commentSeen = {},
+  openProjectId, setOpenProjectId, commentSeen = {}, desktop = false,
   myShares = {}, sharedWithMe = [], shareActions, onSharedCapture }) {
   const open = projects.find(p => p.id === openProjectId);
   if (openProjectId === "__trash__") {
@@ -33,14 +33,31 @@ export default function Projects({ uid, ideas, projects, th, actions, projAction
     setOpenProjectId(null);
     return null;
   }
-  return open
-    ? <ProjectDetail uid={uid} project={open} ideas={ideas} projects={projects} th={th}
-        actions={actions} projActions={projActions} onCapture={onCapture}
-        share={myShares[open.id]} shareActions={shareActions}
-        onBack={() => setOpenProjectId(null)} />
-    : <ProjectsIndex uid={uid} projects={projects} ideas={ideas} th={th} projActions={projActions}
-        myShares={myShares} sharedWithMe={sharedWithMe} commentSeen={commentSeen}
-        onOpen={setOpenProjectId} />;
+  if (open)
+    return <ProjectDetail uid={uid} project={open} ideas={ideas} projects={projects} th={th}
+      actions={actions} projActions={projActions} onCapture={onCapture}
+      share={myShares[open.id]} shareActions={shareActions}
+      onBack={() => setOpenProjectId(null)} />;
+  // Desktop: the project list lives in the sidebar, so the main pane shows just
+  // the stats + a prompt to pick one.
+  if (desktop) return <ProjectsDeskHome projects={projects} ideas={ideas} th={th} onOpen={setOpenProjectId} />;
+  return <ProjectsIndex uid={uid} projects={projects} ideas={ideas} th={th} projActions={projActions}
+    myShares={myShares} sharedWithMe={sharedWithMe} commentSeen={commentSeen}
+    onOpen={setOpenProjectId} />;
+}
+
+// Desktop main pane when no project is open — the stats hero + a hint.
+function ProjectsDeskHome({ projects, ideas, th, onOpen }) {
+  return (
+    <>
+      <ProjectsStats projects={projects} ideas={ideas} th={th} onOpen={onOpen} />
+      <div style={{ textAlign: "center", padding: "36px 20px", color: th.muted, direction: "rtl" }}>
+        <Icon name="folder" size={40} color={th.border} />
+        <p style={{ fontSize: 15, marginTop: 10, color: th.secondary }}>בחר פרויקט מהסרגל שמימין כדי לפתוח אותו</p>
+        <p style={{ fontSize: 13, marginTop: 2 }}>או צור פרויקט חדש בכפתור שבתחתית הסרגל</p>
+      </div>
+    </>
+  );
 }
 
 // Guest view of a project shared with me: live ideas, comment, add — no editing.

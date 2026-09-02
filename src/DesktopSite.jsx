@@ -16,7 +16,8 @@ const NAV = [
 export default function DesktopSite({ ctx }) {
   const { th, dark, setDark, user, onProfile, onAI, tab, goTab, inMotion,
     folders = [], deskFolder, setDeskFolder, onCreateFolder, ideas = [],
-    renderTab, fabNote, version } = ctx;
+    renderTab, fabNote, version,
+    projects = [], projActions, openProjectId, setOpenProjectId } = ctx;
 
   const headBg = th.grad || th.accent;
   const notesAll = ideas.filter(i => i.status === "note");
@@ -28,6 +29,17 @@ export default function DesktopSite({ ctx }) {
     const name = window.prompt("שם התיקייה החדשה");
     if (name && name.trim()) onCreateFolder?.(name.trim());
   };
+
+  // Projects for the sidebar: favourites / pinned first, then by activity.
+  const projActive = p => ideas.filter(i => i.projectId === p.id && i.status !== "done" && i.status !== "trash").length;
+  const rankedProjects = [...projects].sort((a, b) =>
+    ((b.fav || b.pinned ? 1 : 0) - (a.fav || a.pinned ? 1 : 0)) || (projActive(b) - projActive(a)));
+  const openProject = id => { setOpenProjectId?.(id); if (tab !== "projects") goTab("projects"); };
+  const addProject = () => {
+    const name = window.prompt("שם הפרויקט החדש");
+    if (name && name.trim()) { projActions?.add(name.trim()); }
+  };
+  const hasSidebar = tab === "notes" || tab === "projects";
 
   const hbtn = {
     width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,0.14)",
@@ -107,7 +119,7 @@ export default function DesktopSite({ ctx }) {
 
       {/* ── body ───────────────────────────────────────────── */}
       <div style={{ flex: 1, width: "100%", maxWidth: 1240, margin: "0 auto",
-        display: "grid", gridTemplateColumns: tab === "notes" ? "224px 1fr" : "1fr",
+        display: "grid", gridTemplateColumns: hasSidebar ? "224px 1fr" : "1fr",
         gap: 22, padding: "22px 24px 8px", minHeight: 0 }}>
         {tab === "notes" && (
           <aside style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -115,6 +127,33 @@ export default function DesktopSite({ ctx }) {
             {foldItem(!deskFolder, () => openFolder(null), "notes", "פתקים", unfiled)}
             {folders.map(f => foldItem(deskFolder === f.id, () => openFolder(f.id), "folder", f.name, folderCount(f.id)))}
             {foldItem(false, addFolder, "add", "תיקייה חדשה", 0, true)}
+          </aside>
+        )}
+        {tab === "projects" && (
+          <aside style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: th.muted, letterSpacing: 0.4, margin: "2px 6px 7px" }}>פרויקטים</div>
+            {rankedProjects.map(p => {
+              const active = openProjectId === p.id;
+              return (
+                <div key={p.id} onClick={() => openProject(p.id)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 11,
+                    cursor: "pointer", fontFamily: FONT, fontSize: 14.5, fontWeight: 600,
+                    color: active ? th.accentText : th.secondary,
+                    background: active ? th.accentSoft : "transparent",
+                    border: `1px solid ${active ? th.accent : "transparent"}` }}>
+                  <Icon name="folder" size={16} color={active ? th.accentText : th.muted} />
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+                  <button onClick={e => { e.stopPropagation(); projActions?.update(p.id, { fav: !p.fav }); }}
+                    title={p.fav ? "הסר ממועדפים" : "מועדף"}
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", lineHeight: 0 }}>
+                    <Icon name="star" size={14} color={p.fav ? th.amber : th.muted} filled={!!p.fav} />
+                  </button>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: active ? th.accentText : th.muted, minWidth: 14, textAlign: "left" }}>{projActive(p)}</span>
+                </div>
+              );
+            })}
+            {foldItem(false, addProject, "add", "פרויקט חדש", 0, true)}
+            {foldItem(openProjectId === "__trash__", () => openProject("__trash__"), "delete", "פח אשפה", 0)}
           </aside>
         )}
         <main style={{ minWidth: 0 }}>

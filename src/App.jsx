@@ -1298,7 +1298,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
         projActions={projActions} onCapture={capture}
         myShares={myShares} sharedWithMe={sharedWithMe}
         shareActions={shareActions} onSharedCapture={sharedCapture}
-        commentSeen={commentSeen}
+        commentSeen={commentSeen} desktop={isDesktop}
         openProjectId={openProjectId} setOpenProjectId={setOpenProjectId} />
     );
     if (t === "notes") return (
@@ -1325,6 +1325,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     tab, goTab, inMotion, folders: userDoc.folders || [], deskFolder, setDeskFolder,
     onCreateFolder: name => saveFolders(uid, [...(userDoc.folders || []), { id: "f_" + Date.now(), name }]).catch(() => {}),
     ideas, renderTab, fabNote: () => fabAction("note"), version: APP_VERSION,
+    projects, projActions, openProjectId, setOpenProjectId,
   };
 
   return (
