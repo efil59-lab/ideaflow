@@ -34,7 +34,7 @@ export default function Projects({ uid, ideas, projects, th, actions, projAction
     return null;
   }
   if (open)
-    return <ProjectDetail uid={uid} project={open} ideas={ideas} projects={projects} th={th}
+    return <ProjectDetail key={open.id} uid={uid} project={open} ideas={ideas} projects={projects} th={th}
       actions={actions} projActions={projActions} onCapture={onCapture}
       share={myShares[open.id]} shareActions={shareActions}
       onBack={() => setOpenProjectId(null)} />;
