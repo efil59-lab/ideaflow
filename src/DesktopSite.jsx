@@ -45,6 +45,30 @@ export default function DesktopSite({ ctx }) {
   };
   const hasSidebar = tab === "notes" || tab === "projects";
 
+  const groupLabel = txt => (
+    <div style={{ fontSize: 11, fontWeight: 700, color: th.muted, letterSpacing: 0.4, margin: "8px 6px 6px", direction: "rtl" }}>{txt}</div>
+  );
+  const projRow = p => {
+    const active = openProjectId === p.id;
+    return (
+      <div key={p.id} onClick={() => openProject(p.id)}
+        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 11,
+          cursor: "pointer", fontFamily: FONT, fontSize: 14.5, fontWeight: 600,
+          color: active ? th.accentText : th.secondary,
+          background: active ? th.accentSoft : "transparent",
+          border: `1px solid ${active ? th.accent : "transparent"}` }}>
+        <Icon name={p.pinned ? "pin" : "folder"} size={16} color={active ? th.accentText : th.muted} filled={!!p.pinned} />
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+        <button onClick={e => { e.stopPropagation(); projActions?.update(p.id, { fav: !p.fav }); }}
+          title={p.fav ? "הסר ממועדפים" : "מועדף"}
+          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", lineHeight: 0 }}>
+          <Icon name="star" size={14} color={p.fav ? th.amber : th.muted} filled={!!p.fav} />
+        </button>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: active ? th.accentText : th.muted, minWidth: 14, textAlign: "left" }}>{projActive(p)}</span>
+      </div>
+    );
+  };
+
   const hbtn = {
     width: 38, height: 38, borderRadius: 11, background: "rgba(255,255,255,0.14)",
     border: "1px solid rgba(255,255,255,0.22)", display: "flex", alignItems: "center",
@@ -135,27 +159,23 @@ export default function DesktopSite({ ctx }) {
         )}
         {tab === "projects" && (
           <aside style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: th.muted, letterSpacing: 0.4, margin: "2px 6px 7px" }}>פרויקטים</div>
-            {rankedProjects.map(p => {
-              const active = openProjectId === p.id;
+            {(() => {
+              const favs = rankedProjects.filter(p => p.fav);
+              const rest = rankedProjects.filter(p => !p.fav);
               return (
-                <div key={p.id} onClick={() => openProject(p.id)}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 11,
-                    cursor: "pointer", fontFamily: FONT, fontSize: 14.5, fontWeight: 600,
-                    color: active ? th.accentText : th.secondary,
-                    background: active ? th.accentSoft : "transparent",
-                    border: `1px solid ${active ? th.accent : "transparent"}` }}>
-                  <Icon name="folder" size={16} color={active ? th.accentText : th.muted} />
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-                  <button onClick={e => { e.stopPropagation(); projActions?.update(p.id, { fav: !p.fav }); }}
-                    title={p.fav ? "הסר ממועדפים" : "מועדף"}
-                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", lineHeight: 0 }}>
-                    <Icon name="star" size={14} color={p.fav ? th.amber : th.muted} filled={!!p.fav} />
-                  </button>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: active ? th.accentText : th.muted, minWidth: 14, textAlign: "left" }}>{projActive(p)}</span>
-                </div>
+                <>
+                  {favs.length > 0 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700,
+                      color: th.amber, letterSpacing: 0.4, margin: "2px 6px 6px", direction: "rtl" }}>
+                      <Icon name="star" size={12} color={th.amber} filled /> מועדפים
+                    </div>
+                  )}
+                  {favs.map(projRow)}
+                  {favs.length > 0 ? groupLabel("כל הפרויקטים") : groupLabel("פרויקטים")}
+                  {rest.map(projRow)}
+                </>
               );
-            })}
+            })()}
             {extraProj > 0 && (
               <button onClick={() => setShowAllProj(v => !v)}
                 style={{ background: "none", border: "none", cursor: "pointer", fontFamily: FONT,
