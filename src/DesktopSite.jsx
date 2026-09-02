@@ -18,6 +18,7 @@ export default function DesktopSite({ ctx }) {
     folders = [], deskFolder, setDeskFolder, onCreateFolder, ideas = [],
     renderTab, fabNote, version,
     projects = [], projActions, openProjectId, setOpenProjectId } = ctx;
+  const [showAllProj, setShowAllProj] = useState(false);
 
   const headBg = th.grad || th.accent;
   const notesAll = ideas.filter(i => i.status === "note");
@@ -30,10 +31,13 @@ export default function DesktopSite({ ctx }) {
     if (name && name.trim()) onCreateFolder?.(name.trim());
   };
 
-  // Projects for the sidebar: favourites / pinned first, then by activity.
+  // Projects for the sidebar: pinned first, then favourites, then by activity.
+  // Only the top 10 show; the rest open via a "show more" toggle.
   const projActive = p => ideas.filter(i => i.projectId === p.id && i.status !== "done" && i.status !== "trash").length;
-  const rankedProjects = [...projects].sort((a, b) =>
-    ((b.fav || b.pinned ? 1 : 0) - (a.fav || a.pinned ? 1 : 0)) || (projActive(b) - projActive(a)));
+  const projRank = p => (p.pinned ? 2 : 0) + (p.fav ? 1 : 0);
+  const rankedAll = [...projects].sort((a, b) => (projRank(b) - projRank(a)) || (projActive(b) - projActive(a)));
+  const rankedProjects = showAllProj ? rankedAll : rankedAll.slice(0, 10);
+  const extraProj = rankedAll.length - 10;
   const openProject = id => { setOpenProjectId?.(id); if (tab !== "projects") goTab("projects"); };
   const addProject = () => {
     const name = window.prompt("שם הפרויקט החדש");
@@ -152,6 +156,13 @@ export default function DesktopSite({ ctx }) {
                 </div>
               );
             })}
+            {extraProj > 0 && (
+              <button onClick={() => setShowAllProj(v => !v)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontFamily: FONT,
+                  fontSize: 13, fontWeight: 700, color: th.accentText, textAlign: "right", padding: "8px 12px" }}>
+                {showAllProj ? "הצג פחות" : `עוד ${extraProj} פרויקטים…`}
+              </button>
+            )}
             {foldItem(false, addProject, "add", "פרויקט חדש", 0, true)}
             {foldItem(openProjectId === "__trash__", () => openProject("__trash__"), "delete", "פח אשפה", 0)}
           </aside>
