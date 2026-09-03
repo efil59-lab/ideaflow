@@ -146,9 +146,9 @@ export default function DesktopSite({ ctx }) {
       </header>
 
       {/* ── body ───────────────────────────────────────────── */}
-      <div style={{ flex: 1, width: "100%", maxWidth: 1240, margin: "0 auto",
+      <div style={{ flex: "1 0 auto", width: "100%", maxWidth: 1240, margin: "0 auto",
         display: "grid", gridTemplateColumns: hasSidebar ? "224px 1fr" : "1fr",
-        gap: 22, padding: "22px 24px 8px", minHeight: 0 }}>
+        alignItems: "start", gap: 22, padding: "22px 24px 8px" }}>
         {tab === "notes" && (
           <aside style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: th.muted, letterSpacing: 0.4, margin: "2px 6px 7px" }}>תיקיות</div>
