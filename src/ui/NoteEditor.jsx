@@ -483,12 +483,36 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     { k: "strike", label: "S", strike: true, title: "קו חוצה", on: () => exec("strikeThrough") },
   ];
 
+  // Images on the clipboard (screenshot, "copy image", a copied file) attach to
+  // the note exactly like a picked photo — no need to save the file first.
+  const imagesFromClipboard = cd => {
+    const out = [...(cd?.files || [])].filter(f => f && f.type?.startsWith("image/"));
+    if (!out.length && cd?.items) {
+      for (const it of Array.from(cd.items)) {
+        if (it.kind === "file" && it.type?.startsWith("image/")) {
+          const f = it.getAsFile();
+          if (f) out.push(f);
+        }
+      }
+    }
+    return out;
+  };
+
   const onPasteBody = e => {
-    const t = (e.clipboardData?.getData("text") || "").trim();
+    const cd = e.clipboardData;
+    const imgs = imagesFromClipboard(cd);
+    if (imgs.length) {                       // preventDefault must run before any await
+      e.preventDefault();
+      (async () => {
+        for (const f of imgs) await uploadMedia(f, f.name || `image-${Date.now()}.png`, setImages);
+      })();
+      return;
+    }
+    const t = (cd?.getData("text") || "").trim();
     if (isSocialUrl(t) && !text.trim()) { e.preventDefault(); addLink(t); return; }
     // Plain-text paste — keep foreign fonts/colours out of the note.
     e.preventDefault();
-    try { document.execCommand("insertText", false, e.clipboardData?.getData("text") || ""); } catch { /* ignore */ }
+    try { document.execCommand("insertText", false, cd?.getData("text") || ""); } catch { /* ignore */ }
     syncBody();
   };
 

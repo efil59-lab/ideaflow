@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "6.15";
+export const APP_VERSION = "6.16";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "6.16", date: "5 בספטמבר 2026", items: [
+    { icon: "photo", title: "הדבקת תמונות לפתק", text: "אפשר עכשיו להדביק תמונה מהלוח ישירות לפתק (צילום מסך, \"העתק תמונה\", או קובץ תמונה מועתק) — בלי לעבור דרך בורר הקבצים. אפשר גם כמה תמונות בבת אחת." },
+  ] },
   { v: "6.15", date: "3 בספטמבר 2026", items: [
     { icon: "folder", title: "תוקנה חפיפת הפוטר בסרגל הפרויקטים", text: "כשרשימת הפרויקטים במחשב ארוכה, הפוטר גלש על שורה בתחתית וחסם לחיצה. עכשיו הגוף גדל לפי התוכן והכל נגלל וניתן ללחיצה." },
   ] },
