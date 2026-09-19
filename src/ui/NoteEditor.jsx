@@ -15,6 +15,7 @@ import { useRecorder } from "./useRecorder";
 import { uploadFile } from "../data/media";
 import { fetchLinkMeta, isSocialUrl } from "../data/link";
 import { htmlFromText } from "./richtext";
+import { tagOf, stripTag, withTag } from "./Checklist";
 
 // A checklist item field that wraps to as many lines as its text needs (a plain
 // input would clip the tail of a long item). Grows to fit its content.
@@ -42,7 +43,7 @@ const MENU = [
   { k: "delete",    label: "מחיקה",        icon: "delete", danger: true },
 ];
 
-export default function NoteEditor({ initial, defaultColor = 0, colorNames = [], scale = 1, pastePrompt = false, uid, th, onCreate, onUpdate, onAction, onClose }) {
+export default function NoteEditor({ initial, defaultColor = 0, colorNames = [], scale = 1, pastePrompt = false, uid, th, onCreate, onUpdate, onAction, onClose, projects = [] }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [text, setText] = useState(initial?.text || "");
   const [html, setHtml] = useState(initial?.html || "");   // formatted body (rich text)
@@ -61,6 +62,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const [hint, setHint] = useState(null);            // brief toast (e.g. reminder on an empty note)
   const [active, setActive] = useState({});          // which format buttons are "on" for the caret
   const [focusIdx, setFocusIdx] = useState(-1);   // checklist row to focus after add/remove
+  const [tagPickFor, setTagPickFor] = useState(null); // checklist row choosing a project tag
   const idRef = useRef(initial?.id || null);
   const creatingRef = useRef(false);
   const taRef = useRef();
@@ -75,6 +77,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => pushBackLayer(() => closeRef.current?.()), []);
+  useEffect(() => { if (tagPickFor !== null) return pushBackLayer(() => setTagPickFor(null)); }, [tagPickFor]);
 
   // Opened from a real tap, so this focus raises the keyboard. A brand-new note
   // drops the caret at the END, ready to keep writing. An EXISTING note opens at
@@ -526,7 +529,7 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     const filled = lines.filter(l => l.trim());
     const allItems = filled.length > 0 && filled.every(l => PREFIX.test(l));
     if (allItems) {                                   // list → plain text
-      changeText(lines.map(l => l.replace(PREFIX, "")).join("\n"));
+      changeText(lines.map(l => stripTag(l.replace(PREFIX, ""))).join("\n"));
     } else {                                          // plain text → checkbox list
       const items = filled.map(l => "[ ] " + l.replace(PREFIX, ""));
       changeText((items.length ? items : ["[ ] "]).join("\n"));
@@ -583,12 +586,16 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const PARSE = /^\s*(?:\[([ xX])\]\s?|[-*]\s+)?(.*)$/;
   const items = rawLines.map((l, i) => {
     const m = l.match(PARSE);
-    return { i, done: (m?.[1] || "").toLowerCase() === "x", label: m?.[2] ?? l };
+    const raw = m?.[2] ?? l;
+    return { i, done: (m?.[1] || "").toLowerCase() === "x", label: stripTag(raw), projectId: tagOf(raw) };
   });
   const rebuild = arr => changeText(arr.join("\n"));
-  const setItemLine = (i, done, label) => {
-    const a = [...rawLines]; a[i] = `[${done ? "x" : " "}] ${label}`; rebuild(a);
+  // The project tag (if any) is re-attached on every rewrite of the line.
+  const setItemLine = (i, done, label, pid = items[i]?.projectId) => {
+    const a = [...rawLines]; a[i] = `[${done ? "x" : " "}] ${withTag(label, pid)}`; rebuild(a);
   };
+  const setItemProject = (i, pid) => { setItemLine(i, items[i].done, items[i].label, pid); setTagPickFor(null); };
+  const projById = id => projects.find(p => p.id === id);
   const toggleItem = i => setItemLine(i, !items[i].done, items[i].label);
   const editItem = (i, val) => setItemLine(i, items[i].done, val);
   const addItem = i => { const a = [...rawLines]; a.splice(i + 1, 0, "[ ] "); rebuild(a); setFocusIdx(i + 1); };
@@ -725,6 +732,27 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
                   padding: "4px 0", wordBreak: "break-word",
                   color: it.done ? th.muted : th.text,
                   textDecoration: it.done ? "line-through" : "none" }} />
+              {(() => {
+                const pj = it.projectId ? projById(it.projectId) : null;
+                return (
+                  <button onClick={() => setTagPickFor(it.i)}
+                    onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()}
+                    title={pj ? `פרויקט: ${pj.name}` : "תווית פרויקט"}
+                    style={{ flexShrink: 0, maxWidth: 130, marginTop: Math.round((lh - 26) / 2) + 3,
+                      display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontFamily: FONT,
+                      borderRadius: 9, fontSize: 11.5, fontWeight: 700,
+                      border: pj ? `1px solid ${pj.color}66` : "none",
+                      background: pj ? `${pj.color}22` : "transparent",
+                      padding: pj ? "3px 8px" : 5, color: pj ? th.text : th.muted }}>
+                    {pj ? (
+                      <>
+                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: pj.color, flexShrink: 0 }} />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pj.name}</span>
+                      </>
+                    ) : <Icon name="tag" size={15} color={th.muted} />}
+                  </button>
+                );
+              })()}
             </div>
           ))}
           <button onClick={() => addItem(items.length - 1)}
@@ -878,6 +906,48 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
         </span>
       </div>
     </div>
+    {tagPickFor !== null && (
+      <div onClick={() => setTagPickFor(null)}
+        style={{ position: "fixed", inset: 0, zIndex: 850, background: "rgba(0,0,0,0.45)",
+          display: "flex", alignItems: "flex-end", justifyContent: "center", direction: "rtl" }}>
+        <div onClick={e => e.stopPropagation()}
+          style={{ width: "100%", maxWidth: 480, maxHeight: "70vh", overflowY: "auto", background: th.surface,
+            borderRadius: "18px 18px 0 0", padding: "14px 14px calc(14px + env(safe-area-inset-bottom))",
+            fontFamily: FONT, boxShadow: "0 -10px 40px rgba(0,0,0,0.3)" }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: th.text, margin: "2px 4px 4px" }}>תווית פרויקט</div>
+          <div style={{ fontSize: 12.5, color: th.muted, margin: "0 4px 12px",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {items[tagPickFor]?.label || "משימה"}
+          </div>
+          {projects.length === 0 && (
+            <p style={{ color: th.muted, fontSize: 13.5, margin: "6px 4px 10px" }}>עוד אין פרויקטים באפליקציה.</p>
+          )}
+          {projects.map(pr => {
+            const on = items[tagPickFor]?.projectId === pr.id;
+            return (
+              <button key={pr.id} onClick={() => setItemProject(tagPickFor, pr.id)}
+                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "11px 12px",
+                  marginBottom: 6, borderRadius: 12, cursor: "pointer", fontFamily: FONT, fontSize: 14.5,
+                  fontWeight: 600, textAlign: "right", color: th.text,
+                  background: on ? th.accentSoft : th.surface2, border: `1px solid ${on ? th.accent : th.border}` }}>
+                <span style={{ width: 10, height: 10, borderRadius: "50%", background: pr.color, flexShrink: 0 }} />
+                <span style={{ flex: 1 }}>{pr.name}</span>
+                {on && <Icon name="check" size={15} color={th.accentText} />}
+              </button>
+            );
+          })}
+          {items[tagPickFor]?.projectId && (
+            <button onClick={() => setItemProject(tagPickFor, null)}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%",
+                padding: "11px 12px", marginTop: 4, borderRadius: 12, cursor: "pointer", fontFamily: FONT,
+                fontSize: 14, fontWeight: 700, color: th.red, background: "transparent",
+                border: `1px dashed ${th.border}` }}>
+              <Icon name="close" size={14} color={th.red} /> הסר תווית
+            </button>
+          )}
+        </div>
+      </div>
+    )}
     {hint && <Toast msg={hint} th={th} />}
     </div>,
     document.body

@@ -5,6 +5,7 @@ import { Icon, IconBtn } from "./Icons";
 import { Chip, Confirm } from "./base";
 import { fmtSize } from "../data/media";
 import { FONT, fmt } from "../theme";
+import { stripTags } from "./Checklist";
 
 // A tiny celebratory burst around the checkbox when an idea is marked done.
 // Pure CSS particles — spawned for the 0.7s "completing" window, then gone.
@@ -66,7 +67,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
   };
 
   const onCopy = () => {
-    navigator.clipboard?.writeText(idea.text).catch(() => {});
+    navigator.clipboard?.writeText(stripTags(idea.text)).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1300);
   };
@@ -154,7 +155,7 @@ export default function IdeaCard({ idea, project, projects, showProject, th,
               )}
               {idea.html
                 ? <span className="rich-content" dangerouslySetInnerHTML={{ __html: idea.html }} />
-                : idea.text}
+                : stripTags(idea.text)}
             </div>
             {isLong && !sortMode && (
               <span onClick={e => { e.stopPropagation(); setExpanded(p => !p); }}

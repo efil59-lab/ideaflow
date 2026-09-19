@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { Icon, IconBtn } from "../ui/Icons";
 import { Modal, ModalHeader, Confirm, Toast } from "../ui/base";
-import Checklist, { hasChecklist, parseChecklist, toggleLine } from "../ui/Checklist";
+import Checklist, { hasChecklist, parseChecklist, toggleLine, stripTags } from "../ui/Checklist";
 import NoteEditor from "../ui/NoteEditor";
 import ImageStrip from "../ui/ImageStrip";
 import { LinkCard } from "../ui/LinkStrip";
@@ -169,7 +169,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const [copied, setCopied] = useState(false);                   // "copied to clipboard" toast
 
   const copyNote = async note => {
-    const txt = (note.text || note.title || note.links?.[0]?.url || "").trim();
+    const txt = (stripTags(note.text) || note.title || note.links?.[0]?.url || "").trim();
     if (!txt) return;
     try { await navigator.clipboard.writeText(txt); }
     catch { /* clipboard blocked — nothing to do */ }
@@ -525,7 +525,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
         <div data-nokbd style={{ display: "grid",
           gridTemplateColumns: desktop ? "repeat(auto-fill, minmax(230px, 1fr))" : "1fr 1fr",
           gap: desktop ? 15 : 9, direction: "rtl" }}>
-          {pool.map(n => <NoteCard key={n.id} {...noteProps(n)} actions={actions} />)}
+          {pool.map(n => <NoteCard key={n.id} {...noteProps(n)} actions={actions} projects={projects} />)}
         </div>
       )}
 
@@ -577,7 +577,7 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
       )}
 
       {editing && (
-        <NoteEditor th={th} colorNames={colorNames} scale={scale} uid={uid}
+        <NoteEditor th={th} colorNames={colorNames} scale={scale} uid={uid} projects={projects}
           initial={editing === "new" ? null : editing}
           pastePrompt={editing === "new" && pasteHint}
           defaultColor={color ?? 0}
@@ -900,7 +900,7 @@ function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
 
 // Compact colour card for the grid view. Checklist items stay tappable in
 // place (outside selection mode) so a shopping list works without opening.
-function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
+function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, onLong, projects = [] }) {
   const c = NOTE_COLORS[note.colorIdx ?? 0];
   const bg = (note.colorIdx != null && th.pastels[note.colorIdx]) || th.surface;
   const press = usePress(onTap, onLong);
@@ -970,6 +970,17 @@ function NoteCard({ note, th, actions, sortBy, scale = 1, inSel, isSel, onTap, o
                 <span style={{ fontSize: Math.round(11.5 * scale), lineHeight: 1.4, wordBreak: "break-word",
                   color: it.done ? th.muted : th.secondary, textDecoration: it.done ? "line-through" : "none" }}>
                   {it.label}
+                  {(() => {
+                    const pj = it.projectId && projects.find(pr => pr.id === it.projectId);
+                    return pj ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3, marginInlineStart: 5,
+                        fontSize: Math.round(9.5 * scale), fontWeight: 700, color: th.text, verticalAlign: "middle",
+                        background: `${pj.color}22`, border: `1px solid ${pj.color}55`, borderRadius: 6, padding: "0 5px",
+                        textDecoration: "none" }}>
+                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: pj.color }} />{pj.name}
+                      </span>
+                    ) : null;
+                  })()}
                 </span>
               </div>
             ))}

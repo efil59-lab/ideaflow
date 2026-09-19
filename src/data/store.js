@@ -343,7 +343,7 @@ export async function addSharedIdea(ownerUid, data, createdBy) {
 // boundary around 40 chars). Checklist markers are stripped first.
 export function autoTitle(text) {
   const first = (text || "").trim().split(/\r?\n/)[0]
-    .replace(/^\s*(?:[-*]\s+|\[[ xX]\]\s*)/, "").trim();
+    .replace(/^\s*(?:[-*]\s+|\[[ xX]\]\s*)/, "").replace(/\s*⟦p:[^⟧]*⟧\s*$/, "").trim();
   if (!first) return "";
   if (first.length <= 40) return first;
   const cut = first.slice(0, 40);

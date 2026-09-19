@@ -5,12 +5,21 @@ import { Icon } from "./Icons";
 
 const ITEM = /^(\s*)(?:[-*]\s+|\[([ xX])\]\s*)(.*)$/;
 
+// A project tag rides at the END of an item line as "⟦p:<projectId>⟧". Keeping
+// it inside the line means it travels with its item through edits, inserts,
+// deletes and export — every view strips it and shows a chip instead.
+const TAG_RE = /\s*⟦p:([^⟧\s]+)⟧\s*$/;
+export const tagOf = s => (String(s || "").match(TAG_RE) || [])[1] || null;
+export const stripTag = s => String(s || "").replace(TAG_RE, "");
+export const withTag = (label, pid) => stripTag(label) + (pid ? ` ⟦p:${pid}⟧` : "");
+export const stripTags = text => String(text || "").split(/\r?\n/).map(stripTag).join("\n");
+
 export function parseChecklist(text) {
   const lines = (text || "").split(/\r?\n/);
   const items = [];
   lines.forEach((line, i) => {
     const m = line.match(ITEM);
-    if (m) items.push({ i, done: (m[2] || "").toLowerCase() === "x", label: m[3] });
+    if (m) items.push({ i, done: (m[2] || "").toLowerCase() === "x", label: stripTag(m[3]), projectId: tagOf(m[3]) });
   });
   return items;
 }
