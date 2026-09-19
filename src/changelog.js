@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "6.17";
+export const APP_VERSION = "6.18";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "6.18", date: "19 בספטמבר 2026", items: [
+    { icon: "tag", title: "משימות מפתקים מופיעות בפרויקט", text: "משימה ברשימת סימון שתייגתם לפרויקט מופיעה עכשיו גם בתוך הפרויקט, תחת \"משימות מפתקים\". מסמנים V שם או בפתק — ושני המקומות מתעדכנים יחד. לחיצה על המשימה פותחת את הפתק שלה." },
+  ] },
   { v: "6.17", date: "19 בספטמבר 2026", items: [
     { icon: "tag", title: "תווית פרויקט לכל משימה", text: "ברשימת סימון, ליד כל משימה יש עכשיו אייקון תווית. בוחרים פרויקט מרשימת הפרויקטים, והמשימה מקבלת צ׳יפ צבעוני עם שם הפרויקט — כל משבצת עם תג משלה. התג נשאר צמוד גם כשעורכים או מסמנים V." },
   ] },

@@ -1286,6 +1286,14 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   // A drag that became a swipe must not also fire the tab button under the thumb.
   const tabGo = t => { if (!swipedRef.current) goTab(t); };
 
+  // Open a note from anywhere (e.g. a tagged task inside a project): hand the id
+  // to Notes — via storage for when it mounts, via an event if it already is.
+  const openNote = id => {
+    try { sessionStorage.setItem("if_open_note", id); } catch { /* ignore */ }
+    window.dispatchEvent(new CustomEvent("if-open-note", { detail: id }));
+    goTab("notes");
+  };
+
   // Renders the screen for a given tab (used for the live pane and the preview).
   // df/setDf: on the desktop site the folder is controlled from the sidebar.
   const renderTab = (t, df, setDf) => {
@@ -1298,7 +1306,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
         projActions={projActions} onCapture={capture}
         myShares={myShares} sharedWithMe={sharedWithMe}
         shareActions={shareActions} onSharedCapture={sharedCapture}
-        commentSeen={commentSeen} desktop={isDesktop}
+        commentSeen={commentSeen} desktop={isDesktop} onOpenNote={openNote}
         openProjectId={openProjectId} setOpenProjectId={setOpenProjectId} />
     );
     if (t === "notes") return (
@@ -1868,7 +1876,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "edit", title: "עיצוב טקסט", text: 'בעורך הפתק יש פס עיצוב עדין: כותרות (H1/H2), קישור בתוך הטקסט, הדגשת מרקר, ומודגש/נטוי/קו-תחתון/קו-חוצה. מסמנים מילים ולוחצים — העיצוב נשמר ומוצג גם ברשימת הפתקים.' },
     { icon: "photo", title: "תמונות והקלטת קול", text: 'במסך כתיבת הפתק: כפתור מיקרופון מקליט קול (נשמר עם נגן להאזנה), וכפתור תמונה מוסיף תמונות — נשמרות קטנות, לחיצה מגדילה למסך מלא ואפשר לדפדף בין כולן. אפשר לבחור כמה תמונות יחד, וגם פשוט להדביק תמונה מהלוח (צילום מסך או "העתק תמונה") ישר לתוך הפתק.' },
     { icon: "link", title: "שמירת קישורים מרשתות", text: 'מצאת סרטון באינסטגרם, טיקטוק, פייסבוק או יוטיוב? הכי מהיר — מתוך האפליקציה של הרשת לחץ "שתף" ובחר ב-IdeaFlow: הקישור נשמר לבד כפתק כתום עם הכותרת של הסרטון ותמונה ממוזערת, ולחיצה עליו פותח אותו. אפשר גם בעורך הפתק ללחוץ על אייקון הקישור (🔗) ולהדביק, או פשוט להדביק קישור לתוך פתק ריק.' },
-    { icon: "check", title: "רשימות סימון", text: 'בתפריט ⋮ ← "רשימת סימון": כל שורה הופכת לפריט עם ריבוע. נגיעה בריבוע מסמנת כבוצע ומעבירה קו חוצה, Enter מוסיף פריט, ולחיצה חוזרת מחזירה לטקסט רגיל. ליד כל פריט יש אייקון תווית — בוחרים פרויקט מהרשימה, והפריט מקבל צ׳יפ צבעוני עם שם הפרויקט.' },
+    { icon: "check", title: "רשימות סימון", text: 'בתפריט ⋮ ← "רשימת סימון": כל שורה הופכת לפריט עם ריבוע. נגיעה בריבוע מסמנת כבוצע ומעבירה קו חוצה, Enter מוסיף פריט, ולחיצה חוזרת מחזירה לטקסט רגיל. ליד כל פריט יש אייקון תווית — בוחרים פרויקט מהרשימה, והפריט מקבל צ׳יפ צבעוני עם שם הפרויקט. המשימה מופיעה גם בתוך הפרויקט, תחת "משימות מפתקים" — סימון V שם או בפתק מעדכן את שניהם, ולחיצה על המשימה פותחת את הפתק.' },
     { icon: "folder", title: "תיקיות לפתקים", text: 'שורת התיקיות בראש מסך הפתקים שומרת על סדר: מסך "פתקים" מראה רק את הפתקים החדשים שעוד לא סידרת, ולכל נושא אפשר לפתוח תיקייה (למשל "מתכונים", "קישורים"). יוצרים תיקייה בכפתור "+ תיקייה", מעבירים פתק דרך תפריט ⋮ ← "העבר לתיקייה" או בבחירה מרובה, ולחיצה ארוכה על תיקייה משנה שם או מוחקת (הפתקים חוזרים למסך הראשי).' },
     { icon: "tag", title: "צבעים וסינון", text: 'כל פתק מקבל צבע (ריבוע הצבע בכותרת העורך). כפתור הפלטה בראש רשימת הפתקים פותח סינון לפי צבע, ואפשר לתת לכל צבע שם משלך ("קניות", "עבודה") בתפריט הפרופיל.' },
     { icon: "pin", title: 'הצמדה ותווית "חדש"', text: '⋮ ← "הצמד" מעלה פתק לראש הרשימה. פתק שנוצר בשבוע האחרון מסומן בתווית קטנה "חדש" שנעלמת מעצמה.' },

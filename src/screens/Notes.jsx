@@ -208,6 +208,21 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
     return () => window.removeEventListener("if-new-note", open);
   }, []);
 
+  // Another screen asked to open a specific note (a tagged task in a project).
+  const ideasRef = useRef(ideas);
+  ideasRef.current = ideas;
+  useEffect(() => {
+    const openId = id => {
+      try { sessionStorage.removeItem("if_open_note"); } catch { /* ignore */ }
+      const n = (ideasRef.current || []).find(i => i.id === id);
+      if (n) setEditing(n);
+    };
+    const onEv = e => openId(e.detail);
+    window.addEventListener("if-open-note", onEv);
+    try { const id = sessionStorage.getItem("if_open_note"); if (id) openId(id); } catch { /* ignore */ }
+    return () => window.removeEventListener("if-open-note", onEv);
+  }, []);
+
   const inSel = selected !== null;
   // Hardware back leaves selection mode before leaving the tab.
   useEffect(() => {

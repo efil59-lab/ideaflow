@@ -6,6 +6,7 @@ import { CSS } from "@dnd-kit/utilities";
 import CaptureBar from "../ui/CaptureBar";
 import IdeaList, { SortToggle } from "../ui/IdeaList";
 import { Icon, IconBtn } from "../ui/Icons";
+import { parseChecklist, toggleLine } from "../ui/Checklist";
 import { Modal, ModalHeader, Confirm } from "../ui/base";
 import { ProjectShareModal } from "../ui/sheets";
 import { useSharedIdeas } from "../data/store";
@@ -18,7 +19,7 @@ const projSort = (a, b) =>
   || (a.createdAt || 0) - (b.createdAt || 0);
 
 export default function Projects({ uid, ideas, projects, th, actions, projActions, onCapture,
-  openProjectId, setOpenProjectId, commentSeen = {}, desktop = false,
+  openProjectId, setOpenProjectId, commentSeen = {}, desktop = false, onOpenNote,
   myShares = {}, sharedWithMe = [], shareActions, onSharedCapture }) {
   const open = projects.find(p => p.id === openProjectId);
   if (openProjectId === "__trash__") {
@@ -34,7 +35,7 @@ export default function Projects({ uid, ideas, projects, th, actions, projAction
     return null;
   }
   if (open)
-    return <ProjectDetail key={open.id} uid={uid} project={open} ideas={ideas} projects={projects} th={th}
+    return <ProjectDetail key={open.id} uid={uid} project={open} ideas={ideas} projects={projects} th={th} onOpenNote={onOpenNote}
       actions={actions} projActions={projActions} onCapture={onCapture}
       share={myShares[open.id]} shareActions={shareActions}
       onBack={() => setOpenProjectId(null)} />;
@@ -547,7 +548,7 @@ function SortableProjectRow({ p, th, counts }) {
 }
 
 function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions, onCapture, onBack,
-  share = null, shareActions }) {
+  share = null, shareActions, onOpenNote }) {
   const [showDone, setShowDone] = useState(false);
   const [sortMode, setSortMode] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -560,6 +561,16 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
 
   const list = ideas.filter(i => i.projectId === project.id &&
     (showDone ? i.status === "done" : (i.status !== "done" && i.status !== "trash")));
+
+  // Checklist items in notes that were tagged with this project. A live view of
+  // the notes themselves — one source of truth, so ticking here rewrites the
+  // note's own line and the two can never drift apart.
+  const linked = [];
+  ideas.forEach(n => {
+    if (n.status !== "note" || n.archived) return;
+    parseChecklist(n.text).forEach(it => { if (it.projectId === project.id) linked.push({ note: n, it }); });
+  });
+  const linkedShown = linked.filter(x => (showDone ? x.it.done : !x.it.done));
 
   return (
     <>
@@ -636,10 +647,46 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
         onCapture={data => onCapture({ ...data, projectId: project.id, status: "active" })} focusOnMount />
 
       <div style={{ height: 14 }} />
-      <IdeaList ideas={list} projects={projects} th={th} actions={actions}
-        sortMode={sortMode && !showDone} onReorder={actions.reorder}
-        myShares={share ? { [project.id]: share } : {}}
-        emptyText={showDone ? "אין רעיונות שבוצעו" : "אין רעיונות בפרויקט — הוסף אחד למעלה"} />
+      {linkedShown.length > 0 && (
+        <div style={{ marginBottom: 14, direction: "rtl" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
+            color: th.muted, letterSpacing: 0.4, margin: "0 2px 8px" }}>
+            <Icon name="notes" size={13} color={th.muted} /> משימות מפתקים · {linkedShown.length}
+          </div>
+          {linkedShown.map(({ note, it }) => (
+            <div key={note.id + ":" + it.i}
+              style={{ display: "flex", alignItems: "flex-start", gap: 11, background: th.surface,
+                border: `1px solid ${th.border}`, borderRight: `4px solid ${project.color || th.accent}`,
+                borderRadius: 13, padding: "10px 12px", marginBottom: 7 }}>
+              <button onClick={() => actions.update(note.id, { text: toggleLine(note.text, it.i) }, note)}
+                title={it.done ? "בטל סימון" : "סמן כבוצע"}
+                style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 6, marginTop: 1, cursor: "pointer",
+                  border: it.done ? "none" : `2px solid ${th.dark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.45)"}`,
+                  background: it.done ? th.green : (th.dark ? "rgba(255,255,255,0.12)" : "#fff"),
+                  display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {it.done && <Icon name="check" size={14} color="#fff" />}
+              </button>
+              <div onClick={() => onOpenNote?.(note.id)} title="פתח את הפתק"
+                style={{ flex: 1, minWidth: 0, cursor: onOpenNote ? "pointer" : "default" }}>
+                <div style={{ fontSize: 14.5, lineHeight: 1.45, wordBreak: "break-word",
+                  color: it.done ? th.muted : th.text, textDecoration: it.done ? "line-through" : "none" }}>
+                  {it.label || "—"}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: th.muted, marginTop: 3,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <Icon name="notes" size={12} color={th.muted} /> {note.title || "פתק"}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {(list.length > 0 || linkedShown.length === 0) && (
+        <IdeaList ideas={list} projects={projects} th={th} actions={actions}
+          sortMode={sortMode && !showDone} onReorder={actions.reorder}
+          myShares={share ? { [project.id]: share } : {}}
+          emptyText={showDone ? "אין רעיונות שבוצעו" : "אין רעיונות בפרויקט — הוסף אחד למעלה"} />
+      )}
 
       {showShare && (
         <ProjectShareModal project={project} share={share} th={th}
