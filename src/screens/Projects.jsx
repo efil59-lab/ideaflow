@@ -6,7 +6,8 @@ import { CSS } from "@dnd-kit/utilities";
 import CaptureBar from "../ui/CaptureBar";
 import IdeaList, { SortToggle } from "../ui/IdeaList";
 import { Icon, IconBtn } from "../ui/Icons";
-import { parseChecklist, toggleLine } from "../ui/Checklist";
+import { parseChecklist, toggleLine, withTag } from "../ui/Checklist";
+import { ConfettiBurst } from "../ui/IdeaCard";
 import { Modal, ModalHeader, Confirm } from "../ui/base";
 import { ProjectShareModal } from "../ui/sheets";
 import { useSharedIdeas } from "../data/store";
@@ -654,30 +655,8 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
             <Icon name="notes" size={13} color={th.muted} /> משימות מפתקים · {linkedShown.length}
           </div>
           {linkedShown.map(({ note, it }) => (
-            <div key={note.id + ":" + it.i}
-              style={{ display: "flex", alignItems: "flex-start", gap: 11, background: th.surface,
-                border: `1px solid ${th.border}`, borderRight: `4px solid ${project.color || th.accent}`,
-                borderRadius: 13, padding: "10px 12px", marginBottom: 7 }}>
-              <button onClick={() => actions.update(note.id, { text: toggleLine(note.text, it.i) }, note)}
-                title={it.done ? "בטל סימון" : "סמן כבוצע"}
-                style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 6, marginTop: 1, cursor: "pointer",
-                  border: it.done ? "none" : `2px solid ${th.dark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.45)"}`,
-                  background: it.done ? th.green : (th.dark ? "rgba(255,255,255,0.12)" : "#fff"),
-                  display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {it.done && <Icon name="check" size={14} color="#fff" />}
-              </button>
-              <div onClick={() => onOpenNote?.(note.id)} title="פתח את הפתק"
-                style={{ flex: 1, minWidth: 0, cursor: onOpenNote ? "pointer" : "default" }}>
-                <div style={{ fontSize: 14.5, lineHeight: 1.45, wordBreak: "break-word",
-                  color: it.done ? th.muted : th.text, textDecoration: it.done ? "line-through" : "none" }}>
-                  {it.label || "—"}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: th.muted, marginTop: 3,
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  <Icon name="notes" size={12} color={th.muted} /> {note.title || "פתק"}
-                </div>
-              </div>
-            </div>
+            <LinkedTask key={note.id + ":" + it.i} note={note} it={it} th={th}
+              color={project.color || th.accent} actions={actions} onOpenNote={onOpenNote} />
           ))}
         </div>
       )}
@@ -728,5 +707,95 @@ function MenuBtn({ th, icon, label, onClick, danger }) {
         background: th.surface, color: danger ? th.red : th.secondary, border: `1px solid ${th.border}` }}>
       <Icon name={icon} size={14} color={danger ? th.red : th.secondary} />{label}
     </button>
+  );
+}
+
+// A checklist line from a note, shown inside the project it was tagged with.
+// Behaves like a regular project task: ✓ + burst + strike-through, then it
+// slides out. Tapping the text edits the line right here — the change is
+// written back to that same line in the note.
+function LinkedTask({ note, it, th, color, actions, onOpenNote }) {
+  const [completing, setCompleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const showDone = it.done || completing;
+
+  const onCheck = () => {
+    if (it.done) { actions.update(note.id, { text: toggleLine(note.text, it.i) }, note); return; }
+    if (completing) return;
+    setCompleting(true);
+    setTimeout(() => { actions.update(note.id, { text: toggleLine(note.text, it.i) }, note); setCompleting(false); }, 700);
+  };
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 11, background: th.surface,
+        border: `1px solid ${th.border}`, borderRight: `4px solid ${color}`,
+        borderRadius: 13, padding: "10px 12px", marginBottom: 7,
+        opacity: (it.done && !completing) ? 0.55 : 1,
+        animation: completing ? "completeOut .7s ease-in forwards" : "fadeUp .18s ease-out" }}>
+        <div onClick={onCheck} title={it.done ? "בטל סימון" : "סמן כבוצע"}
+          style={{ flexShrink: 0, width: 21, height: 21, borderRadius: 7, marginTop: 2, cursor: "pointer",
+            border: showDone ? "none" : `1.5px solid ${th.borderStrong}`,
+            background: showDone ? th.green : "transparent", transition: "all .15s", position: "relative",
+            display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {showDone && <span style={{ display: "inline-flex", animation: completing ? "checkPop .3s ease-out" : "none" }}>
+            <Icon name="check" size={13} color="#fff" />
+          </span>}
+          {completing && <ConfettiBurst />}
+        </div>
+        <div onClick={() => setEditing(true)} title="ערוך משימה"
+          style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
+          <div style={{ fontSize: 14.5, lineHeight: 1.45, wordBreak: "break-word",
+            color: showDone ? th.muted : th.text, textDecoration: showDone ? "line-through" : "none" }}>
+            {it.label || "—"}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: th.muted, marginTop: 3,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <Icon name="notes" size={12} color={th.muted} /> {note.title || "פתק"}
+          </div>
+        </div>
+      </div>
+      {editing && <LinkedTaskEdit note={note} it={it} th={th} actions={actions}
+        onOpenNote={onOpenNote} onClose={() => setEditing(false)} />}
+    </>
+  );
+}
+
+function LinkedTaskEdit({ note, it, th, actions, onOpenNote, onClose }) {
+  const [txt, setTxt] = useState(it.label || "");
+  const save = () => {
+    const label = txt.replace(/\s*\n+\s*/g, " ").trim();
+    if (label && label !== it.label) {
+      const lines = String(note.text || "").split(/\r?\n/);
+      lines[it.i] = `[${it.done ? "x" : " "}] ${withTag(label, it.projectId)}`;
+      actions.update(note.id, { text: lines.join("\n") }, note);
+    }
+    onClose();
+  };
+  return (
+    <Modal onClose={onClose} maxWidth={440} th={th}>
+      <ModalHeader title="עריכת משימה" icon="edit" onClose={onClose} th={th} />
+      <textarea value={txt} onChange={e => setTxt(e.target.value)} rows={3} autoFocus
+        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } }}
+        style={{ width: "100%", border: `1px solid ${th.border}`, borderRadius: 12, padding: 13,
+          fontSize: 15, fontFamily: FONT, direction: "rtl", resize: "none",
+          lineHeight: 1.6, background: th.inputBg, color: th.text }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: th.muted, margin: "8px 2px 0" }}>
+        <Icon name="notes" size={12} color={th.muted} /> מתוך הפתק: {note.title || "פתק"}
+      </div>
+      <button onClick={save}
+        style={{ marginTop: 12, width: "100%", background: th.accent, color: "#fff", border: "none",
+          borderRadius: 11, padding: "12px 0", cursor: "pointer", fontSize: 14, fontWeight: 600, fontFamily: FONT }}>
+        שמור
+      </button>
+      {onOpenNote && (
+        <button onClick={() => { onClose(); onOpenNote(note.id); }}
+          style={{ marginTop: 8, width: "100%", background: "transparent", color: th.secondary,
+            border: `1px solid ${th.border}`, borderRadius: 11, padding: "10px 0", cursor: "pointer",
+            fontSize: 13.5, fontFamily: FONT }}>
+          פתח את הפתק המלא
+        </button>
+      )}
+    </Modal>
   );
 }

@@ -9,7 +9,7 @@ import { stripTags } from "./Checklist";
 
 // A tiny celebratory burst around the checkbox when an idea is marked done.
 // Pure CSS particles — spawned for the 0.7s "completing" window, then gone.
-function ConfettiBurst() {
+export function ConfettiBurst() {
   const colors = ["#2E5BE6", "#7C3AED", "#DB2777", "#EF9F27", "#1D9E75"];
   return (
     <span style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible" }}>
