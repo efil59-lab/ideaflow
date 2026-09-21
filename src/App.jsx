@@ -1091,6 +1091,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   // again, so the item is never shown twice.
   const snapshotNoteTasks = async note => {
     const seen = new Set();
+    let n = 0;
     for (const it of parseChecklist(note.text || "")) {
       if (!it.done || !it.projectId || !it.label) continue;
       if (!projects.some(p => p.id === it.projectId)) continue;
@@ -1098,8 +1099,9 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
       if (seen.has(key)) continue;
       seen.add(key);
       await addIdea(uid, { text: it.label, status: "done", projectId: it.projectId,
-        srcNote: note.id, colorIdx: note.colorIdx ?? null }).catch(() => {});
+        srcNote: note.id, colorIdx: note.colorIdx ?? null }).then(() => { n += 1; }).catch(() => {});
     }
+    if (n) toast$(n === 1 ? "משימה שבוצעה נשמרה בפרויקט" : `${n} משימות שבוצעו נשמרו בפרויקטים`);
   };
   const dropNoteSnapshots = async note => {
     await Promise.all(ideas.filter(i => i.srcNote === note.id)
