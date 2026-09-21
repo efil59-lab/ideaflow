@@ -8,7 +8,10 @@ const ITEM = /^(\s*)(?:[-*]\s+|\[([ xX])\]\s*)(.*)$/;
 // A project tag rides at the END of an item line as "⟦p:<projectId>⟧". Keeping
 // it inside the line means it travels with its item through edits, inserts,
 // deletes and export — every view strips it and shows a chip instead.
-const TAG_RE = /\s*⟦p:([^⟧\s]+)⟧\s*$/;
+// Only the single separator space the tag was written with is eaten — a greedy
+// \s* would also swallow a space the user is typing at the end of the label,
+// and the item input (a controlled field) would then keep spitting it back out.
+const TAG_RE = / ?⟦p:([^⟧\s]+)⟧[ \t]*$/;
 export const tagOf = s => (String(s || "").match(TAG_RE) || [])[1] || null;
 export const stripTag = s => String(s || "").replace(TAG_RE, "");
 export const withTag = (label, pid) => stripTag(label) + (pid ? ` ⟦p:${pid}⟧` : "");
