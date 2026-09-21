@@ -34,6 +34,16 @@ const SORTS = [
 // Tap vs long-press on one element, with scroll-cancel and click suppression.
 function usePress(onTap, onLong) {
   const t = useRef(); const fired = useRef(false); const start = useRef([0, 0]);
+  // A press that turns into a scroll must not become a long-press. Once the
+  // browser takes the gesture over for scrolling it stops sending pointermove
+  // here and fires pointercancel instead, so without these two guards the timer
+  // still fires and picks whatever card the finger happens to rest on — which
+  // is how a second note got selected on its own.
+  useEffect(() => {
+    const stop = () => clearTimeout(t.current);
+    window.addEventListener("scroll", stop, true);
+    return () => { window.removeEventListener("scroll", stop, true); stop(); };
+  }, []);
   return {
     onPointerDown: e => {
       fired.current = false; start.current = [e.clientX, e.clientY];
@@ -45,6 +55,7 @@ function usePress(onTap, onLong) {
       if (Math.abs(e.clientX - x) > 12 || Math.abs(e.clientY - y) > 12) clearTimeout(t.current);
     },
     onPointerUp: () => clearTimeout(t.current),
+    onPointerCancel: () => { clearTimeout(t.current); fired.current = false; },
     onPointerLeave: () => clearTimeout(t.current),
     onClick: () => { if (fired.current) { fired.current = false; return; } onTap(); },
     onContextMenu: e => { e.preventDefault(); if (!fired.current) { fired.current = true; onLong(); } },
