@@ -29,6 +29,7 @@ import { uploadFile } from "./data/media";
 import { fetchLinkMeta, firstUrl, platformOf } from "./data/link";
 import { LinkCard } from "./ui/LinkStrip";
 import { useIsDesktop } from "./ui/useIsDesktop";
+import { parseChecklist } from "./ui/Checklist";
 import DesktopSite from "./DesktopSite";
 import Inbox from "./screens/Inbox";
 import Projects from "./screens/Projects";
@@ -1083,6 +1084,28 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     setBulbBeat(b => b + 1);
   };
 
+  // A tagged checklist item lives inside its note, so deleting the note would
+  // take it out of the project too. On delete, every tagged item that was
+  // already ticked is copied into its project as an idea of its own — the work
+  // stays in the project for good. Restoring the note removes those copies
+  // again, so the item is never shown twice.
+  const snapshotNoteTasks = async note => {
+    const seen = new Set();
+    for (const it of parseChecklist(note.text || "")) {
+      if (!it.done || !it.projectId || !it.label) continue;
+      if (!projects.some(p => p.id === it.projectId)) continue;
+      const key = it.projectId + "\u0000" + it.label;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      await addIdea(uid, { text: it.label, status: "done", projectId: it.projectId,
+        srcNote: note.id, colorIdx: note.colorIdx ?? null }).catch(() => {});
+    }
+  };
+  const dropNoteSnapshots = async note => {
+    await Promise.all(ideas.filter(i => i.srcNote === note.id)
+      .map(i => deleteIdea(uid, i).catch(() => {})));
+  };
+
   const actions = {
     update: (id, patch, base) => updateIdea(uid, id, patch, base),
     // Soft delete → trash (recoverable, auto-purged after 30 days)
@@ -1312,6 +1335,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     if (t === "notes") return (
       <Notes uid={uid} ideas={ideas} th={th} actions={actions}
         onCapture={captureNote}
+        onNoteDeleted={snapshotNoteTasks} onNoteRestored={dropNoteSnapshots}
         onCreateNote={data => addNote(uid, data)}
         projects={projects} onMoveToProject={setMoveNotes} noteFont={noteFontStep}
         colorNames={userDoc.colorNames || []}
@@ -1876,7 +1900,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "edit", title: "עיצוב טקסט", text: 'בעורך הפתק יש פס עיצוב עדין: כותרות (H1/H2), קישור בתוך הטקסט, הדגשת מרקר, ומודגש/נטוי/קו-תחתון/קו-חוצה. מסמנים מילים ולוחצים — העיצוב נשמר ומוצג גם ברשימת הפתקים.' },
     { icon: "photo", title: "תמונות והקלטת קול", text: 'במסך כתיבת הפתק: כפתור מיקרופון מקליט קול (נשמר עם נגן להאזנה), וכפתור תמונה מוסיף תמונות — נשמרות קטנות, לחיצה מגדילה למסך מלא ואפשר לדפדף בין כולן. אפשר לבחור כמה תמונות יחד, וגם פשוט להדביק תמונה מהלוח (צילום מסך או "העתק תמונה") ישר לתוך הפתק.' },
     { icon: "link", title: "שמירת קישורים מרשתות", text: 'מצאת סרטון באינסטגרם, טיקטוק, פייסבוק או יוטיוב? הכי מהיר — מתוך האפליקציה של הרשת לחץ "שתף" ובחר ב-IdeaFlow: הקישור נשמר לבד כפתק כתום עם הכותרת של הסרטון ותמונה ממוזערת, ולחיצה עליו פותח אותו. אפשר גם בעורך הפתק ללחוץ על אייקון הקישור (🔗) ולהדביק, או פשוט להדביק קישור לתוך פתק ריק.' },
-    { icon: "check", title: "רשימות סימון", text: 'בתפריט ⋮ ← "רשימת סימון": כל שורה הופכת לפריט עם ריבוע. נגיעה בריבוע מסמנת כבוצע ומעבירה קו חוצה, Enter מוסיף פריט, ולחיצה חוזרת מחזירה לטקסט רגיל. ליד כל פריט יש אייקון תווית — בוחרים פרויקט מהרשימה, והפריט מקבל צ׳יפ צבעוני עם שם הפרויקט. המשימה מופיעה גם בתוך הפרויקט, תחת "משימות מפתקים" — סימון V שם או בפתק מעדכן את שניהם, ולחיצה על המשימה פותחת עריכה שלה במקום, בלי לעזוב את הפרויקט (משם אפשר גם לפתוח את הפתק המלא).' },
+    { icon: "check", title: "רשימות סימון", text: 'בתפריט ⋮ ← "רשימת סימון": כל שורה הופכת לפריט עם ריבוע. נגיעה בריבוע מסמנת כבוצע ומעבירה קו חוצה, Enter מוסיף פריט, ולחיצה חוזרת מחזירה לטקסט רגיל. ליד כל פריט יש אייקון תווית — בוחרים פרויקט מהרשימה, והפריט מקבל צ׳יפ צבעוני עם שם הפרויקט. המשימה מופיעה גם בתוך הפרויקט, תחת "משימות מפתקים" — סימון V שם או בפתק מעדכן את שניהם, ולחיצה על המשימה פותחת עריכה שלה במקום, בלי לעזוב את הפרויקט (משם אפשר גם לפתוח את הפתק המלא). אם תמחק את הפתק, המשימות שכבר סומנו V נשמרות בתוך הפרויקט כרשומות שלו ולא הולכות לאיבוד.' },
     { icon: "folder", title: "תיקיות לפתקים", text: 'שורת התיקיות בראש מסך הפתקים שומרת על סדר: מסך "פתקים" מראה רק את הפתקים החדשים שעוד לא סידרת, ולכל נושא אפשר לפתוח תיקייה (למשל "מתכונים", "קישורים"). יוצרים תיקייה בכפתור "+ תיקייה", מעבירים פתק דרך תפריט ⋮ ← "העבר לתיקייה" או בבחירה מרובה, ולחיצה ארוכה על תיקייה משנה שם או מוחקת (הפתקים חוזרים למסך הראשי).' },
     { icon: "tag", title: "צבעים וסינון", text: 'כל פתק מקבל צבע (ריבוע הצבע בכותרת העורך). כפתור הפלטה בראש רשימת הפתקים פותח סינון לפי צבע, ואפשר לתת לכל צבע שם משלך ("קניות", "עבודה") בתפריט הפרופיל.' },
     { icon: "pin", title: 'הצמדה ותווית "חדש"', text: '⋮ ← "הצמד" מעלה פתק לראש הרשימה. פתק שנוצר בשבוע האחרון מסומן בתווית קטנה "חדש" שנעלמת מעצמה.' },

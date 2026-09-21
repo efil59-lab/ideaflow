@@ -131,7 +131,7 @@ function NotesStats({ notesAll, archCount, th, nameOf, folderCount = 0, onActive
   );
 }
 
-export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote,
+export default function Notes({ uid, ideas, th, actions, onNoteDeleted, onNoteRestored, onCapture, onCreateNote,
   projects = [], onMoveToProject, noteFont = 0, colorNames = [], onSaveNames,
   folders = [], onSaveFolders, desktop = false, deskFolder, onDeskFolder }) {
   const [color, setColor] = useState(null);              // colour filter, null = all
@@ -284,7 +284,10 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   };
   const bulkArchive = () => {
     // Restoring from the archive also clears any pending-delete countdown.
-    selNotes.forEach(n => actions.update?.(n.id, showArch ? { archived: false, deletedAt: null } : { archived: true }, n));
+    selNotes.forEach(n => {
+      actions.update?.(n.id, showArch ? { archived: false, deletedAt: null } : { archived: true }, n);
+      if (showArch) onNoteRestored?.(n);
+    });
     setSelected(null);
   };
   const bulkPin = () => {
@@ -296,8 +299,14 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
   const doDelete = list => {
     // Deleting a note sends it to the notes ARCHIVE with a 30-day countdown;
     // deleting from inside the archive removes it for good.
-    if (showArch) list.forEach(n => actions.destroy?.(n));
-    else list.forEach(n => actions.update?.(n.id, { archived: true, deletedAt: Date.now(), pinned: false, remindAt: null }, n));
+    if (showArch) list.forEach(n => {
+      if (!n.deletedAt) onNoteDeleted?.(n);   // archived by hand, never snapshotted
+      actions.destroy?.(n);
+    });
+    else list.forEach(n => {
+      onNoteDeleted?.(n);
+      actions.update?.(n.id, { archived: true, deletedAt: Date.now(), pinned: false, remindAt: null }, n);
+    });
     setConfirmDel(null);
     setSelected(null);
   };
@@ -603,7 +612,10 @@ export default function Notes({ uid, ideas, th, actions, onCapture, onCreateNote
             else if (kind === "remind") actions.remind?.(note);
             else if (kind === "move") onMoveToProject?.([note]);
             else if (kind === "folder") setFolderPickFor([note]);
-            else if (kind === "archive") actions.update?.(note.id, note.archived ? { archived: false, deletedAt: null } : { archived: true }, note);
+            else if (kind === "archive") {
+              actions.update?.(note.id, note.archived ? { archived: false, deletedAt: null } : { archived: true }, note);
+              if (note.archived) onNoteRestored?.(note);
+            }
             else if (kind === "pin") actions.update?.(note.id, { pinned: !note.pinned }, note);
             else if (kind === "delete") setConfirmDel([note]);   // always warn first
           }}
