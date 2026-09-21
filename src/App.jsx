@@ -881,7 +881,12 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     guideNotSeenYet(uid)
       .then(firstTime => {
         if (firstTime) { setShowGuide(true); return markVersionSeen(uid); }
-        return whatsNewNotSeenYet(uid).then(show => { if (show) setShowWhatsNew(true); });
+        return whatsNewNotSeenYet(uid).then(show => {
+          // A quiet release bumps the version with no changelog entry of its
+          // own — nothing to announce, so the dialog stays closed (the version
+          // is stamped as seen either way).
+          if (show && CHANGELOG[0]?.v === APP_VERSION) setShowWhatsNew(true);
+        });
       })
       .catch(() => {});
   }, [uid, migrating]);
