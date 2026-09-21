@@ -569,6 +569,11 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
   const linked = [];
   ideas.forEach(n => {
     if (n.status !== "note" || n.archived) return;
+    // A whole note can carry the tag too — then the note itself is the task.
+    if (n.tagProject === project.id) {
+      linked.push({ note: n, whole: true,
+        it: { i: -1, done: !!n.tagDone, label: n.title || (n.text || "").split("\n")[0] || "פתק" } });
+    }
     parseChecklist(n.text).forEach(it => { if (it.projectId === project.id) linked.push({ note: n, it }); });
   });
   const linkedShown = linked.filter(x => (showDone ? x.it.done : !x.it.done));
@@ -654,8 +659,8 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
             color: th.muted, letterSpacing: 0.4, margin: "0 2px 8px" }}>
             <Icon name="notes" size={13} color={th.muted} /> משימות מפתקים · {linkedShown.length}
           </div>
-          {linkedShown.map(({ note, it }) => (
-            <LinkedTask key={note.id + ":" + it.i} note={note} it={it} th={th}
+          {linkedShown.map(({ note, it, whole }) => (
+            <LinkedTask key={note.id + ":" + it.i} note={note} it={it} whole={whole} th={th}
               color={project.color || th.accent} actions={actions} onOpenNote={onOpenNote} />
           ))}
         </div>
@@ -714,16 +719,20 @@ function MenuBtn({ th, icon, label, onClick, danger }) {
 // Behaves like a regular project task: ✓ + burst + strike-through, then it
 // slides out. Tapping the text edits the line right here — the change is
 // written back to that same line in the note.
-function LinkedTask({ note, it, th, color, actions, onOpenNote }) {
+function LinkedTask({ note, it, whole = false, th, color, actions, onOpenNote }) {
   const [completing, setCompleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const showDone = it.done || completing;
 
+  // Ticking rewrites the source: the note's own line for an item, the note's
+  // done flag when the whole note is the task.
+  const flip = () => actions.update(note.id,
+    whole ? { tagDone: !note.tagDone } : { text: toggleLine(note.text, it.i) }, note);
   const onCheck = () => {
-    if (it.done) { actions.update(note.id, { text: toggleLine(note.text, it.i) }, note); return; }
+    if (it.done) { flip(); return; }
     if (completing) return;
     setCompleting(true);
-    setTimeout(() => { actions.update(note.id, { text: toggleLine(note.text, it.i) }, note); setCompleting(false); }, 700);
+    setTimeout(() => { flip(); setCompleting(false); }, 700);
   };
 
   return (
@@ -743,7 +752,7 @@ function LinkedTask({ note, it, th, color, actions, onOpenNote }) {
           </span>}
           {completing && <ConfettiBurst />}
         </div>
-        <div onClick={() => setEditing(true)} title="ערוך משימה"
+        <div onClick={() => setEditing(true)} title={whole ? "ערוך כותרת" : "ערוך משימה"}
           style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
           <div style={{ fontSize: 14.5, lineHeight: 1.45, wordBreak: "break-word",
             color: showDone ? th.muted : th.text, textDecoration: showDone ? "line-through" : "none" }}>
@@ -751,37 +760,41 @@ function LinkedTask({ note, it, th, color, actions, onOpenNote }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: th.muted, marginTop: 3,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            <Icon name="notes" size={12} color={th.muted} /> {note.title || "פתק"}
+            <Icon name="notes" size={12} color={th.muted} /> {whole ? "פתק שלם" : (note.title || "פתק")}
           </div>
         </div>
       </div>
-      {editing && <LinkedTaskEdit note={note} it={it} th={th} actions={actions}
+      {editing && <LinkedTaskEdit note={note} it={it} whole={whole} th={th} actions={actions}
         onOpenNote={onOpenNote} onClose={() => setEditing(false)} />}
     </>
   );
 }
 
-function LinkedTaskEdit({ note, it, th, actions, onOpenNote, onClose }) {
+function LinkedTaskEdit({ note, it, whole = false, th, actions, onOpenNote, onClose }) {
   const [txt, setTxt] = useState(it.label || "");
   const save = () => {
     const label = txt.replace(/\s*\n+\s*/g, " ").trim();
     if (label && label !== it.label) {
-      const lines = String(note.text || "").split(/\r?\n/);
-      lines[it.i] = `[${it.done ? "x" : " "}] ${withTag(label, it.projectId)}`;
-      actions.update(note.id, { text: lines.join("\n") }, note);
+      if (whole) {
+        actions.update(note.id, { title: label }, note);
+      } else {
+        const lines = String(note.text || "").split(/\r?\n/);
+        lines[it.i] = `[${it.done ? "x" : " "}] ${withTag(label, it.projectId)}`;
+        actions.update(note.id, { text: lines.join("\n") }, note);
+      }
     }
     onClose();
   };
   return (
     <Modal onClose={onClose} maxWidth={440} th={th}>
-      <ModalHeader title="עריכת משימה" icon="edit" onClose={onClose} th={th} />
+      <ModalHeader title={whole ? "כותרת הפתק" : "עריכת משימה"} icon="edit" onClose={onClose} th={th} />
       <textarea value={txt} onChange={e => setTxt(e.target.value)} rows={3} autoFocus
         onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); } }}
         style={{ width: "100%", border: `1px solid ${th.border}`, borderRadius: 12, padding: 13,
           fontSize: 15, fontFamily: FONT, direction: "rtl", resize: "none",
           lineHeight: 1.6, background: th.inputBg, color: th.text }} />
       <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: th.muted, margin: "8px 2px 0" }}>
-        <Icon name="notes" size={12} color={th.muted} /> מתוך הפתק: {note.title || "פתק"}
+        <Icon name="notes" size={12} color={th.muted} /> {whole ? "הפתק כולו מתויג לפרויקט" : `מתוך הפתק: ${note.title || "פתק"}`}
       </div>
       <button onClick={save}
         style={{ marginTop: 12, width: "100%", background: th.accent, color: "#fff", border: "none",

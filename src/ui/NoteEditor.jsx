@@ -39,6 +39,7 @@ const MENU = [
   { k: "share",     label: "שיתוף",        icon: "share" },
   { k: "folder",    label: "העבר לתיקייה", icon: "folder" },
   { k: "move",      label: "העבר לפרויקט", icon: "inbox" },
+  { k: "tag",       label: "תווית פרויקט",  icon: "tag" },
   { k: "archive",   label: "לארכיון",      icon: "download" },
   { k: "delete",    label: "מחיקה",        icon: "delete", danger: true },
 ];
@@ -62,7 +63,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const [hint, setHint] = useState(null);            // brief toast (e.g. reminder on an empty note)
   const [active, setActive] = useState({});          // which format buttons are "on" for the caret
   const [focusIdx, setFocusIdx] = useState(-1);   // checklist row to focus after add/remove
-  const [tagPickFor, setTagPickFor] = useState(null); // checklist row choosing a project tag
+  const [tagPickFor, setTagPickFor] = useState(null);   // item index, or "note" for the whole note
+  const [noteTag, setNoteTag] = useState(initial?.tagProject || null); // checklist row choosing a project tag
   const idRef = useRef(initial?.id || null);
   const creatingRef = useRef(false);
   const taRef = useRef();
@@ -542,6 +544,13 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
     setMenuOpen(false);
     if (kind === "checklist") { toggleChecklist(); return; }
     await save();
+    if (kind === "tag") {
+      // Tagging writes straight to the note, so it needs one — an empty note
+      // has nothing to hang a project on.
+      if (!idRef.current) { setHint("כתוב משהו כדי לתייג את הפתק"); setTimeout(() => setHint(null), 2000); return; }
+      setTagPickFor("note");
+      return;
+    }
     const s = stateRef.current, id = idRef.current;
     if (!id) {
       // Nothing written yet — a reminder has nothing to attach to. Say so and
@@ -594,6 +603,14 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
   const setItemLine = (i, done, label, pid = items[i]?.projectId) => {
     const a = [...rawLines]; a[i] = `[${done ? "x" : " "}] ${withTag(label, pid)}`; rebuild(a);
   };
+  // The note itself can carry a project tag, exactly like a single checklist
+  // item: the note stays in the notes tab and also shows up in that project.
+  const setNoteProject = pid => {
+    setNoteTag(pid);
+    setTagPickFor(null);
+    if (idRef.current) onUpdate(idRef.current, { tagProject: pid, ...(pid ? {} : { tagDone: false }) });
+  };
+
   const setItemProject = (i, pid) => { setItemLine(i, items[i].done, items[i].label, pid); setTagPickFor(null); };
   const projById = id => projects.find(p => p.id === id);
   const toggleItem = i => setItemLine(i, !items[i].done, items[i].label);
@@ -651,7 +668,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
                 border: `1px solid ${th.border}`, boxShadow: "0 12px 34px rgba(0,0,0,0.3)",
                 overflow: "hidden", direction: "rtl" }}>
                 {MENU.map((m, i) => {
-                  const active = (m.k === "checklist" && isChecklist) || (m.k === "pin" && initial?.pinned);
+                  const active = (m.k === "checklist" && isChecklist) || (m.k === "pin" && initial?.pinned)
+                    || (m.k === "tag" && !!noteTag);
                   const label = m.k === "pin" && initial?.pinned ? "בטל הצמדה" : m.label;
                   return (
                     <button key={m.k} onClick={() => doMenu(m.k)}
@@ -702,6 +720,26 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
           להדבקה: לחיצה ארוכה על הדף למטה ואז "הדבק"
         </div>
       )}
+
+      {noteTag && (() => {
+        const pj = projById(noteTag);
+        if (!pj) return null;
+        return (
+          <div style={{ padding: "7px 14px", background: barBg, borderBottom: `1px solid ${line}`,
+            display: "flex", alignItems: "center", gap: 7, direction: "rtl" }}>
+            <button onClick={() => setTagPickFor("note")} title={`פרויקט: ${pj.name}`}
+              style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontFamily: FONT,
+                borderRadius: 9, fontSize: 12, fontWeight: 700, color: th.text,
+                background: `${pj.color}22`, border: `1px solid ${pj.color}66`, padding: "4px 9px" }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: pj.color }} />
+              {pj.name}
+            </button>
+            <span style={{ fontSize: 11.5, color: th.muted }}>
+              {initial?.tagDone ? "סומן כבוצע בפרויקט" : "מופיע בפרויקט"}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* The page — a plain lined textarea, or an interactive checklist */}
       {isChecklist ? (
@@ -917,15 +955,15 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
           <div style={{ fontSize: 15, fontWeight: 800, color: th.text, margin: "2px 4px 4px" }}>תווית פרויקט</div>
           <div style={{ fontSize: 12.5, color: th.muted, margin: "0 4px 12px",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {items[tagPickFor]?.label || "משימה"}
+            {tagPickFor === "note" ? (title.trim() || autoTitle(text) || "הפתק הזה") : (items[tagPickFor]?.label || "משימה")}
           </div>
           {projects.length === 0 && (
             <p style={{ color: th.muted, fontSize: 13.5, margin: "6px 4px 10px" }}>עוד אין פרויקטים באפליקציה.</p>
           )}
           {projects.map(pr => {
-            const on = items[tagPickFor]?.projectId === pr.id;
+            const on = tagPickFor === "note" ? noteTag === pr.id : items[tagPickFor]?.projectId === pr.id;
             return (
-              <button key={pr.id} onClick={() => setItemProject(tagPickFor, pr.id)}
+              <button key={pr.id} onClick={() => (tagPickFor === "note" ? setNoteProject(pr.id) : setItemProject(tagPickFor, pr.id))}
                 style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "11px 12px",
                   marginBottom: 6, borderRadius: 12, cursor: "pointer", fontFamily: FONT, fontSize: 14.5,
                   fontWeight: 600, textAlign: "right", color: th.text,
@@ -936,8 +974,8 @@ export default function NoteEditor({ initial, defaultColor = 0, colorNames = [],
               </button>
             );
           })}
-          {items[tagPickFor]?.projectId && (
-            <button onClick={() => setItemProject(tagPickFor, null)}
+          {(tagPickFor === "note" ? noteTag : items[tagPickFor]?.projectId) && (
+            <button onClick={() => (tagPickFor === "note" ? setNoteProject(null) : setItemProject(tagPickFor, null))}
               style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%",
                 padding: "11px 12px", marginTop: 4, borderRadius: 12, cursor: "pointer", fontFamily: FONT,
                 fontSize: 14, fontWeight: 700, color: th.red, background: "transparent",

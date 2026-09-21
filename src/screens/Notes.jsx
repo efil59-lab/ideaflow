@@ -543,7 +543,7 @@ export default function Notes({ uid, ideas, th, actions, onNoteDeleted, onNoteRe
         </div>
       ) : view === "rows" ? (
         <div data-nokbd>
-          {pool.map(n => <NoteRow key={n.id} {...noteProps(n)} />)}
+          {pool.map(n => <NoteRow key={n.id} {...noteProps(n)} projects={projects} />)}
         </div>
       ) : (
         <div data-nokbd style={{ display: "grid",
@@ -831,7 +831,7 @@ function fmtStamp(ts) {
 
 // One full-width row per note. Tap opens (or toggles selection); long press
 // starts selection. A selection circle appears while selecting.
-function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
+function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong, projects = [] }) {
   const c = NOTE_COLORS[note.colorIdx ?? 0];
   const bg = (note.colorIdx != null && th.pastels[note.colorIdx]) || th.surface;
   const press = usePress(onTap, onLong);
@@ -897,6 +897,7 @@ function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
             </p>
           </>
         )}
+        <NoteTagChip note={note} projects={projects} th={th} scale={scale} />
       </div>
       <div style={{ flexShrink: 0, padding: "12px 10px 12px 13px", display: "flex",
         flexDirection: "column", alignItems: "flex-end", justifyContent: "space-between", gap: 6 }}>
@@ -922,6 +923,21 @@ function NoteRow({ note, th, sortBy, scale = 1, inSel, isSel, onTap, onLong }) {
         </span>
       </div>
     </div>
+  );
+}
+
+// The chip that marks a whole note as belonging to a project — the note stays
+// here and also shows up on that project's board.
+function NoteTagChip({ note, projects, th, scale = 1 }) {
+  const pj = note.tagProject && projects.find(p => p.id === note.tagProject);
+  if (!pj) return null;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 5,
+      fontSize: Math.round(10 * scale), fontWeight: 700, color: th.text,
+      background: `${pj.color}22`, border: `1px solid ${pj.color}55`, borderRadius: 7, padding: "1px 6px",
+      textDecoration: note.tagDone ? "line-through" : "none", opacity: note.tagDone ? 0.7 : 1 }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: pj.color }} />{pj.name}
+    </span>
   );
 }
 
