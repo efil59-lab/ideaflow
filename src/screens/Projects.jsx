@@ -568,7 +568,9 @@ function ProjectDetail({ uid, project, ideas, projects, th, actions, projActions
   // note's own line and the two can never drift apart.
   const linked = [];
   ideas.forEach(n => {
-    if (n.status !== "note" || n.archived) return;
+    // A note that was archived BY finishing its tasks here still feeds the
+    // project's done view; one the user archived or deleted by hand does not.
+    if (n.status !== "note" || (n.archived && !(n.tagArchived && !n.deletedAt))) return;
     // A whole note can carry the tag too — then the note itself is the task.
     if (n.tagProject === project.id) {
       linked.push({ note: n, whole: true,
@@ -726,8 +728,19 @@ function LinkedTask({ note, it, whole = false, th, color, actions, onOpenNote })
 
   // Ticking rewrites the source: the note's own line for an item, the note's
   // done flag when the whole note is the task.
-  const flip = () => actions.update(note.id,
-    whole ? { tagDone: !note.tagDone } : { text: toggleLine(note.text, it.i) }, note);
+  // A finished note leaves the notes list for the archive — but a checklist
+  // only counts as finished once every one of its items is ticked. Unticking
+  // brings back a note that was archived this way.
+  const flip = () => {
+    const text = whole ? note.text : toggleLine(note.text, it.i);
+    const tagDone = whole ? !note.tagDone : !!note.tagDone;
+    const items = parseChecklist(text);
+    const finished = items.every(x => x.done) && (!note.tagProject || tagDone) && (whole || items.length > 0);
+    const patch = whole ? { tagDone } : { text };
+    if (finished && !note.archived) Object.assign(patch, { archived: true, tagArchived: true, pinned: false });
+    else if (!finished && note.tagArchived) Object.assign(patch, { archived: false, tagArchived: false });
+    actions.update(note.id, patch, note);
+  };
   const onCheck = () => {
     if (it.done) { flip(); return; }
     if (completing) return;

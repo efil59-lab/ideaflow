@@ -296,7 +296,7 @@ export default function Notes({ uid, ideas, th, actions, onNoteDeleted, onNoteRe
   const bulkArchive = () => {
     // Restoring from the archive also clears any pending-delete countdown.
     selNotes.forEach(n => {
-      actions.update?.(n.id, showArch ? { archived: false, deletedAt: null } : { archived: true }, n);
+      actions.update?.(n.id, showArch ? { archived: false, deletedAt: null, tagArchived: false } : { archived: true }, n);
       if (showArch) onNoteRestored?.(n);
     });
     setSelected(null);
@@ -624,7 +624,7 @@ export default function Notes({ uid, ideas, th, actions, onNoteDeleted, onNoteRe
             else if (kind === "move") onMoveToProject?.([note]);
             else if (kind === "folder") setFolderPickFor([note]);
             else if (kind === "archive") {
-              actions.update?.(note.id, note.archived ? { archived: false, deletedAt: null } : { archived: true }, note);
+              actions.update?.(note.id, note.archived ? { archived: false, deletedAt: null, tagArchived: false } : { archived: true }, note);
               if (note.archived) onNoteRestored?.(note);
             }
             else if (kind === "pin") actions.update?.(note.id, { pinned: !note.pinned }, note);
