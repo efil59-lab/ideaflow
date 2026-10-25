@@ -12,6 +12,8 @@
 // Using it (u + k from the link):
 //   GET  ?u=<uid>&k=<key>                → { ok, reminders:[…], recent:[…] }
 //   POST ?u=<uid>&k=<key>  {text}        → saves a new note → { ok, id }
+//   GET  ?u=…&k=…&lists=1                → { ok, lists:[{id,t,items:[{i,l,d}]}] }
+//   POST ?u=…&k=…&act=check {id,i,done}  → sets one checklist line → { ok }
 //
 // Keys and pairing secrets are stored only as SHA-256 hashes. watch_pairs and
 // watch_links have no client rule, so Firestore denies them to the app — only
@@ -48,6 +50,46 @@ export function autoTitle(text) {
   return (sp > 20 ? cut.slice(0, sp) : cut) + "…";
 }
 const label = d => (d.title || autoTitle(d.text) || "").trim() || "ללא כותרת";
+
+// Checklist lines — the exact rules of src/ui/Checklist.jsx: "- ", "* ", "[ ] ",
+// "[x] " are items; a project tag rides hidden at the end of the line.
+const LINE = /^(\s*)(?:[-*]\s+|\[([ xX])\]\s*)(.*)$/;
+const LINE_TAG = / ?⟦p:([^⟧\s]+)⟧[ \t]*$/;
+export function checklist(text) {
+  const out = [];
+  String(text || "").split(/\r?\n/).forEach((line, i) => {
+    const m = line.match(LINE);
+    if (m) out.push({ i, l: m[3].replace(LINE_TAG, ""), d: (m[2] || "").toLowerCase() === "x" });
+  });
+  return out;
+}
+// Sets (not flips) one line, so a double tap on the watch can't undo itself.
+export function setLine(text, index, done) {
+  const lines = String(text || "").split(/\r?\n/);
+  const m = (lines[index] || "").match(LINE);
+  if (!m) return null;
+  lines[index] = `${m[1]}[${done ? "x" : " "}] ${m[3]}`;
+  return lines.join("\n");
+}
+
+// The checklists worth having on the wrist: pinned first, then the most recently
+// touched. Same "live" rule as the rest of the watch.
+export async function buildLists(db, uid) {
+  const snap = await db.collection("users").doc(uid).collection("ideas")
+    .where("status", "==", "note")
+    // only what the list needs — notes can carry big html and image fields
+    .select("title", "text", "pinned", "archived", "deletedAt", "status", "updatedAt", "createdAt")
+    .get();
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(d => live(d))
+    .map(d => ({ d, items: checklist(d.text) }))
+    .filter(x => x.items.length > 0)
+    .sort((a, b) => (b.d.pinned ? 1 : 0) - (a.d.pinned ? 1 : 0)
+      || (b.d.updatedAt || b.d.createdAt || 0) - (a.d.updatedAt || a.d.createdAt || 0))
+    .slice(0, 12)
+    .map(({ d, items }) => ({ id: d.id, t: label(d), pinned: !!d.pinned, items: items.slice(0, 60) }));
+}
 
 // Gone from the app's own lists: trash, done, archived/deleted notes.
 const live = d => d.status !== "trash" && d.status !== "done" && !d.archived && !d.deletedAt;
@@ -193,6 +235,20 @@ export default async function handler(req, res) {
     if (!link) return res.status(403).json({ ok: false, error: "forbidden" });
     const now = Date.now();
     if (now - (link.get("lastSeen") || 0) > 3600e3) link.ref.update({ lastSeen: now }).catch(() => {});
+
+    if (req.method === "POST" && req.query?.act === "check") {
+      const ref = db.collection("users").doc(uid).collection("ideas").doc(String(body.id || "x"));
+      const n = await ref.get();
+      if (!n.exists || n.get("status") !== "note") return res.status(404).json({ ok: false, error: "gone" });
+      const text = setLine(n.get("text"), Number(body.i), !!body.done);
+      if (text === null) return res.status(409).json({ ok: false, error: "changed" });
+      await ref.update({ text, updatedAt: now });
+      return res.status(200).json({ ok: true, items: checklist(text) });
+    }
+
+    if (req.method === "GET" && req.query?.lists) {
+      return res.status(200).json({ ok: true, lists: await buildLists(db, uid) });
+    }
 
     if (req.method === "POST") {
       const text = String(body.text || "").trim().slice(0, 4000);
