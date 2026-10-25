@@ -14,6 +14,8 @@
 //   POST ?u=<uid>&k=<key>  {text}        → saves a new note → { ok, id }
 //   GET  ?u=…&k=…&lists=1                → { ok, lists:[{id,t,items:[{i,l,d}]}] }
 //   POST ?u=…&k=…&act=check {id,i,done}  → sets one checklist line → { ok }
+//   GET  ?u=…&k=…&notes=1                → { ok, notes:[{id,t,b,pinned,list}] }
+//   GET  ?u=…&k=…&lists=1&id=<noteId>    → also includes that list even if it isn't in the top 12
 //
 // Keys and pairing secrets are stored only as SHA-256 hashes. watch_pairs and
 // watch_links have no client rule, so Firestore denies them to the app — only
@@ -74,21 +76,42 @@ export function setLine(text, index, done) {
 
 // The checklists worth having on the wrist: pinned first, then the most recently
 // touched. Same "live" rule as the rest of the watch.
-export async function buildLists(db, uid) {
+// Every live note, newest-touched first with pinned on top — read with a field
+// mask, because notes can carry big html and image fields.
+async function liveNotes(db, uid) {
   const snap = await db.collection("users").doc(uid).collection("ideas")
     .where("status", "==", "note")
-    // only what the list needs — notes can carry big html and image fields
     .select("title", "text", "pinned", "archived", "deletedAt", "status", "updatedAt", "createdAt")
     .get();
   return snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
     .filter(d => live(d))
+    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)
+      || (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+}
+
+export async function buildLists(db, uid, wantId = null) {
+  const lists = (await liveNotes(db, uid))
     .map(d => ({ d, items: checklist(d.text) }))
-    .filter(x => x.items.length > 0)
-    .sort((a, b) => (b.d.pinned ? 1 : 0) - (a.d.pinned ? 1 : 0)
-      || (b.d.updatedAt || b.d.createdAt || 0) - (a.d.updatedAt || a.d.createdAt || 0))
-    .slice(0, 12)
-    .map(({ d, items }) => ({ id: d.id, t: label(d), pinned: !!d.pinned, items: items.slice(0, 60) }));
+    .filter(x => x.items.length > 0);
+  const top = lists.slice(0, 12);
+  // a list opened from the notes screen may sit below the top 12
+  const extra = wantId && !top.some(x => x.d.id === wantId) && lists.find(x => x.d.id === wantId);
+  if (extra) top.push(extra);
+  return top.map(({ d, items }) => ({ id: d.id, t: label(d), pinned: !!d.pinned, items: items.slice(0, 60) }));
+}
+
+// Notes to read on the wrist: title + plain body (project tags stripped,
+// trimmed to what a watch can sensibly scroll). Checklists are flagged so the
+// watch opens them as tickable lists.
+export async function buildNotes(db, uid) {
+  return (await liveNotes(db, uid)).slice(0, 40).map(d => {
+    const body = String(d.text || "").split(/\r?\n/).map(l => l.replace(LINE_TAG, "")).join("\n").trim();
+    return {
+      id: d.id, t: label(d), pinned: !!d.pinned, list: checklist(d.text).length > 0,
+      b: body.length > 1800 ? body.slice(0, 1800) + "…" : body,
+    };
+  });
 }
 
 // Gone from the app's own lists: trash, done, archived/deleted notes.
@@ -132,7 +155,16 @@ export async function buildSummary(db, uid, now = Date.now()) {
     .slice(0, 5)
     .map(d => ({ t: label(d), at: d.createdAt || 0 }));
 
-  return { ok: true, now, reminders, recent };
+  // Pinned notes, for the "מוצמדים" tile — an equality query, no index needed.
+  const pinSnap = await col.where("pinned", "==", true).limit(20).get();
+  const pinned = pinSnap.docs
+    .map(d => d.data())
+    .filter(d => d.status === "note" && live(d))
+    .sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))
+    .slice(0, 6)
+    .map(d => ({ t: label(d) }));
+
+  return { ok: true, now, reminders, recent, pinned };
 }
 
 // The watch's own credentials → its link doc, or null.
@@ -247,7 +279,11 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET" && req.query?.lists) {
-      return res.status(200).json({ ok: true, lists: await buildLists(db, uid) });
+      return res.status(200).json({ ok: true, lists: await buildLists(db, uid, req.query.id || null) });
+    }
+
+    if (req.method === "GET" && req.query?.notes) {
+      return res.status(200).json({ ok: true, notes: await buildNotes(db, uid) });
     }
 
     if (req.method === "POST") {
