@@ -36,6 +36,7 @@ import Projects from "./screens/Projects";
 import Notes from "./screens/Notes";
 import Search from "./screens/Search";
 import Assistant from "./screens/Assistant";
+import WatchLink from "./ui/WatchLink";
 
 // Captured at module scope — Chrome fires beforeinstallprompt very early,
 // often before React mounts. We stash the event and re-announce it.
@@ -721,6 +722,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
   const [showGuide, setShowGuide] = useState(false);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [showLog, setShowLog] = useState(false);
+  const [showWatch, setShowWatch] = useState(false);
   const [toast, setToast] = useState(null);
   const [bulbBeat, setBulbBeat] = useState(0); // header bulb pulses on capture
   const [fabOpen, setFabOpen] = useState(false);
@@ -1693,6 +1695,13 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
               <p style={{ margin: "0 0 12px", fontSize: 12.5, fontWeight: 600, color: th.accentText, textAlign: "right", direction: "rtl" }}>{notesMsg}</p>
             )}
 
+            <button onClick={() => { setShowUser(false); setShowWatch(true); }}
+              style={{ width: "100%", height: 42, marginBottom: 8, background: th.surface2, color: th.text,
+                border: `1px solid ${th.border}`, borderRadius: 11, cursor: "pointer",
+                fontSize: 14, fontWeight: 500, fontFamily: FONT,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+              <Icon name="watch" size={16} color={th.secondary} /> שעון Galaxy
+            </button>
             <button onClick={() => { setShowUser(false); setShowLog(true); }}
               style={{ width: "100%", height: 42, marginBottom: 8, background: th.surface2, color: th.text,
                 border: `1px solid ${th.border}`, borderRadius: 11, cursor: "pointer",
@@ -1716,6 +1725,7 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
       {showGuide && <Guide onClose={() => setShowGuide(false)} onLog={() => { setShowGuide(false); setShowLog(true); }} th={th} />}
       {showWhatsNew && !showGuide && <WhatsNew onClose={() => setShowWhatsNew(false)} th={th} />}
       {showLog && <UpdatesLog onClose={() => setShowLog(false)} th={th} />}
+      {showWatch && <WatchLink getToken={() => auth.currentUser?.getIdToken()} onClose={() => setShowWatch(false)} th={th} />}
       {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} th={th} />}
 
       {/* Install banner waits politely while the guide (or any modal) is open */}
@@ -1922,6 +1932,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "folder", title: "פרויקטים", text: 'הספריות שלך. כל פרויקט מרכז רעיונות פעילים, עם סימון בוצע ומעקב התקדמות. כוכב ⭐ מעלה פרויקט לראש, וכרטיס הסטטוס בראש המסך מראה כמה פעיל.' },
     { icon: "search", title: "חיפוש", text: 'חיפוש בכל הפתקים והפרויקטים — כותרות, טקסט ותגיות.' },
     { icon: "chat", title: "שיתוף פרויקט", text: 'בתפריט פרויקט ← שיתוף ← הוסף כתובות Gmail. המוזמנים רואים, מגיבים ומוסיפים משלהם, ואתה מקבל התראה על כל תגובה.' },
+    { icon: "watch", title: "שעון Galaxy", text: 'אפליקציית IdeaFlow לשעון מציגה אריח "רעיון בקול" (נוגעים, מדברים, והפתק נשמר כאן), אריח תזכורות להיום ולמחר, ואריח הרעיונות האחרונים. לחיבור: פותחים את האפליקציה בשעון, והיא מציגה קוד. בתפריט הפרופיל (תמונת המשתמש) ← "שעון Galaxy" מקלידים את הקוד. שם גם רואים את השעונים המחוברים ומנתקים.' },
     { icon: "download", title: "גיבוי פתקים", text: 'בתפריט הפרופיל (תמונת המשתמש): ייצוא כל הפתקים לקובץ וייבוא בחזרה. שם גם קובעים את גודל הטקסט בפתקים.' },
     { icon: "delete", title: "מחיקה הפיכה", text: 'מחיקת פתק מעבירה אותו לארכיון של הפתקים עם ספירה לאחור — 30 יום, ואז מחיקה אוטומטית. עד אז אפשר לשחזר. פתק שהעברת לארכיון במפורש ("לארכיון") נשמר לתמיד. בארכיון יש מחיקה גורפת ("סמן הכל") למחיקה לצמיתות.' },
     { icon: "sparkle", title: "מראה ומצב כהה", text: 'בתפריט המשתמש בוחרים מראה: "אלקטריק" הכהה (ברירת מחדל), "זוהר" הצבעוני או "רגוע". כפתור הירח/שמש עובר בין בהיר לכהה.' },

@@ -4,11 +4,14 @@
 //      the accumulating in-app log ("יומן עדכונים") AND the source of the
 //      what's-new dialog, which shows the top entry once per version bump.
 //   3. update the Guide in App.jsx — substantial, user-facing topics only.
-export const APP_VERSION = "6.23";
+export const APP_VERSION = "6.24";
 
 // Accumulating release log, newest first. Each entry: { v, date, items:[{icon,title,text}] }.
 // icon must be a key in Icons.jsx. Keep item text short and user-facing (Hebrew).
 export const CHANGELOG = [
+  { v: "6.24", date: "25 באוקטובר 2026", items: [
+    { icon: "watch", title: "IdeaFlow בשעון Galaxy", text: "לשעון יש עכשיו אפליקציה משלו: אריח \"רעיון בקול\" — נוגעים, מדברים, והרעיון נשמר כאן כפתק. לצידו אריח התזכורות להיום ולמחר ואריח הרעיונות האחרונים. לחיבור פותחים את האפליקציה בשעון, והיא מציגה קוד. מקלידים אותו בתפריט הפרופיל ← \"שעון Galaxy\". כל שעון מתחבר לחשבון של מי שהקליד, ושם גם מנתקים." },
+  ] },
   { v: "6.21", date: "21 בספטמבר 2026", items: [
     { icon: "tag", title: "תווית פרויקט גם לפתק שלם", text: "עד עכשיו רק משימה ברשימת סימון יכלה להיות מתויגת לפרויקט. מעכשיו גם פתק רגיל: בתפריט ⋯ של הפתק בוחרים \"תווית פרויקט\", והפתק מופיע בלוח של הפרויקט בלי לצאת מלשונית פתקים. V בפרויקט מסמן את הפתק כבוצע, לחיצה על השורה עורכת את הכותרת במקום, ומחיקת הפתק שומרת בפרויקט את מה שסומן." },
   ] },

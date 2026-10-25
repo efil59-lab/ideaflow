@@ -34,6 +34,7 @@ const ICONS = {
   refresh:(c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>,
   email:  (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
   time:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  watch:  (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><rect x="6" y="6" width="12" height="12" rx="3.5"/><path d="M9 6l.8-3.5h4.4L15 6M9 18l.8 3.5h4.4L15 18"/><path d="M12 9.5V12l1.6 1.2"/></svg>,
   bell:   (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
   belloff:(c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
   tag:    (c,s) => <svg width={s} height={s} viewBox="0 0 24 24" stroke={c} {...S}><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.83z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
