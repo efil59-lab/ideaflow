@@ -14,7 +14,7 @@
 //   POST ?u=<uid>&k=<key>  {text}        → saves a new note → { ok, id }
 //   GET  ?u=…&k=…&lists=1                → { ok, lists:[{id,t,items:[{i,l,d}]}] }
 //   POST ?u=…&k=…&act=check {id,i,done}  → sets one checklist line → { ok }
-//   GET  ?u=…&k=…&notes=1                → { ok, notes:[{id,t,b,pinned,list}] }
+//   GET  ?u=…&k=…&notes=1                → { ok, notes:[{id,t,b,pinned,list,f,c}], folders:[{id,name}] }
 //   GET  ?u=…&k=…&lists=1&id=<noteId>    → also includes that list even if it isn't in the top 12
 //
 // Keys and pairing secrets are stored only as SHA-256 hashes. watch_pairs and
@@ -81,7 +81,7 @@ export function setLine(text, index, done) {
 async function liveNotes(db, uid) {
   const snap = await db.collection("users").doc(uid).collection("ideas")
     .where("status", "==", "note")
-    .select("title", "text", "pinned", "archived", "deletedAt", "status", "updatedAt", "createdAt")
+    .select("title", "text", "pinned", "archived", "deletedAt", "status", "updatedAt", "createdAt", "folderId", "colorIdx")
     .get();
   return snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
@@ -105,11 +105,12 @@ export async function buildLists(db, uid, wantId = null) {
 // trimmed to what a watch can sensibly scroll). Checklists are flagged so the
 // watch opens them as tickable lists.
 export async function buildNotes(db, uid) {
-  return (await liveNotes(db, uid)).slice(0, 40).map(d => {
+  return (await liveNotes(db, uid)).slice(0, 200).map(d => {
     const body = String(d.text || "").split(/\r?\n/).map(l => l.replace(LINE_TAG, "")).join("\n").trim();
     return {
       id: d.id, t: label(d), pinned: !!d.pinned, list: checklist(d.text).length > 0,
-      b: body.length > 1800 ? body.slice(0, 1800) + "…" : body,
+      f: d.folderId || null, c: Number.isInteger(d.colorIdx) ? d.colorIdx : 0,
+      b: body.length > 1200 ? body.slice(0, 1200) + "…" : body,
     };
   });
 }
@@ -283,7 +284,10 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET" && req.query?.notes) {
-      return res.status(200).json({ ok: true, notes: await buildNotes(db, uid) });
+      // The phone's folders, in the user's own order — the watch groups by them.
+      const folders = ((await db.collection("users").doc(uid).get()).get("folders") || [])
+        .filter(f => f && f.id && f.name).map(f => ({ id: String(f.id), name: String(f.name) }));
+      return res.status(200).json({ ok: true, notes: await buildNotes(db, uid), folders });
     }
 
     if (req.method === "POST") {
