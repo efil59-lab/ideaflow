@@ -14,6 +14,7 @@
 //   POST ?u=<uid>&k=<key>  {text}        → saves a new note → { ok, id }
 //   GET  ?u=…&k=…&lists=1                → { ok, lists:[{id,t,items:[{i,l,d}]}] }
 //   POST ?u=…&k=…&act=check {id,i,done}  → sets one checklist line → { ok }
+//   POST ?u=…&k=…&act=delete {id}        → note to the notes archive (30 days), like the phone
 //   GET  ?u=…&k=…&notes=1                → { ok, notes:[{id,t,b,pinned,list,f,c}], folders:[{id,name}] }
 //   GET  ?u=…&k=…&lists=1&id=<noteId>    → also includes that list even if it isn't in the top 12
 //
@@ -168,6 +169,62 @@ export async function buildSummary(db, uid, now = Date.now()) {
   return { ok: true, now, reminders, recent, pinned };
 }
 
+// A new idea with the same defaults as addIdea in src/data/store.js.
+const ideaDoc = (data, now) => ({
+  text: "", html: "", title: "", tags: [],
+  status: "inbox", projectId: null, aiProject: null,
+  pinned: false, colorIdx: null, order: null, noCheck: false,
+  images: [], audios: [], files: [], links: [], folderId: null, remindAt: null,
+  repeat: null, repeatAnchor: null, comments: [],
+  createdAt: now, updatedAt: now,
+  ...data,
+});
+
+/**
+ * Deleting a note from the watch does exactly what the phone does:
+ *  1. ticked tasks tagged to a project are copied into that project, so the
+ *     work survives the note (snapshotNoteTasks in src/App.jsx);
+ *  2. the note goes to the notes archive with a 30-day countdown, unpinned and
+ *     without its reminder (doDelete in src/screens/Notes.jsx);
+ *  3. the reminder mirror the cron reads is removed (syncReminder in store.js).
+ * Returns how many tasks were kept in projects.
+ */
+export async function deleteNote(db, uid, id, now = Date.now()) {
+  const user = db.collection("users").doc(uid);
+  const ref = user.collection("ideas").doc(String(id || "x"));
+  const snap = await ref.get();
+  if (!snap.exists || snap.get("status") !== "note") return { ok: false, error: "gone" };
+  const note = { id: snap.id, ...snap.data() };
+  if (note.deletedAt) return { ok: true, kept: 0 };   // already on its way out
+
+  const projects = new Set((await user.collection("projects").select().get()).docs.map(d => d.id));
+  const ideas = user.collection("ideas");
+  const color = Number.isInteger(note.colorIdx) ? note.colorIdx : null;
+  let kept = 0;
+  if (note.tagProject && note.tagDone && projects.has(note.tagProject)) {
+    const body = String(note.text || "").split(/\r?\n/).map(l => l.replace(LINE_TAG, "")).join("\n");
+    await ideas.doc(crypto.randomUUID()).set(ideaDoc({ text: body, title: note.title || "", status: "done",
+      projectId: note.tagProject, srcNote: note.id, colorIdx: color }, now));
+    kept++;
+  }
+  const seen = new Set();
+  for (const line of String(note.text || "").split(/\r?\n/)) {
+    const m = line.match(LINE);
+    if (!m || (m[2] || "").toLowerCase() !== "x") continue;
+    const pid = (m[3].match(LINE_TAG) || [])[1];
+    const text = m[3].replace(LINE_TAG, "").trim();
+    if (!pid || !text || !projects.has(pid) || seen.has(pid + "\u0000" + text)) continue;
+    seen.add(pid + "\u0000" + text);
+    await ideas.doc(crypto.randomUUID()).set(ideaDoc({ text, status: "done", projectId: pid,
+      srcNote: note.id, colorIdx: color }, now));
+    kept++;
+  }
+
+  await ref.update({ archived: true, deletedAt: now, pinned: false, remindAt: null, updatedAt: now });
+  await db.collection("reminders").doc(`${uid}_${note.id}`).delete().catch(() => {});
+  return { ok: true, kept };
+}
+
 // The watch's own credentials → its link doc, or null.
 async function findLink(db, uid, key) {
   if (!uid || !key) return null;
@@ -277,6 +334,11 @@ export default async function handler(req, res) {
       if (text === null) return res.status(409).json({ ok: false, error: "changed" });
       await ref.update({ text, updatedAt: now });
       return res.status(200).json({ ok: true, items: checklist(text) });
+    }
+
+    if (req.method === "POST" && req.query?.act === "delete") {
+      const r = await deleteNote(db, uid, body.id, now);
+      return res.status(r.ok ? 200 : 404).json(r);
     }
 
     if (req.method === "GET" && req.query?.lists) {
