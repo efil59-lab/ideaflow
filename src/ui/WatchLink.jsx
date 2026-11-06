@@ -1,4 +1,4 @@
-// Connect a Galaxy Watch to this account: the watch shows a 6-digit code, the
+// Connect a Galaxy Watch or the Android Auto app to this account: the watch shows a 6-digit code, the
 // user types it here. Also lists the account's watches and disconnects one.
 import { useEffect, useState } from "react";
 import { Modal, ModalHeader, Confirm } from "./base";
@@ -37,13 +37,13 @@ export default function WatchLink({ getToken, onClose, th }) {
     try {
       const d = await call("claim", getToken, { code: c });
       if (d.ok) {
-        setMsg({ ok: true, text: "השעון מתחבר — תוך כמה שניות הוא יציג את הרעיונות שלך" });
+        setMsg({ ok: true, text: "מתחבר — תוך כמה שניות הרעיונות שלך יופיעו שם" });
         setCode("");
         setTimeout(load, 5000);
       } else {
         setMsg({ ok: false, text: d.error === "no-code"
           ? "הקוד לא נמצא או שפג תוקפו. בקש בשעון קוד חדש ונסה שוב"
-          : "השעון כבר חובר לחשבון אחר" });
+          : "הקוד כבר חובר לחשבון אחר" });
       }
     } catch {
       setMsg({ ok: false, text: "אין חיבור כרגע. נסה שוב בעוד רגע" });
@@ -59,9 +59,9 @@ export default function WatchLink({ getToken, onClose, th }) {
 
   return (
     <Modal onClose={onClose} maxWidth={380} th={th}>
-      <ModalHeader title="שעון Galaxy" icon="watch" onClose={onClose} th={th} />
+      <ModalHeader title="שעון ורכב" icon="watch" onClose={onClose} th={th} />
       <p style={{ margin: "0 0 12px", fontSize: 13.5, lineHeight: 1.6, color: th.secondary, direction: "rtl" }}>
-        פתח את IdeaFlow בשעון. יופיע שם קוד של 6 ספרות — הקלד אותו כאן, והשעון יתחבר לחשבון שלך.
+        פתח את IdeaFlow בשעון, או את IdeaFlow לרכב בטלפון. יופיע שם קוד של 6 ספרות — הקלד אותו כאן, והם יתחברו לחשבון שלך.
       </p>
       <div style={{ display: "flex", gap: 8, direction: "rtl" }}>
         <input value={code} inputMode="numeric" maxLength={7} placeholder="123456"
@@ -82,17 +82,19 @@ export default function WatchLink({ getToken, onClose, th }) {
           color: msg.ok ? th.green : th.red }}>{msg.text}</p>
       )}
 
-      <p style={{ margin: "20px 0 8px", fontSize: 12, fontWeight: 700, color: th.muted, direction: "rtl" }}>שעונים מחוברים</p>
+      <p style={{ margin: "20px 0 8px", fontSize: 12, fontWeight: 700, color: th.muted, direction: "rtl" }}>מחוברים</p>
       {watches === null ? (
         <p style={{ fontSize: 13, color: th.muted, direction: "rtl", margin: 0 }}>טוען…</p>
       ) : watches.length === 0 ? (
-        <p style={{ fontSize: 13, color: th.muted, direction: "rtl", margin: 0 }}>עוד אין שעון מחובר.</p>
+        <p style={{ fontSize: 13, color: th.muted, direction: "rtl", margin: 0 }}>עוד אין שעון או רכב מחוברים.</p>
       ) : watches.map((w, i) => (
         <div key={w.id} style={{ display: "flex", alignItems: "center", gap: 10, direction: "rtl",
           padding: "10px 12px", marginBottom: 6, borderRadius: 12, background: th.surface2, border: `1px solid ${th.border}` }}>
           <Icon name="watch" size={18} color={th.accentText} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: th.text }}>שעון {watches.length > 1 ? i + 1 : ""}</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: th.text }}>
+              {w.kind === "car" ? "רכב (Android Auto)" : "שעון"}{watches.filter(x => x.kind === w.kind).length > 1 ? ` ${watches.filter(x => x.kind === w.kind).indexOf(w) + 1}` : ""}
+            </div>
             <div style={{ fontSize: 11.5, color: th.muted }}>חובר {when(w.createdAt)} · פעיל לאחרונה {when(w.lastSeen)}</div>
           </div>
           <button onClick={() => setConfirmId(w.id)}
@@ -104,8 +106,8 @@ export default function WatchLink({ getToken, onClose, th }) {
       ))}
 
       {confirmId && (
-        <Confirm title="לנתק את השעון?" icon="watch" confirmLabel="נתק"
-          message="השעון יפסיק להציג את הרעיונות שלך ולא יוכל לשמור חדשים. אפשר לחבר אותו שוב בכל רגע עם קוד חדש."
+        <Confirm title="לנתק?" icon="watch" confirmLabel="נתק"
+          message="המכשיר יפסיק להציג את הרעיונות שלך ולא יוכל לשמור חדשים. אפשר לחבר אותו שוב בכל רגע עם קוד חדש."
           onConfirm={() => unlink(confirmId)} onCancel={() => setConfirmId(null)} th={th} />
       )}
     </Modal>

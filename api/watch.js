@@ -3,7 +3,7 @@
 // IdeaFlow account of whoever signed in on the phone.
 //
 // Linking (the watch shows a code, the phone types it):
-//   POST ?op=start                       → watch gets { code, secret }
+//   POST ?op=start  {kind}               → watch/car gets { code, secret } (kind: "watch" | "car")
 //   POST ?op=claim   {idToken, code}     → phone (signed in) claims the code
 //   POST ?op=poll    {code, secret}      → watch gets { linked, u, k } once claimed
 //   POST ?op=list    {idToken}           → phone: the account's linked watches
@@ -14,6 +14,7 @@
 //   POST ?u=<uid>&k=<key>  {text}        → saves a new note → { ok, id }
 //   GET  ?u=…&k=…&lists=1                → { ok, lists:[{id,t,items:[{i,l,d}]}] }
 //   POST ?u=…&k=…&act=check {id,i,done}  → sets one checklist line → { ok }
+//   POST ?u=…&k=…&act=audio {data,secs}  → a voice note (WAV, base64) from the car → { ok, id }
 //   POST ?u=…&k=…&act=delete {id}        → note to the notes archive (30 days), like the phone
 //   GET  ?u=…&k=…&notes=1                → { ok, notes:[{id,t,b,pinned,list,f,c}], folders:[{id,name}] }
 //   GET  ?u=…&k=…&lists=1&id=<noteId>    → also includes that list even if it isn't in the top 12
@@ -225,6 +226,43 @@ export async function deleteNote(db, uid, id, now = Date.now()) {
   return { ok: true, kept };
 }
 
+const BUCKET = process.env.FIREBASE_STORAGE_BUCKET || "ideaflow-81aee.firebasestorage.app";
+const IL_TIME = new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
+/**
+ * A recording from the car's microphone becomes a note with a voice clip —
+ * stored exactly like a clip recorded in the app (src/data/media.js): a file
+ * under users/{uid}/media and { url, path, name, size, type } in note.audios.
+ */
+export async function saveVoiceNote(db, uid, body, now = Date.now()) {
+  const buf = Buffer.from(String(body.data || ""), "base64");
+  // a WAV header alone is 44 bytes; anything under ~half a second isn't speech
+  if (buf.length < 16000 || buf.slice(0, 4).toString() !== "RIFF") return { ok: false, error: "empty" };
+  if (buf.length > 3.2 * 1024 * 1024) return { ok: false, error: "too-long" };
+  const id = crypto.randomUUID();
+  const name = "car.wav";
+  const path = `users/${uid}/media/${id}_${name}`;
+  const token = crypto.randomUUID();
+  await admin.storage().bucket(BUCKET).file(path).save(buf, {
+    resumable: false,
+    metadata: { contentType: "audio/wav", metadata: { firebaseStorageDownloadTokens: token } },
+  });
+  const url = `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
+  const secs = Math.max(1, Math.round(Number(body.secs) || buf.length / 32000));
+  const title = `הקלטה מהרכב ${IL_TIME.format(new Date(now))}`;
+  const ref = db.collection("users").doc(uid).collection("ideas").doc(crypto.randomUUID());
+  await ref.set({
+    text: `🎙 ${title} · ${secs} שניות`, html: "", title, tags: [],
+    status: "note", projectId: null, aiProject: null,
+    pinned: false, colorIdx: 0, order: null, noCheck: true,
+    images: [], audios: [{ url, path, name, size: buf.length, type: "audio/wav" }],
+    files: [], links: [], folderId: null,
+    remindAt: null, repeat: null, repeatAnchor: null, comments: [],
+    source: "car", createdAt: now, updatedAt: now,
+  });
+  return { ok: true, id: ref.id };
+}
+
 // The watch's own credentials → its link doc, or null.
 async function findLink(db, uid, key) {
   if (!uid || !key) return null;
@@ -250,7 +288,8 @@ async function pairing(db, op, body, res) {
       const cur = await ref.get();
       if (cur.exists && cur.get("expiresAt") > now) continue;
       const secret = crypto.randomBytes(24).toString("hex");
-      await ref.set({ secretHash: sha(secret), createdAt: now, expiresAt: now + PAIR_TTL, uid: null });
+      const kind = body.kind === "car" ? "car" : "watch";
+      await ref.set({ secretHash: sha(secret), createdAt: now, expiresAt: now + PAIR_TTL, uid: null, kind });
       return res.status(200).json({ ok: true, code, secret, ttl: PAIR_TTL });
     }
     return res.status(503).json({ ok: false, error: "busy" });
@@ -270,7 +309,7 @@ async function pairing(db, op, body, res) {
     const uid = p.get("uid");
     const key = crypto.randomBytes(32).toString("hex");
     const link = db.collection("watch_links").doc();
-    await link.set({ uid, keyHash: sha(key), createdAt: now, lastSeen: now });
+    await link.set({ uid, keyHash: sha(key), createdAt: now, lastSeen: now, kind: p.get("kind") || "watch" });
     await ref.delete();
     return res.status(200).json({ ok: true, linked: true, u: uid, k: key });
   }
@@ -291,7 +330,7 @@ async function pairing(db, op, body, res) {
   if (op === "list") {
     const snap = await db.collection("watch_links").where("uid", "==", uid).get();
     const watches = snap.docs
-      .map(d => ({ id: d.id, createdAt: d.get("createdAt") || 0, lastSeen: d.get("lastSeen") || 0 }))
+      .map(d => ({ id: d.id, createdAt: d.get("createdAt") || 0, lastSeen: d.get("lastSeen") || 0, kind: d.get("kind") || "watch" }))
       .sort((a, b) => b.createdAt - a.createdAt);
     return res.status(200).json({ ok: true, watches });
   }
@@ -334,6 +373,11 @@ export default async function handler(req, res) {
       if (text === null) return res.status(409).json({ ok: false, error: "changed" });
       await ref.update({ text, updatedAt: now });
       return res.status(200).json({ ok: true, items: checklist(text) });
+    }
+
+    if (req.method === "POST" && req.query?.act === "audio") {
+      const r = await saveVoiceNote(db, uid, body, now);
+      return res.status(r.ok ? 200 : 400).json(r);
     }
 
     if (req.method === "POST" && req.query?.act === "delete") {
