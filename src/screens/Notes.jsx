@@ -31,6 +31,14 @@ const SORTS = [
   ["reminder", "לפי זמן תזכורת", "bell"],
 ];
 
+// When the last long-press fired, on ANY card. Android sends its own
+// `contextmenu` for the same hold, and on phones with a longer "touch & hold"
+// delay it arrives AFTER our 550ms timer has already started selection. By then
+// the selection bar and circles have shifted the list, so the browser hit-tests
+// that late `contextmenu` onto whatever card is now under the finger and a
+// second, untouched note got selected on release. One hold = one long-press.
+let lastLongAt = 0;
+
 // Tap vs long-press on one element, with scroll-cancel and click suppression.
 function usePress(onTap, onLong) {
   const t = useRef(); const fired = useRef(false); const start = useRef([0, 0]);
@@ -48,7 +56,7 @@ function usePress(onTap, onLong) {
     onPointerDown: e => {
       fired.current = false; start.current = [e.clientX, e.clientY];
       clearTimeout(t.current);
-      t.current = setTimeout(() => { fired.current = true; onLong(); }, 550);
+      t.current = setTimeout(() => { fired.current = true; lastLongAt = Date.now(); onLong(); }, 550);
     },
     onPointerMove: e => {
       const [x, y] = start.current;
@@ -58,7 +66,12 @@ function usePress(onTap, onLong) {
     onPointerCancel: () => { clearTimeout(t.current); fired.current = false; },
     onPointerLeave: () => clearTimeout(t.current),
     onClick: () => { if (fired.current) { fired.current = false; return; } onTap(); },
-    onContextMenu: e => { e.preventDefault(); if (!fired.current) { fired.current = true; onLong(); } },
+    onContextMenu: e => {
+      e.preventDefault();
+      clearTimeout(t.current);
+      if (fired.current || Date.now() - lastLongAt < 2000) return;
+      fired.current = true; lastLongAt = Date.now(); onLong();
+    },
   };
 }
 
