@@ -15,6 +15,7 @@
 //   GET  ?u=…&k=…&lists=1                → { ok, lists:[{id,t,items:[{i,l,d}]}] }
 //   POST ?u=…&k=…&act=check {id,i,done}  → sets one checklist line → { ok }
 //   POST ?u=…&k=…&act=audio {data,secs}  → a voice note (WAV, base64) from the car → { ok, id }
+//   POST ?u=…&k=…&act=remind {id,when}   → set/clear the note's reminder (when: 3h|1h|20|9|none)
 //   POST ?u=…&k=…&act=delete {id}        → note to the notes archive (30 days), like the phone
 //   GET  ?u=…&k=…&notes=1                → { ok, notes:[{id,t,b,pinned,list,f,c}], folders:[{id,name}] }
 //   GET  ?u=…&k=…&lists=1&id=<noteId>    → also includes that list even if it isn't in the top 12
@@ -229,6 +230,41 @@ export async function deleteNote(db, uid, id, now = Date.now()) {
 const BUCKET = process.env.FIREBASE_STORAGE_BUCKET || "ideaflow-81aee.firebasestorage.app";
 const IL_TIME = new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
+// Israel wall clock → UTC ms: "today/tomorrow at HH:MM" the way the user means it.
+function ilAt(dayOffset, h, m, now = Date.now()) {
+  const p = Object.fromEntries(IL.formatToParts(new Date(now + dayOffset * 864e5)).map(x => [x.type, x.value]));
+  const guess = Date.UTC(+p.year, +p.month - 1, +p.day, h, m);
+  // the offset at that moment (2h or 3h with DST): format the guess back in Israel time
+  const q = Object.fromEntries(IL.formatToParts(new Date(guess)).map(x => [x.type, x.value]));
+  const shown = Date.UTC(+q.year, +q.month - 1, +q.day, +q.hour, +q.minute);
+  return guess - (shown - guess);
+}
+
+/** The car's reminder choices, computed here so the car never has to know the time zone. */
+export function remindTime(when, now = Date.now()) {
+  if (when === "3h") return now + 3 * 3600e3;
+  if (when === "1h") return now + 3600e3;
+  if (when === "20") { const t = ilAt(0, 20, 0, now); return t > now + 60e3 ? t : ilAt(1, 20, 0, now); }
+  if (when === "9") return ilAt(1, 9, 0, now);
+  return null;
+}
+
+/**
+ * Sets (or clears) a note's reminder exactly like the app does: remindAt on the
+ * note plus the reminders/{uid}_{id} mirror the cron reads (syncReminder in
+ * src/data/store.js). The push then opens the note.
+ */
+export async function setReminder(db, uid, id, at, now = Date.now()) {
+  const ref = db.collection("users").doc(uid).collection("ideas").doc(String(id || "x"));
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: false, error: "gone" };
+  await ref.update({ remindAt: at, repeat: null, repeatAnchor: null, updatedAt: now });
+  const mirror = db.collection("reminders").doc(`${uid}_${snap.id}`);
+  if (at) await mirror.set({ uid, ideaId: snap.id, at, repeat: null, anchor: at, text: String(snap.get("text") || "").slice(0, 180) });
+  else await mirror.delete().catch(() => {});
+  return { ok: true, at };
+}
+
 /**
  * A recording from the car's microphone becomes a note with a voice clip —
  * stored exactly like a clip recorded in the app (src/data/media.js): a file
@@ -260,7 +296,10 @@ export async function saveVoiceNote(db, uid, body, now = Date.now()) {
     remindAt: null, repeat: null, repeatAnchor: null, comments: [],
     source: "car", createdAt: now, updatedAt: now,
   });
-  return { ok: true, id: ref.id };
+  // Efi's default: every voice note from the car comes back as a reminder in
+  // 3 hours, even if nothing is tapped after saving. The car offers to change it.
+  const r = await setReminder(db, uid, ref.id, remindTime("3h", now), now);
+  return { ok: true, id: ref.id, remindAt: r.at };
 }
 
 // The watch's own credentials → its link doc, or null.
@@ -378,6 +417,11 @@ export default async function handler(req, res) {
     if (req.method === "POST" && req.query?.act === "audio") {
       const r = await saveVoiceNote(db, uid, body, now);
       return res.status(r.ok ? 200 : 400).json(r);
+    }
+
+    if (req.method === "POST" && req.query?.act === "remind") {
+      const r = await setReminder(db, uid, body.id, remindTime(String(body.when || "none"), now), now);
+      return res.status(r.ok ? 200 : 404).json(r);
     }
 
     if (req.method === "POST" && req.query?.act === "delete") {
