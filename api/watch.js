@@ -81,10 +81,14 @@ export function setLine(text, index, done) {
 // touched. Same "live" rule as the rest of the watch.
 // Every live note, newest-touched first with pinned on top — read with a field
 // mask, because notes can carry big html and image fields.
+// Body without project tags, and the note's first voice clip (the car plays it).
+const plainBody = d => String(d.text || "").split(/\r?\n/).map(l => l.replace(LINE_TAG, "")).join("\n").trim();
+const firstAudio = d => (Array.isArray(d.audios) && d.audios.find(a => a && a.url)?.url) || null;
+
 async function liveNotes(db, uid) {
   const snap = await db.collection("users").doc(uid).collection("ideas")
     .where("status", "==", "note")
-    .select("title", "text", "pinned", "archived", "deletedAt", "status", "updatedAt", "createdAt", "folderId", "colorIdx")
+    .select("title", "text", "pinned", "archived", "deletedAt", "status", "updatedAt", "createdAt", "folderId", "colorIdx", "audios")
     .get();
   return snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
@@ -109,11 +113,12 @@ export async function buildLists(db, uid, wantId = null) {
 // watch opens them as tickable lists.
 export async function buildNotes(db, uid) {
   return (await liveNotes(db, uid)).slice(0, 200).map(d => {
-    const body = String(d.text || "").split(/\r?\n/).map(l => l.replace(LINE_TAG, "")).join("\n").trim();
+    const body = plainBody(d);
     return {
       id: d.id, t: label(d), pinned: !!d.pinned, list: checklist(d.text).length > 0,
       f: d.folderId || null, c: Number.isInteger(d.colorIdx) ? d.colorIdx : 0,
       b: body.length > 1200 ? body.slice(0, 1200) + "…" : body,
+      ...(firstAudio(d) ? { a: firstAudio(d) } : {}),
     };
   });
 }
@@ -146,7 +151,9 @@ export async function buildSummary(db, uid, now = Date.now()) {
     .filter(d => live(d))
     .map(d => {
       const p = ilParts(d.remindAt);
-      return { t: label(d), time: p.time, day: p.day === today ? "today" : p.day === tomorrow ? "tomorrow" : null, at: d.remindAt };
+      const b = plainBody(d);
+      return { id: d.id, t: label(d), time: p.time, day: p.day === today ? "today" : p.day === tomorrow ? "tomorrow" : null, at: d.remindAt,
+        b: b.length > 1200 ? b.slice(0, 1200) + "…" : b, ...(firstAudio(d) ? { a: firstAudio(d) } : {}) };
     })
     .filter(r => r.day)
     .slice(0, 6);
