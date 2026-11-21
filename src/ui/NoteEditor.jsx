@@ -40,6 +40,7 @@ const MENU = [
   { k: "folder",    label: "העבר לתיקייה", icon: "folder" },
   { k: "move",      label: "העבר לפרויקט", icon: "inbox" },
   { k: "tag",       label: "תווית פרויקט",  icon: "tag" },
+  { k: "shortcut",  label: "קיצור דרך למסך הבית", icon: "link" },
   { k: "archive",   label: "לארכיון",      icon: "download" },
   { k: "delete",    label: "מחיקה",        icon: "delete", danger: true },
 ];

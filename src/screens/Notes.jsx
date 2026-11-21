@@ -185,6 +185,7 @@ export default function Notes({ uid, ideas, th, actions, onNoteDeleted, onNoteRe
   const [activeFolderState, setActiveFolderState] = useState(null);
   const activeFolder = desktop ? (deskFolder ?? null) : activeFolderState;
   const [folderPickFor, setFolderPickFor] = useState(null);   // notes awaiting a folder | null
+  const [shortcutFor, setShortcutFor] = useState(null);       // note getting a home-screen shortcut | null
   const [newFolderOpen, setNewFolderOpen] = useState(false);  // create-folder prompt
   const [manageFolder, setManageFolder] = useState(null);     // folder action sheet (rename/delete)
   const [renameFolderObj, setRenameFolderObj] = useState(null);
@@ -641,10 +642,13 @@ export default function Notes({ uid, ideas, th, actions, onNoteDeleted, onNoteRe
               if (note.archived) onNoteRestored?.(note);
             }
             else if (kind === "pin") actions.update?.(note.id, { pinned: !note.pinned }, note);
+            else if (kind === "shortcut") setShortcutFor(note);
             else if (kind === "delete") setConfirmDel([note]);   // always warn first
           }}
           onClose={() => { setEditing(null); setPasteHint(false); }} />
       )}
+
+      {shortcutFor && <ShortcutModal note={shortcutFor} th={th} onClose={() => setShortcutFor(null)} />}
 
       {editNames && (
         <ColorNamesModal th={th} names={colorNames}
@@ -843,6 +847,44 @@ function FolderNameModal({ title, confirmLabel = "שמור", initial = "", onSav
     </Modal>
   );
 }
+
+// A home-screen icon that opens one note. A web app can't place an icon by
+// itself, so Chrome does it: we open the note's own link (/?idea=<id>) in
+// Chrome — explicitly, via an Android intent, because inside the installed app
+// the link would just stay in the app — and Chrome's ⋮ menu adds it.
+function ShortcutModal({ note, th, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const url = `${location.origin}/?idea=${encodeURIComponent(note.id)}`;
+  const android = /Android/i.test(navigator.userAgent);
+  const intent = `intent://${location.host}/?idea=${encodeURIComponent(note.id)}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`;
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2200); }
+    catch { /* clipboard blocked — the link is shown below to copy by hand */ }
+  };
+  const name = (note.title || autoTitleOf(note)).slice(0, 40);
+  const btn = primary => ({ flex: 1, padding: "12px 10px", borderRadius: 12, cursor: "pointer", fontFamily: FONT,
+    fontSize: 14.5, fontWeight: 700, border: primary ? "none" : `1px solid ${th.border}`,
+    background: primary ? th.accent : th.surface, color: primary ? "#fff" : th.text });
+  return (
+    <Modal onClose={onClose} maxWidth={360} th={th}>
+      <ModalHeader title="קיצור דרך למסך הבית" icon="link" onClose={onClose} th={th} />
+      <div style={{ direction: "rtl", color: th.text, fontSize: 14.5, lineHeight: 1.6 }}>
+        <p style={{ margin: "0 0 10px" }}>אייקון שפותח ישר את <b>"{name}"</b>:</p>
+        <ol style={{ margin: "0 0 14px", paddingRight: 20 }}>
+          <li>{android ? <>לחץ <b>פתח בכרום</b></> : <>העתק את הקישור ופתח אותו בדפדפן</>}</li>
+          <li>בכרום: <b>⋮</b> (למעלה) ← <b>הוספה למסך הבית</b></li>
+          <li>תן לאייקון שם ואשר</li>
+        </ol>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          {android && <a href={intent} style={{ ...btn(true), textAlign: "center", textDecoration: "none" }}>פתח בכרום</a>}
+          <button onClick={copy} style={btn(!android)}>{copied ? "הועתק ✓" : "העתק קישור"}</button>
+        </div>
+        <div style={{ fontSize: 12, color: th.muted, direction: "ltr", wordBreak: "break-all", userSelect: "all" }}>{url}</div>
+      </div>
+    </Modal>
+  );
+}
+const autoTitleOf = n => (n.text || "").split(/\r?\n/).map(l => l.replace(/^\s*(?:\[[ xX]\]\s*|[-*]\s+)/, "").trim()).find(Boolean) || "הפתק";
 
 // Today → time, otherwise a short date (ColorNote style).
 function fmtStamp(ts) {

@@ -939,7 +939,10 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     const idea = ideas.find(i => i.id === pendingIdeaId);
     setPendingIdeaId(null);
     try { history.replaceState({ ifApp: true }, "", location.pathname); } catch { /* ignore */ }
-    if (idea) setEditIdea(idea);
+    // A note opens in the notes editor (home-screen shortcut, note reminder);
+    // anything else in the idea editor as before.
+    if (idea?.status === "note") openNote(idea.id);
+    else if (idea) setEditIdea(idea);
   }, [pendingIdeaId, ideas]);
   useEffect(() => {
     if (!pendingSnoozeId || !ideas) return;
@@ -1918,6 +1921,7 @@ function Guide({ onClose, onLog, th }) {
     { icon: "folder", title: "שלב 3 — העבר לפרויקט", text: 'כשפתק הופך למשהו רציני — ⋮ ← "העבר לפרויקט", והוא הופך לרעיון פעיל בתוכו. הפרויקטים הם הספריות שבהן העבודה מתנהלת.' },
   ];
   const features = [
+    { icon: "link", title: "קיצור דרך לפתק מסוים", text: "פתק שאתה פותח הרבה? בתוך הפתק: ⋮ ← 'קיצור דרך למסך הבית' ← 'פתח בכרום', ובכרום: ⋮ ← 'הוספה למסך הבית'. האייקון החדש פותח ישר את הפתק." },
     { icon: "add", title: '⭐ קיצור "פתק חדש" למסך הבית', text: 'הדרך המהירה ביותר לתפוס מחשבה: לחיצה ארוכה על אייקון IdeaFlow במסך הבית ← בתפריט שקופץ בחר "פתק" ← גרור אותו למסך הבית. עכשיו יש לך אייקון ייעודי שפותח בנגיעה אחת ישר מסך כתיבת פתק — עם מקלדת, בלי מסך פתיחה. (במחשב אפשר גם קישור לכתובת ‎/?note=1‎.)' },
     { icon: "edit", title: "עיצוב טקסט", text: 'בעורך הפתק יש פס עיצוב עדין: כותרות (H1/H2), קישור בתוך הטקסט, הדגשת מרקר, ומודגש/נטוי/קו-תחתון/קו-חוצה. מסמנים מילים ולוחצים — העיצוב נשמר ומוצג גם ברשימת הפתקים.' },
     { icon: "photo", title: "תמונות והקלטת קול", text: 'במסך כתיבת הפתק: כפתור מיקרופון מקליט קול (נשמר עם נגן להאזנה), וכפתור תמונה מוסיף תמונות — נשמרות קטנות, לחיצה מגדילה למסך מלא ואפשר לדפדף בין כולן. אפשר לבחור כמה תמונות יחד, וגם פשוט להדביק תמונה מהלוח (צילום מסך או "העתק תמונה") ישר לתוך הפתק.' },
