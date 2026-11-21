@@ -941,7 +941,14 @@ function Shell({ user, dark, setDark, look, setLook, th }) {
     try { history.replaceState({ ifApp: true }, "", location.pathname); } catch { /* ignore */ }
     // A note opens in the notes editor (home-screen shortcut, note reminder);
     // anything else in the idea editor as before.
-    if (idea?.status === "note") openNote(idea.id);
+    // Inlined on purpose — NOT openNote(): that const is declared below the
+    // loading early-return, so on a render that returned the splash it is
+    // still uninitialized and calling it here crashed the app (TDZ, 6.27).
+    if (idea?.status === "note") {
+      try { sessionStorage.setItem("if_open_note", idea.id); } catch { /* ignore */ }
+      window.dispatchEvent(new CustomEvent("if-open-note", { detail: idea.id }));
+      setTab("notes"); setOpenProjectId(null);
+    }
     else if (idea) setEditIdea(idea);
   }, [pendingIdeaId, ideas]);
   useEffect(() => {
